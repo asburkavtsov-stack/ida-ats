@@ -7,6 +7,7 @@ import Kanban from './pages/Kanban';
 import Candidates from './pages/Candidates';
 import Vacancies from './pages/Vacancies';
 import Analytics from './pages/Analytics';
+import Admin from './pages/Admin';
 import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -45,6 +46,7 @@ function App() {
     case 'candidates': return <Candidates key={refreshKey} searchQuery={searchQuery} />;
     case 'vacancies':  return <Vacancies />;
     case 'analytics':  return <Analytics />;
+    case 'admin':      return <Admin />;
     default:           return <Dashboard />;
   }
 };

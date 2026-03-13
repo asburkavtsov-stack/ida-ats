@@ -2,8 +2,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .models import Candidate, Vacancy, UserProfile
-from .serializers import CandidateSerializer, VacancySerializer
+from .models import Candidate, Vacancy, UserProfile, Organization
+from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer
 
 
 def get_user_org(user):
@@ -26,6 +26,9 @@ class VacancyViewSet(viewsets.ModelViewSet):
         org = get_user_org(self.request.user)
         serializer.save(organization=org)
 
+class OrganizationViewSet(viewsets.ModelViewSet):
+    queryset = Organization.objects.all()
+    serializer_class = OrganizationSerializer
 
 class CandidateViewSet(viewsets.ModelViewSet):
     serializer_class = CandidateSerializer

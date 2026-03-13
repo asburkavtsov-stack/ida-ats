@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Candidate, Vacancy
+from .models import Organization
 
 class VacancySerializer(serializers.ModelSerializer):
     class Meta:
@@ -16,3 +17,7 @@ class CandidateSerializer(serializers.ModelSerializer):
             'phone', 'vacancy', 'vacancy_title',
             'status', 'notes', 'created_at'
         ]
+class OrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = '__all__'

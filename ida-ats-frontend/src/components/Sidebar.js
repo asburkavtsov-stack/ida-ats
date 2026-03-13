@@ -7,6 +7,7 @@ const navItems = [
   { key: 'candidates', icon: '◉', label: 'Кандидати',  badgeKey: 'candidates' },
   { key: 'vacancies',  icon: '◫', label: 'Вакансії',   badgeKey: 'vacancies' },
   { key: 'analytics',  icon: '◎', label: 'Аналітика',  badgeKey: null },
+  { key: 'admin', icon: '⚙', label: 'Адмінка', badgeKey: null },
 ];
 
 function Sidebar({ currentPage, onNavigate, onLogout }) {
@@ -62,7 +63,7 @@ function Sidebar({ currentPage, onNavigate, onLogout }) {
         <div style={{ fontFamily: 'DM Mono', fontSize: '0.6rem', color: 'rgba(200,176,182,0.3)', letterSpacing: '2px', textTransform: 'uppercase', padding: '0 8px', marginBottom: '6px' }}>
           Головне
         </div>
-        {navItems.map(item => (
+        {navItems.filter(item => item.key !== 'admin' || user?.role === 'superadmin').map(item => (
           <div
             key={item.key}
             onClick={() => onNavigate(item.key)}
