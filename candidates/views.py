@@ -2,6 +2,8 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.contrib.auth.models import User
+from rest_framework import serializers as drf_serializers
 from .models import Candidate, Vacancy, UserProfile, Organization
 from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer
 
@@ -17,10 +19,23 @@ class VacancyViewSet(viewsets.ModelViewSet):
     serializer_class = VacancySerializer
 
     def get_queryset(self):
-        org = get_user_org(self.request.user)
-        if org:
-            return Vacancy.objects.filter(organization=org)
-        return Vacancy.objects.all()
+        try:
+            role = self.request.user.profile.role
+        except:
+            role = None
+
+        org_id = self.request.query_params.get('organization')
+
+        if role == 'superadmin':
+            queryset = Vacancy.objects.all()
+            if org_id:
+                queryset = queryset.filter(organization_id=org_id)
+        else:
+            org = get_user_org(self.request.user)
+            queryset = Vacancy.objects.filter(organization=org) if org else Vacancy.objects.all()
+
+        return queryset
+
 
     def perform_create(self, serializer):
         org = get_user_org(self.request.user)
@@ -39,6 +54,9 @@ class CandidateViewSet(viewsets.ModelViewSet):
 
         vacancy = self.request.query_params.get('vacancy')
         status_filter = self.request.query_params.get('status')
+        org_id = self.request.query_params.get('organization')
+        if org_id:
+            queryset = queryset.filter(organization_id=org_id)
 
         if vacancy:
             queryset = queryset.filter(vacancy_id=vacancy)
@@ -82,3 +100,39 @@ def current_user(request):
         'organization': org_data,
         'role': role,
     })
+
+class UserListView(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        org_id = request.query_params.get('organization')
+        profiles = UserProfile.objects.filter(organization_id=org_id).select_related('user')
+        data = [{
+            'id': p.user.id,
+            'username': p.user.username,
+            'first_name': p.user.first_name,
+            'last_name': p.user.last_name,
+            'email': p.user.email,
+            'role': p.role,
+        } for p in profiles]
+        return Response(data)
+
+    def create(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+        first_name = request.data.get('first_name', '')
+        last_name = request.data.get('last_name', '')
+        email = request.data.get('email', '')
+        org_id = request.data.get('organization')
+        role = request.data.get('role', 'hr')
+
+        if User.objects.filter(username=username).exists():
+            return Response({'error': 'Username вже існує'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.create_user(
+            username=username, password=password,
+            first_name=first_name, last_name=last_name, email=email
+        )
+        org = Organization.objects.get(id=org_id)
+        UserProfile.objects.create(user=user, organization=org, role=role)
+        return Response({'success': True}, status=status.HTTP_201_CREATED)

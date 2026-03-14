@@ -1,0 +1,1 @@
+web: gunicorn ida_ats.wsgi --log-file -

@@ -1,18 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const navItems = [
+/*const navItems = userRole === 'superadmin' ? [
+  { key: 'admin', icon: '⚙', label: 'Адмінка IDA', badgeKey: null },
+] : [
   { key: 'dashboard',  icon: '◈', label: 'Дашборд',   badgeKey: null },
-  { key: 'kanban', icon: '⊞', label: 'Канбан', badgeKey: 'kanban' },
+  { key: 'kanban',     icon: '⊞', label: 'Канбан',     badgeKey: 'kanban' },
   { key: 'candidates', icon: '◉', label: 'Кандидати',  badgeKey: 'candidates' },
   { key: 'vacancies',  icon: '◫', label: 'Вакансії',   badgeKey: 'vacancies' },
   { key: 'analytics',  icon: '◎', label: 'Аналітика',  badgeKey: null },
-  { key: 'admin', icon: '⚙', label: 'Адмінка', badgeKey: null },
-];
+];*/
 
-function Sidebar({ currentPage, onNavigate, onLogout }) {
+function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
   const [user, setUser] = useState(null);
   const [counts, setCounts] = useState({ candidates: 0, vacancies: 0 });
+  const navItems = userRole === 'superadmin' ? [
+  { key: 'admin', icon: '⚙', label: 'Адмінка IDA', badgeKey: null },
+  ] : [
+  { key: 'dashboard',  icon: '◈', label: 'Дашборд',   badgeKey: null },
+  { key: 'kanban',     icon: '⊞', label: 'Канбан',     badgeKey: 'kanban' },
+  { key: 'candidates', icon: '◉', label: 'Кандидати',  badgeKey: 'candidates' },
+  { key: 'vacancies',  icon: '◫', label: 'Вакансії',   badgeKey: 'vacancies' },
+  { key: 'analytics',  icon: '◎', label: 'Аналітика',  badgeKey: null },
+  ];
 
   useEffect(() => {
     axios.get('http://127.0.0.1:8000/api/me/')
