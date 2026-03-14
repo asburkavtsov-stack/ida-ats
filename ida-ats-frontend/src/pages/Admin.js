@@ -26,8 +26,8 @@ function OrgModal({ org, onClose, onSave }) {
   const handleSubmit = () => {
     setSaving(true);
     const req = org
-      ? axios.patch(`http://127.0.0.1:8000/api/organizations/${org.id}/`, form)
-      : axios.post('http://127.0.0.1:8000/api/organizations/', form);
+      ? axios.patch(`/api/organizations/${org.id}/`, form)
+      : axios.post('/api/organizations/', form);
     req.then(() => onSave()).catch(() => {}).finally(() => setSaving(false));
   };
 
@@ -79,7 +79,7 @@ function UsersModal({ org, onClose }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get(`http://127.0.0.1:8000/api/users/?organization=${org.id}`)
+    axios.get(`/api/users/?organization=${org.id}`)
       .then(res => { setUsers(res.data); setLoading(false); })
       .catch(() => setLoading(false));
   }, [org.id]);
@@ -128,7 +128,7 @@ function Admin({ onViewOrg }) {
 
   const fetchOrgs = () => {
     setLoading(true);
-    axios.get('http://127.0.0.1:8000/api/organizations/')
+    axios.get('/api/organizations/')
       .then(res => { setOrgs(res.data); setLoading(false); })
       .catch(() => setLoading(false));
   };
@@ -136,7 +136,7 @@ function Admin({ onViewOrg }) {
   useEffect(() => { fetchOrgs(); }, []);
 
   const handleDelete = (id) => {
-    axios.delete(`http://127.0.0.1:8000/api/organizations/${id}/`)
+    axios.delete(`/api/organizations/${id}/`)
       .then(() => { fetchOrgs(); setConfirmDelete(null); })
       .catch(() => {});
   };

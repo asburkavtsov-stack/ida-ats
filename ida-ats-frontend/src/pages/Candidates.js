@@ -25,7 +25,7 @@ function Candidates({ searchQuery = '' }) {
   const [candidates, setCandidates] = useState([]);
 
   useEffect(() => {
-    axios.get('http://127.0.0.1:8000/api/candidates/')
+    axios.get('/api/candidates/')
       .then(res => setCandidates(res.data))
       .catch(err => console.error(err));
   }, []);

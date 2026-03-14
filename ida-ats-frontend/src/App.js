@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './styles/global.css';
+import API_URL from './api';
 
 import Dashboard from './pages/Dashboard';
 import Kanban from './pages/Kanban';
@@ -13,6 +14,8 @@ import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import AddCandidateModal from './components/AddCandidateModal';
 
+axios.defaults.baseURL = API_URL;
+
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [showModal, setShowModal] = useState(false);
@@ -23,7 +26,7 @@ function App() {
   const [viewOrgId, setViewOrgId] = useState(null);
 
   const fetchRole = () => {
-    axios.get('http://127.0.0.1:8000/api/me/')
+    axios.get('/api/me/')
       .then(res => {
         const role = res.data.role;
         setUserRole(role);

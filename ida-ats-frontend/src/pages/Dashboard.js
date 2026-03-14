@@ -9,8 +9,8 @@ function Dashboard() {
 
  useEffect(() => {
     Promise.all([
-      axios.get('http://127.0.0.1:8000/api/candidates/'),
-      axios.get('http://127.0.0.1:8000/api/vacancies/')
+      axios.get('/api/candidates/'),
+      axios.get('/api/vacancies/')
     ]).then(([candidatesRes, vacanciesRes]) => {
       const candidates = candidatesRes.data;
       const vacancies = vacanciesRes.data;

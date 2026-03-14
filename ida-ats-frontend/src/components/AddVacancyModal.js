@@ -13,7 +13,7 @@ function AddVacancyModal({ onClose, onAdded }) {
 
   const handleSubmit = () => {
     if (!form.title) return;
-    axios.post('http://127.0.0.1:8000/api/vacancies/', form)
+    axios.post('/api/vacancies/', form)
       .then(() => { onAdded(); onClose(); })
       .catch(err => console.error(err));
   };

@@ -9,7 +9,7 @@ function AddCandidateModal({ onClose, onAdded }) {
   });
 
   useEffect(() => {
-    axios.get('http://127.0.0.1:8000/api/vacancies/')
+    axios.get('/api/vacancies/')
       .then(res => setVacancies(res.data));
   }, []);
 
@@ -18,7 +18,7 @@ function AddCandidateModal({ onClose, onAdded }) {
   };
 
   const handleSubmit = () => {
-    axios.post('http://127.0.0.1:8000/api/candidates/', form)
+    axios.post('/api/candidates/', form)
       .then(() => { onAdded(); onClose(); })
       .catch(err => console.error(err));
   };

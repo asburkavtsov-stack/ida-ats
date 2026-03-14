@@ -15,7 +15,7 @@ function Vacancies() {
   const [showModal, setShowModal] = useState(false);
 
   const loadVacancies = () => {
-    axios.get('http://127.0.0.1:8000/api/vacancies/')
+    axios.get('/api/vacancies/')
       .then(res => setVacancies(res.data))
       .catch(err => console.error(err));
   };

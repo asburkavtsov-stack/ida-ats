@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import API_URL from '../api';
 import axios from 'axios';
+axios.defaults.baseURL = API_URL;
 
 function Login({ onLogin }) {
   const [form, setForm] = useState({ username: '', password: '' });
@@ -13,7 +15,7 @@ function Login({ onLogin }) {
   const handleSubmit = () => {
     setLoading(true);
     setError('');
-    axios.post('http://127.0.0.1:8000/api/auth/login/', form)
+    axios.post('/api/auth/login/', form)
       .then(res => {
         localStorage.setItem('access_token', res.data.access);
         localStorage.setItem('refresh_token', res.data.refresh);

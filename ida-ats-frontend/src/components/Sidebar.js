@@ -25,18 +25,18 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
   ];
 
   useEffect(() => {
-    axios.get('http://127.0.0.1:8000/api/me/')
+    axios.get('/api/me/')
       .then(res => setUser(res.data))
       .catch(() => {});
 
-    axios.get('http://127.0.0.1:8000/api/candidates/')
+    axios.get('/api/candidates/')
     .then(res => {
       const active = res.data.filter(c => c.status !== 'rejected');
       setCounts(c => ({ ...c, candidates: res.data.length, kanban: active.length }));
     })
     .catch(() => {});
 
-    axios.get('http://127.0.0.1:8000/api/vacancies/')
+    axios.get('/api/vacancies/')
       .then(res => setCounts(c => ({ ...c, vacancies: res.data.length })))
       .catch(() => {});
   }, []);

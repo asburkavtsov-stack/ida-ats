@@ -2,10 +2,6 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
-const vacancyFilters = [
-  { key: 'all', label: 'Всі' },
-];
-
 const columns = [
   { key: 'new',        label: 'Нові',       color: '#7a1a2e' },
   { key: 'screening',  label: 'Скринінг',   color: '#b03050' },
@@ -33,18 +29,18 @@ function Kanban({ searchQuery = '', orgId = null }) {
 
   useEffect(() => {
     const url = orgId
-      ? `http://127.0.0.1:8000/api/candidates/?organization=${orgId}`
-      : 'http://127.0.0.1:8000/api/candidates/';
+      ? `/api/candidates/?organization=${orgId}`
+      : '/api/candidates/';
     axios.get(url).then(res => setCandidates(res.data)).catch(console.error);
 
     const vacUrl = orgId
-      ? `http://127.0.0.1:8000/api/vacancies/?organization=${orgId}`
-      : 'http://127.0.0.1:8000/api/vacancies/';
+      ? `/api/vacancies/?organization=${orgId}`
+      : '/api/vacancies/';
     axios.get(vacUrl).then(res => setVacancies(res.data)).catch(console.error);
   }, [orgId]);
 
   const updateStatus = (candidateId, newStatus) => {
-    axios.patch(`http://127.0.0.1:8000/api/candidates/${candidateId}/update_status/`, { status: newStatus })
+    axios.patch(`/api/candidates/${candidateId}/update_status/`, { status: newStatus })
       .then(res => setCandidates(prev => prev.map(c => c.id === candidateId ? res.data : c)));
   };
 
