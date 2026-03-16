@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const allCandidates = [ ];
-
 const statusConfig = {
   new:       { label: 'Новий',      bg: '#f9eaed', text: '#7a1a2e' },
   screening: { label: 'Скринінг',   bg: '#fff3e0', text: '#c94f2a' },

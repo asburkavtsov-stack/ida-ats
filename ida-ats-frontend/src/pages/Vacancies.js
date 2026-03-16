@@ -2,13 +2,11 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import AddVacancyModal from '../components/AddVacancyModal';
 
-const vacancies = [ ];
-
-const statusConfig = {
+/*const statusConfig = {
   active: { label: 'Активна',    bg: '#f9eaed', text: '#7a1a2e' },
   final:  { label: 'Фінал',      bg: '#fff3e0', text: '#c94f2a' },
   paused: { label: 'Призупинена',bg: '#f5f5f5', text: '#757575' },
-};
+};*/
 
 function Vacancies() {
   const [vacancies, setVacancies] = useState([]);
