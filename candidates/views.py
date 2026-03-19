@@ -32,7 +32,10 @@ class VacancyViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(organization_id=org_id)
         else:
             org = get_user_org(self.request.user)
-            queryset = Vacancy.objects.filter(organization=org) if org else Vacancy.objects.all()
+            if org:
+                queryset = Vacancy.objects.filter(organization=org)
+            else:
+                queryset = Vacancy.objects.none()
 
         return queryset
 
@@ -49,14 +52,26 @@ class CandidateViewSet(viewsets.ModelViewSet):
     serializer_class = CandidateSerializer
 
     def get_queryset(self):
-        org = get_user_org(self.request.user)
-        queryset = Candidate.objects.filter(organization=org) if org else Candidate.objects.all()
+        try:
+            role = self.request.user.profile.role
+        except:
+            role = None
+
+        org_id = self.request.query_params.get('organization')
+
+        if role == 'superadmin':
+            queryset = Candidate.objects.all()
+            if org_id:
+                queryset = queryset.filter(organization_id=org_id)
+        else:
+            org = get_user_org(self.request.user)
+            if org:
+                queryset = Candidate.objects.filter(organization=org)
+            else:
+                queryset = Candidate.objects.none()
 
         vacancy = self.request.query_params.get('vacancy')
         status_filter = self.request.query_params.get('status')
-        org_id = self.request.query_params.get('organization')
-        if org_id:
-            queryset = queryset.filter(organization_id=org_id)
 
         if vacancy:
             queryset = queryset.filter(vacancy_id=vacancy)
