@@ -9,6 +9,7 @@ import Candidates from './pages/Candidates';
 import Vacancies from './pages/Vacancies';
 import Analytics from './pages/Analytics';
 import Admin from './pages/Admin';
+import Users from './pages/Users';
 import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -71,6 +72,7 @@ function App() {
       case 'vacancies':  return <Vacancies />;
       case 'analytics':  return <Analytics />;
       case 'admin':      return <Admin />;
+      case 'users':      return <Users />;
       default:           return <Dashboard />;
     }
   };
@@ -96,6 +98,8 @@ function App() {
                 </div>
                 <Kanban key={viewOrgId} searchQuery="" orgId={viewOrgId} />
               </div>
+            ) : currentPage === 'users' ? (
+              <Users />
             ) : (
               <Admin onViewOrg={setViewOrgId} />
             )}

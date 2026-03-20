@@ -74,23 +74,117 @@ function OrgModal({ org, onClose, onSave }) {
   );
 }
 
+const emptyUserForm = { first_name: '', last_name: '', username: '', email: '', password: '', role: 'hr' };
+
 function UsersModal({ org, onClose }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editUser, setEditUser] = useState(null);
+  const [form, setForm] = useState(emptyUserForm);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
+  const fetchUsers = () => {
     axios.get(`/api/users/?organization=${org.id}`)
       .then(res => { setUsers(res.data); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [org.id]);
+  };
+
+  useEffect(() => { fetchUsers(); }, [org.id]);
+
+  const handleEdit = (u) => {
+    setEditUser(u);
+    setForm({ first_name: u.first_name, last_name: u.last_name, username: u.username, email: u.email, password: '', role: u.role });
+    setShowForm(true);
+  };
+
+  const handleSubmit = () => {
+    setSaving(true);
+    setError('');
+    const req = editUser
+      ? axios.patch(`/api/users/${editUser.id}/`, { ...form, organization: org.id })
+      : axios.post('/api/users/', { ...form, organization: org.id });
+
+    req.then(() => {
+      fetchUsers();
+      setShowForm(false);
+      setEditUser(null);
+      setForm(emptyUserForm);
+    })
+    .catch(err => setError(err.response?.data?.error || 'Помилка'))
+    .finally(() => setSaving(false));
+  };
+
+  const handleDelete = (userId) => {
+    if (!window.confirm('Видалити юзера?')) return;
+    axios.delete(`/api/users/${userId}/`)
+      .then(() => fetchUsers())
+      .catch(() => {});
+  };
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '28px', width: '480px', border: '1px solid var(--border)', maxHeight: '80vh', overflowY: 'auto' }}>
+      <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '28px', width: '520px', border: '1px solid var(--border)', maxHeight: '85vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>Юзери — {org.name}</div>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button onClick={() => { setShowForm(!showForm); setEditUser(null); setForm(emptyUserForm); }}
+              style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'DM Sans', fontWeight: 600 }}>
+              + Додати
+            </button>
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+          </div>
         </div>
+
+        {/* Форма */}
+        {showForm && (
+          <div style={{ background: 'var(--bg)', borderRadius: '12px', padding: '16px', marginBottom: '20px', border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '14px' }}>
+              {editUser ? 'Редагувати юзера' : 'Новий юзер'}
+            </div>
+            {error && <div style={{ color: '#dc2626', fontSize: '0.78rem', marginBottom: '10px', fontFamily: 'DM Mono' }}>{error}</div>}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Ім'я</div>
+                <input value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))} style={inputStyle} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Прізвище</div>
+                <input value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))} style={inputStyle} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Username</div>
+                <input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} disabled={!!editUser} style={{ ...inputStyle, opacity: editUser ? 0.6 : 1 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Email</div>
+                <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={inputStyle} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>{editUser ? 'Новий пароль (необов\'язково)' : 'Пароль'}</div>
+                <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} style={inputStyle} />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Роль</div>
+                <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} style={inputStyle}>
+                  <option value="hr">HR менеджер</option>
+                  <option value="admin">Адмін організації</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '14px', justifyContent: 'flex-end' }}>
+              <button onClick={() => { setShowForm(false); setEditUser(null); }} style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans', fontSize: '0.82rem' }}>
+                Скасувати
+              </button>
+              <button onClick={handleSubmit} disabled={saving} style={{ padding: '7px 16px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans', fontSize: '0.82rem' }}>
+                {saving ? 'Збереження...' : editUser ? 'Зберегти' : 'Створити'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Список */}
         {loading ? (
           <div style={{ color: 'var(--muted)', fontFamily: 'DM Mono', fontSize: '0.82rem' }}>Завантаження...</div>
         ) : users.length === 0 ? (
@@ -108,7 +202,15 @@ function UsersModal({ org, onClose }) {
                   </div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>{u.email}</div>
                 </div>
-                <div style={{ fontSize: '0.72rem', fontFamily: 'DM Mono', color: 'var(--muted)' }}>{u.role}</div>
+                <div style={{ fontSize: '0.72rem', fontFamily: 'DM Mono', color: 'var(--muted)', marginRight: '8px' }}>{u.role}</div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button onClick={() => handleEdit(u)} style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
+                    ✏️
+                  </button>
+                  <button onClick={() => handleDelete(u.id)} style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
+                    🗑
+                  </button>
+                </div>
               </div>
             ))}
           </div>

@@ -129,7 +129,35 @@ class UserListView(viewsets.ViewSet):
             'last_name': p.user.last_name,
             'email': p.user.email,
             'role': p.role,
+            'profile_id': p.id,
         } for p in profiles]
+        return Response(data)
+
+    @action(detail=False, methods=['get'])
+    def all(self, request):
+        users = User.objects.all().select_related('profile__organization')
+        data = []
+        for u in users:
+            try:
+                profile = u.profile
+                org = profile.organization
+                role = profile.role
+                org_id = org.id if org else None
+                org_name = org.name if org else None
+            except:
+                role = None
+                org_id = None
+                org_name = None
+            data.append({
+                'id': u.id,
+                'username': u.username,
+                'first_name': u.first_name,
+                'last_name': u.last_name,
+                'email': u.email,
+                'role': role,
+                'organization_id': org_id,
+                'organization_name': org_name,
+            })
         return Response(data)
 
     def create(self, request):
@@ -148,6 +176,43 @@ class UserListView(viewsets.ViewSet):
             username=username, password=password,
             first_name=first_name, last_name=last_name, email=email
         )
-        org = Organization.objects.get(id=org_id)
+        org = Organization.objects.get(id=org_id) if org_id else None
         UserProfile.objects.create(user=user, organization=org, role=role)
         return Response({'success': True}, status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, pk=None):
+        try:
+            user = User.objects.get(id=pk)
+        except User.DoesNotExist:
+            return Response({'error': 'Юзер не знайдений'}, status=status.HTTP_404_NOT_FOUND)
+
+        user.first_name = request.data.get('first_name', user.first_name)
+        user.last_name = request.data.get('last_name', user.last_name)
+        user.email = request.data.get('email', user.email)
+        if request.data.get('password'):
+            user.set_password(request.data.get('password'))
+        user.save()
+
+        try:
+            profile = user.profile
+            profile.role = request.data.get('role', profile.role)
+            org_id = request.data.get('organization')
+            if org_id:
+                profile.organization = Organization.objects.get(id=org_id)
+            elif org_id == '':
+                profile.organization = None
+            profile.save()
+        except UserProfile.DoesNotExist:
+            org_id = request.data.get('organization')
+            org = Organization.objects.get(id=org_id) if org_id else None
+            UserProfile.objects.create(user=user, organization=org, role=request.data.get('role', 'hr'))
+
+        return Response({'success': True})
+
+    def destroy(self, request, pk=None):
+        try:
+            user = User.objects.get(id=pk)
+            user.delete()
+            return Response({'success': True})
+        except User.DoesNotExist:
+            return Response({'error': 'Юзер не знайдений'}, status=status.HTTP_404_NOT_FOUND)

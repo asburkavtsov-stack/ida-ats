@@ -15,7 +15,8 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
   const [user, setUser] = useState(null);
   const [counts, setCounts] = useState({ candidates: 0, vacancies: 0 });
   const navItems = userRole === 'superadmin' ? [
-  { key: 'admin', icon: '⚙', label: 'Адмінка IDA', badgeKey: null },
+  { key: 'admin', icon: '⚙', label: 'Організації', badgeKey: null },
+  { key: 'users', icon: '👥', label: 'Юзери', badgeKey: null },
   ] : [
   { key: 'dashboard',  icon: '◈', label: 'Дашборд',   badgeKey: null },
   { key: 'kanban',     icon: '⊞', label: 'Канбан',     badgeKey: 'kanban' },
