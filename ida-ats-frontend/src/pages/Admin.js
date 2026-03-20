@@ -91,7 +91,8 @@ function UsersModal({ org, onClose }) {
       .catch(() => setLoading(false));
   };
 
-  useEffect(() => { fetchUsers(); }, [org.id]);
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+useEffect(() => { fetchUsers(); }, [org.id]);
 
   const handleEdit = (u) => {
     setEditUser(u);
