@@ -103,7 +103,7 @@ const statusColors = {
         {[
           { label: 'Конверсія в оффер', value: `${total > 0 ? Math.round(candidates.filter(c => c.status === 'offer').length / total * 100) : 0}%` },
           { label: 'Активних вакансій', value: vacancies.filter(v => v.is_active).length },
-          { label: 'Відмов', value: candidates.filter(c => c.status === 'reject').length },
+          { label: 'Відмов', value: candidates.filter(c => c.status === 'rejected').length },
         ].map((s, i) => (
           <div key={i} style={{
             background: 'var(--surface)', border: '1px solid var(--border)',

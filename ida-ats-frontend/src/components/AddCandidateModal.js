@@ -3,6 +3,7 @@ import axios from 'axios';
 
 function AddCandidateModal({ onClose, onAdded }) {
   const [vacancies, setVacancies] = useState([]);
+  const [error, setError] = useState('');
   const [form, setForm] = useState({
     first_name: '', last_name: '', email: '',
     phone: '', vacancy: '', status: 'new', notes: '',
@@ -18,11 +19,15 @@ function AddCandidateModal({ onClose, onAdded }) {
   };
 
   const handleSubmit = () => {
+    if (!form.first_name.trim()) { setError("Ім'я обов'язкове"); return; }
+    if (!form.last_name.trim()) { setError('Прізвище обов\'язкове'); return; }
+    if (!form.email.trim()) { setError('Email обов\'язковий'); return; }
+    if (!form.vacancy) { setError('Оберіть вакансію'); return; }
+
     axios.post('/api/candidates/', form)
       .then(() => { onAdded(); onClose(); })
       .catch(err => console.error(err));
   };
-
   const overlay = {
     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
@@ -89,6 +94,11 @@ function AddCandidateModal({ onClose, onAdded }) {
           <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: '0.82rem' }}>
             Скасувати
           </button>
+          {error && (
+            <div style={{ color: '#dc2626', fontSize: '0.78rem', fontFamily: 'DM Mono', marginBottom: '8px' }}>
+              ⚠ {error}
+            </div>
+          )}
           <button onClick={handleSubmit} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
             Зберегти
           </button>

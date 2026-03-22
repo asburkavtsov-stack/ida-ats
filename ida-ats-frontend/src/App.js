@@ -10,6 +10,7 @@ import Vacancies from './pages/Vacancies';
 import Analytics from './pages/Analytics';
 import Admin from './pages/Admin';
 import Users from './pages/Users';
+import Profile from './pages/Profile';
 import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -73,6 +74,7 @@ function App() {
       case 'analytics':  return <Analytics />;
       case 'admin':      return <Admin />;
       case 'users':      return <Users />;
+      case 'profile':    return <Profile />;
       default:           return <Dashboard />;
     }
   };

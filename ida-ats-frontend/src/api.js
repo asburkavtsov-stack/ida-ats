@@ -13,6 +13,20 @@ axios.interceptors.response.use(
       delete axios.defaults.headers.common['Authorization'];
       window.location.href = '/';
     }
+    if (error.response?.status >= 500 || !error.response) {
+      const toast = document.createElement('div');
+      toast.textContent = '⚠ Сервер недоступний. Спробуйте пізніше.';
+      toast.style.cssText = `
+        position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+        background: #dc2626; color: #fff; padding: 12px 20px;
+        border-radius: 10px; font-family: DM Sans, sans-serif;
+        font-size: 0.85rem; font-weight: 600;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        animation: fadeIn 0.2s ease;
+      `;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
     return Promise.reject(error);
   }
 );
