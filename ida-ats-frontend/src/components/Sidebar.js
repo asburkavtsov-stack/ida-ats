@@ -124,18 +124,19 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
             </div>
           </div>
         </div>
-        <div
+        <button
           onClick={onLogout}
           style={{
-            padding: '7px 12px', borderRadius: '8px', cursor: 'pointer',
+            width: '100%', padding: '7px 12px', borderRadius: '8px', cursor: 'pointer',
             color: 'rgba(200,176,182,0.4)', fontSize: '0.75rem',
             fontFamily: 'DM Mono', textAlign: 'center', transition: 'all 0.15s',
+            background: 'transparent', border: 'none',
           }}
           onMouseEnter={e => e.currentTarget.style.color = '#fff'}
           onMouseLeave={e => e.currentTarget.style.color = 'rgba(200,176,182,0.4)'}
         >
           ← Вийти
-        </div>
+        </button>
       </div>
     </div>
   );
