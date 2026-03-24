@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import AddVacancyModal from '../components/AddVacancyModal';
+import Loader from '../components/Loader';
 
 /*const statusConfig = {
   active: { label: 'Активна',    bg: '#f9eaed', text: '#7a1a2e' },
@@ -11,16 +12,20 @@ import AddVacancyModal from '../components/AddVacancyModal';
 function Vacancies() {
   const [vacancies, setVacancies] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+
 
   const loadVacancies = () => {
     axios.get('/api/vacancies/')
-      .then(res => setVacancies(res.data))
-      .catch(err => console.error(err));
+    .then(res => setVacancies(res.data))
+    .catch(err => console.error(err))
+    .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     loadVacancies();
   }, []);
+  if (loading) return <Loader />;
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>

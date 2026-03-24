@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import Loader from '../components/Loader';
 
 const statusConfig = {
   new:       { label: 'Новий',      bg: '#f9eaed', text: '#7a1a2e' },
@@ -21,11 +22,13 @@ const filters = [
 function Candidates({ searchQuery = '' }) {
   const [filter, setFilter] = useState('all');
   const [candidates, setCandidates] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     axios.get('/api/candidates/')
       .then(res => setCandidates(res.data))
-      .catch(err => console.error(err));
+      .catch(err => console.error(err))
+      .finally(() => setLoading(false));
   }, []);
   const filtered = candidates.filter(c => {
     const matchesFilter = filter === 'all' || c.status === filter;
@@ -36,6 +39,7 @@ function Candidates({ searchQuery = '' }) {
     return matchesFilter && matchesSearch;
   });
 
+  if (loading) return <Loader />;
   return (
     <div>
       {/* Фільтри */}

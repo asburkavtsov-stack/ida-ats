@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import Loader from '../components/Loader';
 
 const columns = [
   { key: 'new',        label: 'Нові',       color: '#7a1a2e' },
@@ -26,17 +27,19 @@ function Kanban({ searchQuery = '', orgId = null }) {
   const [filter, setFilter] = useState('all');
   const [candidates, setCandidates] = useState([]);
   const [vacancies, setVacancies] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const url = orgId
-      ? `/api/candidates/?organization=${orgId}`
-      : '/api/candidates/';
-    axios.get(url).then(res => setCandidates(res.data)).catch(console.error);
+    const url = orgId ? `/api/candidates/?organization=${orgId}` : '/api/candidates/';
+    const vacUrl = orgId ? `/api/vacancies/?organization=${orgId}` : '/api/vacancies/';
 
-    const vacUrl = orgId
-      ? `/api/vacancies/?organization=${orgId}`
-      : '/api/vacancies/';
-    axios.get(vacUrl).then(res => setVacancies(res.data)).catch(console.error);
+    Promise.all([axios.get(url), axios.get(vacUrl)])
+      .then(([candidatesRes, vacanciesRes]) => {
+        setCandidates(candidatesRes.data);
+        setVacancies(vacanciesRes.data);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, [orgId]);
 
   const updateStatus = (candidateId, newStatus) => {
@@ -48,15 +51,11 @@ function Kanban({ searchQuery = '', orgId = null }) {
     const { destination, source, draggableId } = result;
     if (!destination) return;
     if (destination.droppableId === source.droppableId) return;
-
-    const candidateId = parseInt(draggableId);
-    const newStatus = destination.droppableId;
-    updateStatus(candidateId, newStatus);
+    updateStatus(parseInt(draggableId), destination.droppableId);
   };
 
   const filtered = candidates.filter(c => {
-    const matchesFilter = filter === 'all' ||
-      (c.vacancy_title && c.vacancy_title.toLowerCase().includes(filter));
+    const matchesFilter = filter === 'all' || (c.vacancy_title && c.vacancy_title.toLowerCase().includes(filter));
     const matchesSearch = searchQuery === '' ||
       `${c.first_name} ${c.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (c.vacancy_title && c.vacancy_title.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -67,6 +66,8 @@ function Kanban({ searchQuery = '', orgId = null }) {
     { key: 'all', label: 'Всі' },
     ...vacancies.map(v => ({ key: v.title.toLowerCase(), label: v.title })),
   ];
+
+  if (loading) return <Loader />;
 
   return (
     <div>
@@ -109,7 +110,6 @@ function Kanban({ searchQuery = '', orgId = null }) {
             const cards = filtered.filter(c => c.status === col.key);
             return (
               <div key={col.key} style={{ width: '250px', flexShrink: 0 }}>
-                {/* Заголовок колонки */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 4px', marginBottom: '10px' }}>
                   <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: col.color }} />
                   <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>{col.label}</span>
@@ -124,12 +124,10 @@ function Kanban({ searchQuery = '', orgId = null }) {
                       ref={provided.innerRef}
                       {...provided.droppableProps}
                       style={{
-                        minHeight: '80px',
-                        borderRadius: '10px',
+                        minHeight: '80px', borderRadius: '10px',
                         background: snapshot.isDraggingOver ? 'rgba(var(--accent-rgb), 0.05)' : 'transparent',
                         border: snapshot.isDraggingOver ? '1px dashed var(--accent)' : '1px dashed transparent',
-                        transition: 'all 0.15s',
-                        padding: '2px',
+                        transition: 'all 0.15s', padding: '2px',
                       }}
                     >
                       {cards.length === 0 && !snapshot.isDraggingOver ? (
@@ -156,10 +154,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
                                 <div style={{ fontSize: '0.88rem', fontWeight: 600, marginBottom: '4px' }}>{c.first_name} {c.last_name}</div>
                                 <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginBottom: '10px' }}>{c.vacancy_title}</div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{
-                                    fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px', borderRadius: '4px',
-                                    background: statusColors[c.status].bg, color: statusColors[c.status].text,
-                                  }}>
+                                  <span style={{ fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px', borderRadius: '4px', background: statusColors[c.status].bg, color: statusColors[c.status].text }}>
                                     {statusLabels[c.status]}
                                   </span>
                                   <span style={{ fontSize: '0.62rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
