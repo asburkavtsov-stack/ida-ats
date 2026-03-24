@@ -51,7 +51,18 @@ function Kanban({ searchQuery = '', orgId = null }) {
     const { destination, source, draggableId } = result;
     if (!destination) return;
     if (destination.droppableId === source.droppableId) return;
-    updateStatus(parseInt(draggableId), destination.droppableId);
+
+    const candidateId = parseInt(draggableId);
+    const newStatus = destination.droppableId;
+    setCandidates(prev => prev.map(c =>
+      c.id === candidateId ? { ...c, status: newStatus } : c
+    ));
+    axios.patch(`/api/candidates/${candidateId}/update_status/`, { status: newStatus })
+      .catch(() => {
+        setCandidates(prev => prev.map(c =>
+          c.id === candidateId ? { ...c, status: source.droppableId } : c
+        ));
+      });
   };
 
   const filtered = candidates.filter(c => {
