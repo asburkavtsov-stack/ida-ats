@@ -42,11 +42,6 @@ function Kanban({ searchQuery = '', orgId = null }) {
       .finally(() => setLoading(false));
   }, [orgId]);
 
-  const updateStatus = (candidateId, newStatus) => {
-    axios.patch(`/api/candidates/${candidateId}/update_status/`, { status: newStatus })
-      .then(res => setCandidates(prev => prev.map(c => c.id === candidateId ? res.data : c)));
-  };
-
   const onDragEnd = (result) => {
     const { destination, source, draggableId } = result;
     if (!destination) return;

@@ -22,6 +22,11 @@ function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [showModal, setShowModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isAuth, setIsAuth] = useState(false);
   const [userRole, setUserRole] = useState(null);
@@ -68,8 +73,8 @@ function App() {
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':  return <Dashboard />;
-      case 'kanban':     return <Kanban key={refreshKey} searchQuery={searchQuery} />;
-      case 'candidates': return <Candidates key={refreshKey} searchQuery={searchQuery} />;
+      case 'kanban':     return <Kanban key={refreshKey} searchQuery={debouncedSearch} />;
+      case 'candidates': return <Candidates key={refreshKey} searchQuery={debouncedSearch} />;
       case 'vacancies':  return <Vacancies />;
       case 'analytics':  return <Analytics />;
       case 'admin':      return <Admin />;
