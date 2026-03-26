@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+
 
 const inputStyle = {
   width: '100%', padding: '9px 12px', borderRadius: '8px',
@@ -85,20 +86,13 @@ function UsersModal({ org, onClose }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchUsers = () => {
+  const fetchUsers = useCallback(() => {
     axios.get(`/api/users/?organization=${org.id}`)
       .then(res => { setUsers(res.data); setLoading(false); })
       .catch(() => setLoading(false));
-  };
+  }, [org.id]);
 
- // eslint-disable-next-line react-hooks/exhaustive-deps
-useEffect(() => { fetchUsers(); }, [org.id]);
-
-  const handleEdit = (u) => {
-    setEditUser(u);
-    setForm({ first_name: u.first_name, last_name: u.last_name, username: u.username, email: u.email, password: '', role: u.role });
-    setShowForm(true);
-  };
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
   const handleSubmit = () => {
     setSaving(true);
