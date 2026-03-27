@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
-
 const inputStyle = {
   width: '100%', padding: '9px 12px', borderRadius: '8px',
   border: '1px solid var(--border)', background: 'var(--bg)',
@@ -93,6 +92,21 @@ function UsersModal({ org, onClose }) {
   }, [org.id]);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  // ✅ ДОДАНО: Функція для редагування юзера
+  const handleEdit = (user) => {
+    setEditUser(user);
+    setForm({
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      username: user.username || '',
+      email: user.email || '',
+      password: '', // Пароль не показуємо, тільки для зміни
+      role: user.role || 'hr'
+    });
+    setShowForm(true);
+    setError('');
+  };
 
   const handleSubmit = () => {
     setSaving(true);
@@ -215,6 +229,28 @@ function UsersModal({ org, onClose }) {
   );
 }
 
+// ✅ ДОДАНО: DeleteConfirmationModal компонент
+function DeleteConfirmationModal({ org, onClose, onConfirm }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '28px', width: '360px', border: '1px solid var(--border)', textAlign: 'center' }}>
+        <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '10px' }}>Видалити організацію?</div>
+        <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '24px' }}>
+          «{org.name}» буде видалено назавжди.
+        </div>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans' }}>
+            Скасувати
+          </button>
+          <button onClick={onConfirm} style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+            Видалити
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Admin({ onViewOrg }) {
   const [orgs, setOrgs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -232,10 +268,20 @@ function Admin({ onViewOrg }) {
 
   useEffect(() => { fetchOrgs(); }, []);
 
+  // ✅ ВИПРАВЛЕНО: Функція handleDelete тепер працює з confirmDelete
   const handleDelete = (id) => {
     axios.delete(`/api/organizations/${id}/`)
       .then(() => { fetchOrgs(); setConfirmDelete(null); })
       .catch(() => {});
+  };
+
+  // ✅ ВИПРАВЛЕНО: Обробник для кнопки ATS
+  const handleViewOrg = (orgId) => {
+    if (onViewOrg) {
+      onViewOrg(orgId);
+    } else {
+      console.warn('onViewOrg не передано як проп');
+    }
   };
 
   return (
@@ -277,7 +323,7 @@ function Admin({ onViewOrg }) {
                 {org.is_active ? 'Активна' : 'Неактивна'}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={() => onViewOrg(org.id)} style={{ padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
+                <button onClick={() => handleViewOrg(org.id)} style={{ padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
                   🖥 ATS
                 </button>
                 <button onClick={() => setUsersOrg(org)} style={{ padding: '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
@@ -305,23 +351,13 @@ function Admin({ onViewOrg }) {
 
       {usersOrg && <UsersModal org={usersOrg} onClose={() => setUsersOrg(null)} />}
 
+      {/* ✅ ВИПРАВЛЕНО: Використовуємо окремий компонент для підтвердження видалення */}
       {confirmDelete && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '28px', width: '360px', border: '1px solid var(--border)', textAlign: 'center' }}>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '10px' }}>Видалити організацію?</div>
-            <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '24px' }}>
-              «{confirmDelete.name}» буде видалено назавжди.
-            </div>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans' }}>
-                Скасувати
-              </button>
-              <button onClick={() => handleDelete(confirmDelete.id)} style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
-                Видалити
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteConfirmationModal
+          org={confirmDelete}
+          onClose={() => setConfirmDelete(null)}
+          onConfirm={() => handleDelete(confirmDelete.id)}
+        />
       )}
     </div>
   );
