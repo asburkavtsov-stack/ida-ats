@@ -19,6 +19,19 @@ const filters = [
   { key: 'rejected',  label: 'Відмова'    },
 ];
 
+const formatDate = (dateString) => {
+  if (!dateString || dateString === 'Invalid date') return '—';
+  
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '—';
+  
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  
+  return `${day}.${month}.${year}`;
+};
+
 function Candidates({ searchQuery = '' }) {
   const [filter, setFilter] = useState('all');
   const [candidates, setCandidates] = useState([]);
@@ -30,6 +43,7 @@ function Candidates({ searchQuery = '' }) {
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
   }, []);
+
   const filtered = candidates.filter(c => {
     const matchesFilter = filter === 'all' || c.status === filter;
     const matchesSearch = searchQuery === '' ||
@@ -40,6 +54,7 @@ function Candidates({ searchQuery = '' }) {
   });
 
   if (loading) return <Loader />;
+
   return (
     <div>
       {/* Фільтри */}
@@ -85,29 +100,30 @@ function Candidates({ searchQuery = '' }) {
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
-            <td style={{ padding: '13px 16px' }}>
-              <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>
-                {c.first_name} {c.last_name}
-              </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '1px' }}>
-                {c.email}
-              </div>
-            </td>
-            <td style={{ padding: '13px 16px', fontSize: '0.82rem' }}>
-              {c.vacancy_title}
-            </td>
-            <td style={{ padding: '13px 16px' }}>
-              <span style={{ fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px', borderRadius: '4px', background: statusConfig[c.status].bg, color: statusConfig[c.status].text }}>
-                {statusConfig[c.status].label}
-              </span>
-            </td>
-            <td style={{ padding: '13px 16px' }}>
+                <td style={{ padding: '13px 16px' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>
+                    {c.first_name} {c.last_name}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '1px' }}>
+                    {c.email}
+                  </div>
+                </td>
+                <td style={{ padding: '13px 16px', fontSize: '0.82rem' }}>
+                  {c.vacancy_title}
+                </td>
+                <td style={{ padding: '13px 16px' }}>
+                  <span style={{ fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px', borderRadius: '4px', background: statusConfig[c.status].bg, color: statusConfig[c.status].text }}>
+                    {statusConfig[c.status].label}
+                  </span>
+                </td>
+                <td style={{ padding: '13px 16px' }}>
                   <span style={{ fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px', borderRadius: '4px', background: 'var(--surface2)', color: 'var(--muted)' }}>
                     {c.source || '—'}
                   </span>
                 </td>
+                {/* 🔧 ВИПРАВЛЕНО: Використовуємо formatDate */}
                 <td style={{ padding: '13px 16px', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)' }}>
-                  {c.created_at ? c.created_at.slice(0, 10) : '—'}
+                  {formatDate(c.created_at)}
                 </td>
               </tr>
             ))}

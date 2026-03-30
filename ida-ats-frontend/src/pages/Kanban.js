@@ -23,7 +23,20 @@ const statusLabels = {
   new: 'Новий', screening: 'Скринінг', interview: 'Співбесіда', offer: 'Оффер', rejected: 'Відмова'
 };
 
-// Генеруємо унікальний ключ для фільтра на основі ID вакансії
+// 🔧 ДОДАНО: Надійне форматування дати
+const formatDate = (dateString) => {
+  if (!dateString || dateString === 'Invalid date') return '';
+  
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  
+  return `${day}.${month}.${year}`;
+};
+
 const getFilterKey = (vacancy) => `vac_${vacancy.id}`;
 
 function Kanban({ searchQuery = '', orgId = null }) {
@@ -45,7 +58,6 @@ function Kanban({ searchQuery = '', orgId = null }) {
       .finally(() => setLoading(false));
   }, [orgId]);
 
-  // Скидаємо фільтр при зміні організації
   useEffect(() => {
     setFilter('all');
   }, [orgId]);
@@ -68,16 +80,13 @@ function Kanban({ searchQuery = '', orgId = null }) {
       });
   };
 
-  // 🔧 ВИПРАВЛЕНА ФІЛЬТРАЦІЯ
   const filtered = candidates.filter(c => {
-    // Фільтр по вакансії - перевіряємо точний збіг за ID
     let matchesFilter = true;
     if (filter !== 'all') {
       const vacancyId = parseInt(filter.replace('vac_', ''));
       matchesFilter = c.vacancy === vacancyId;
     }
 
-    // Пошук по тексту
     const matchesSearch = searchQuery === '' ||
       `${c.first_name} ${c.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (c.vacancy_title && c.vacancy_title.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -88,9 +97,9 @@ function Kanban({ searchQuery = '', orgId = null }) {
   const vacancyFilters = [
     { key: 'all', label: 'Всі' },
     ...vacancies.map(v => ({ 
-      key: getFilterKey(v),  // Унікальний ключ на основі ID
+      key: getFilterKey(v),
       label: v.title,
-      id: v.id  // Зберігаємо ID для фільтрації
+      id: v.id
     })),
   ];
 
@@ -119,7 +128,6 @@ function Kanban({ searchQuery = '', orgId = null }) {
             {v.label}
           </div>
         ))}
-        {/* 🔧 КНОПКА СКИДАННЯ */}
         {filter !== 'all' && (
           <button
             onClick={() => setFilter('all')}
@@ -216,8 +224,9 @@ function Kanban({ searchQuery = '', orgId = null }) {
                                 <span style={{ fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px', borderRadius: '4px', background: statusColors[c.status].bg, color: statusColors[c.status].text }}>
                                   {statusLabels[c.status]}
                                 </span>
+                                {/* 🔧 ВИПРАВЛЕНО: formatDate замість slice */}
                                 <span style={{ fontSize: '0.62rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
-                                  {c.created_at ? c.created_at.slice(0, 10) : ''}
+                                  {formatDate(c.created_at)}
                                 </span>
                                 <div style={{ marginLeft: 'auto', width: '24px', height: '24px', borderRadius: '6px', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)' }}>
                                   {c.first_name?.[0]}{c.last_name?.[0]}

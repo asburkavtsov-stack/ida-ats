@@ -1,13 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
+// 🔧 ДОДАНО: Надійне форматування дати
+const formatDate = (dateString) => {
+  if (!dateString || dateString === 'Invalid date') return '';
+  
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  
+  return `${day}.${month}.${year}`;
+};
+
 function Dashboard() {
   const [stats, setStats] = useState({
     total: 0, active_vacancies: 0, offers: 0, new: 0
   });
   const [activity, setActivity] = useState([]);
 
- useEffect(() => {
+  useEffect(() => {
     Promise.all([
       axios.get('/api/candidates/'),
       axios.get('/api/vacancies/')
@@ -68,8 +82,9 @@ function Dashboard() {
               <div style={{ fontSize: '0.8rem' }}>
                 <strong>{c.first_name} {c.last_name}</strong> · {c.vacancy_title}
               </div>
+              {/* 🔧 ВИПРАВЛЕНО: formatDate замість slice */}
               <div style={{ fontFamily: 'DM Mono', fontSize: '0.65rem', color: 'var(--muted)', marginTop: '2px' }}>
-                {statusLabels[c.status]} · {c.created_at ? c.created_at.slice(0, 10) : ''}
+                {statusLabels[c.status]} · {formatDate(c.created_at)}
               </div>
             </div>
           </div>
