@@ -23,6 +23,9 @@ const statusLabels = {
   new: 'Новий', screening: 'Скринінг', interview: 'Співбесіда', offer: 'Оффер', rejected: 'Відмова'
 };
 
+// Генеруємо унікальний ключ для фільтра на основі ID вакансії
+const getFilterKey = (vacancy) => `vac_${vacancy.id}`;
+
 function Kanban({ searchQuery = '', orgId = null }) {
   const [filter, setFilter] = useState('all');
   const [candidates, setCandidates] = useState([]);
@@ -40,6 +43,11 @@ function Kanban({ searchQuery = '', orgId = null }) {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
+  }, [orgId]);
+
+  // Скидаємо фільтр при зміні організації
+  useEffect(() => {
+    setFilter('all');
   }, [orgId]);
 
   const onDragEnd = (result) => {
@@ -60,17 +68,30 @@ function Kanban({ searchQuery = '', orgId = null }) {
       });
   };
 
+  // 🔧 ВИПРАВЛЕНА ФІЛЬТРАЦІЯ
   const filtered = candidates.filter(c => {
-    const matchesFilter = filter === 'all' || (c.vacancy_title && c.vacancy_title.toLowerCase().includes(filter));
+    // Фільтр по вакансії - перевіряємо точний збіг за ID
+    let matchesFilter = true;
+    if (filter !== 'all') {
+      const vacancyId = parseInt(filter.replace('vac_', ''));
+      matchesFilter = c.vacancy === vacancyId;
+    }
+
+    // Пошук по тексту
     const matchesSearch = searchQuery === '' ||
       `${c.first_name} ${c.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (c.vacancy_title && c.vacancy_title.toLowerCase().includes(searchQuery.toLowerCase()));
+    
     return matchesFilter && matchesSearch;
   });
 
   const vacancyFilters = [
     { key: 'all', label: 'Всі' },
-    ...vacancies.map(v => ({ key: v.title.toLowerCase(), label: v.title })),
+    ...vacancies.map(v => ({ 
+      key: getFilterKey(v),  // Унікальний ключ на основі ID
+      label: v.title,
+      id: v.id  // Зберігаємо ID для фільтрації
+    })),
   ];
 
   if (loading) return <Loader />;
@@ -83,17 +104,39 @@ function Kanban({ searchQuery = '', orgId = null }) {
           Вакансія:
         </span>
         {vacancyFilters.map(v => (
-          <div key={v.key} onClick={() => setFilter(v.key)} style={{
-            padding: '6px 12px', borderRadius: '20px', fontSize: '0.78rem',
-            fontWeight: 500, cursor: 'pointer',
-            border: `1px solid ${filter === v.key ? 'var(--accent)' : 'var(--border)'}`,
-            background: filter === v.key ? 'var(--accent)' : 'var(--surface)',
-            color: filter === v.key ? '#fff' : 'var(--muted)',
-            transition: 'all 0.15s',
-          }}>
+          <div 
+            key={v.key} 
+            onClick={() => setFilter(v.key)} 
+            style={{
+              padding: '6px 12px', borderRadius: '20px', fontSize: '0.78rem',
+              fontWeight: 500, cursor: 'pointer',
+              border: `1px solid ${filter === v.key ? 'var(--accent)' : 'var(--border)'}`,
+              background: filter === v.key ? 'var(--accent)' : 'var(--surface)',
+              color: filter === v.key ? '#fff' : 'var(--muted)',
+              transition: 'all 0.15s',
+            }}
+          >
             {v.label}
           </div>
         ))}
+        {/* 🔧 КНОПКА СКИДАННЯ */}
+        {filter !== 'all' && (
+          <button
+            onClick={() => setFilter('all')}
+            style={{
+              padding: '4px 10px',
+              borderRadius: '6px',
+              border: '1px solid var(--border)',
+              background: 'transparent',
+              color: 'var(--muted)',
+              fontSize: '0.72rem',
+              cursor: 'pointer',
+              marginLeft: '8px',
+            }}
+          >
+            ✕ Скинути
+          </button>
+        )}
       </div>
 
       {/* Summary */}

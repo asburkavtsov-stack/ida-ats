@@ -25,7 +25,7 @@ axios.interceptors.response.use(
         animation: fadeIn 0.2s ease;
       `;
       document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 4000);
+      setTimeout(() => toast.remove(), 6000);
     }
     return Promise.reject(error);
   }
