@@ -136,45 +136,54 @@ function Kanban({ searchQuery = '', orgId = null }) {
                         transition: 'all 0.15s', padding: '2px',
                       }}
                     >
-                      {cards.length === 0 && !snapshot.isDraggingOver ? (
-                        <div style={{ textAlign: 'center', padding: '30px', color: 'var(--muted)', fontSize: '0.8rem', border: '1px dashed var(--border)', borderRadius: '10px' }}>
-                          Немає кандидатів
+                      {cards.length === 0 && (
+                        <div style={{
+                          textAlign: 'center',
+                          padding: '30px 16px',
+                          color: 'var(--muted)',
+                          fontSize: '0.78rem',
+                          border: '1px dashed var(--border)',
+                          borderRadius: '10px',
+                          opacity: snapshot.isDraggingOver ? 0 : 1,
+                          transition: 'opacity 0.15s',
+                          pointerEvents: 'none',
+                        }}>
+                          Перетягніть кандидата сюди
                         </div>
-                      ) : (
-                        cards.map((c, i) => (
-                          <Draggable key={c.id} draggableId={String(c.id)} index={i}>
-                            {(provided, snapshot) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                {...provided.dragHandleProps}
-                                style={{
-                                  background: 'var(--surface)',
-                                  border: `1px solid ${snapshot.isDragging ? 'var(--accent)' : 'var(--border)'}`,
-                                  borderRadius: '10px', padding: '14px', marginBottom: '10px',
-                                  cursor: 'grab', boxShadow: snapshot.isDragging ? '0 8px 24px rgba(0,0,0,0.15)' : 'var(--shadow)',
-                                  transition: 'box-shadow 0.15s',
-                                  ...provided.draggableProps.style,
-                                }}
-                              >
-                                <div style={{ fontSize: '0.88rem', fontWeight: 600, marginBottom: '4px' }}>{c.first_name} {c.last_name}</div>
-                                <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginBottom: '10px' }}>{c.vacancy_title}</div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{ fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px', borderRadius: '4px', background: statusColors[c.status].bg, color: statusColors[c.status].text }}>
-                                    {statusLabels[c.status]}
-                                  </span>
-                                  <span style={{ fontSize: '0.62rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
-                                    {c.created_at ? c.created_at.slice(0, 10) : ''}
-                                  </span>
-                                  <div style={{ marginLeft: 'auto', width: '24px', height: '24px', borderRadius: '6px', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)' }}>
-                                    {c.first_name?.[0]}{c.last_name?.[0]}
-                                  </div>
+                      )}
+                      {cards.map((c, i) => (
+                        <Draggable key={c.id} draggableId={String(c.id)} index={i}>
+                          {(provided, snapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              style={{
+                                background: 'var(--surface)',
+                                border: `1px solid ${snapshot.isDragging ? 'var(--accent)' : 'var(--border)'}`,
+                                borderRadius: '10px', padding: '14px', marginBottom: '10px',
+                                cursor: 'grab', boxShadow: snapshot.isDragging ? '0 8px 24px rgba(0,0,0,0.15)' : 'var(--shadow)',
+                                transition: 'box-shadow 0.15s',
+                                ...provided.draggableProps.style,
+                              }}
+                            >
+                              <div style={{ fontSize: '0.88rem', fontWeight: 600, marginBottom: '4px' }}>{c.first_name} {c.last_name}</div>
+                              <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginBottom: '10px' }}>{c.vacancy_title}</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px', borderRadius: '4px', background: statusColors[c.status].bg, color: statusColors[c.status].text }}>
+                                  {statusLabels[c.status]}
+                                </span>
+                                <span style={{ fontSize: '0.62rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+                                  {c.created_at ? c.created_at.slice(0, 10) : ''}
+                                </span>
+                                <div style={{ marginLeft: 'auto', width: '24px', height: '24px', borderRadius: '6px', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)' }}>
+                                  {c.first_name?.[0]}{c.last_name?.[0]}
                                 </div>
                               </div>
-                            )}
-                          </Draggable>
-                        ))
-                      )}
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
                       {provided.placeholder}
                     </div>
                   )}
