@@ -3,11 +3,8 @@ import axios from 'axios';
 import AddVacancyModal from '../components/AddVacancyModal';
 import Loader from '../components/Loader';
 
-// Статуси для відображення
-const statusConfig = {
-  active: { label: 'Активна', bg: '#f9eaed', text: '#7a1a2e' },
-  closed: { label: 'Закрита', bg: '#f5f5f5', text: '#757575' },
-};
+// 🔧 ВИПРАВЛЕНО: Видалено непотрібний statusConfig
+// Або використовуємо його для статусів вакансії
 
 function Vacancies() {
   const [vacancies, setVacancies] = useState([]);
@@ -36,7 +33,6 @@ function Vacancies() {
     loadData();
   }, []);
 
-  // 🔧 ДОДАНО: Підрахунок статистики по вакансії
   const getVacancyStats = (vacancyId) => {
     const vacancyCandidates = candidates.filter(c => c.vacancy === vacancyId);
     return {
@@ -48,20 +44,17 @@ function Vacancies() {
     };
   };
 
-  // 🔧 ДОДАНО: Відкриття деталей вакансії
   const handleVacancyClick = (vacancy) => {
     setSelectedVacancy(vacancy);
     setViewMode('detail');
   };
 
-  // 🔧 ДОДАНО: Редагування вакансії
   const handleEdit = (e, vacancy) => {
-    e.stopPropagation(); // Щоб не відкривались деталі
+    e.stopPropagation();
     setSelectedVacancy(vacancy);
     setShowEditModal(true);
   };
 
-  // 🔧 ДОДАНО: Закрити/відкрити вакансію
   const handleToggleStatus = async (e, vacancy) => {
     e.stopPropagation();
     try {
@@ -74,7 +67,6 @@ function Vacancies() {
     }
   };
 
-  // 🔧 ДОДАНО: Видалення вакансії
   const handleDelete = async (e, vacancy) => {
     e.stopPropagation();
     if (!window.confirm(`Видалити вакансію "${vacancy.title}"?`)) return;
@@ -88,7 +80,6 @@ function Vacancies() {
     }
   };
 
-  // 🔧 ДОДАНО: Повернення до списку
   const handleBack = () => {
     setViewMode('grid');
     setSelectedVacancy(null);
@@ -96,14 +87,12 @@ function Vacancies() {
 
   if (loading) return <Loader />;
 
-  // 🔧 ДОДАНО: Детальний перегляд вакансії
   if (viewMode === 'detail' && selectedVacancy) {
     const stats = getVacancyStats(selectedVacancy.id);
     const vacancyCandidates = candidates.filter(c => c.vacancy === selectedVacancy.id);
 
     return (
       <div>
-        {/* Хедер з кнопкою назад */}
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
@@ -168,7 +157,6 @@ function Vacancies() {
           </div>
         </div>
 
-        {/* Статистика */}
         <div style={{ 
           display: 'grid', 
           gridTemplateColumns: 'repeat(4, 1fr)', 
@@ -196,7 +184,6 @@ function Vacancies() {
           ))}
         </div>
 
-        {/* Список кандидатів по вакансії */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Кандидати на вакансію</span>
@@ -271,7 +258,6 @@ function Vacancies() {
     );
   }
 
-  // 🔧 ОНОВЛЕНО: Grid view з кліками та статистикою
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -314,19 +300,17 @@ function Vacancies() {
                 e.currentTarget.style.boxShadow = 'var(--shadow)';
               }}
             >
-              {/* Кнопки дій */}
-              <div style={{ 
-                position: 'absolute', 
-                top: '12px', 
-                right: '12px',
-                display: 'flex',
-                gap: '6px',
-                opacity: 0,
-                transition: 'opacity 0.15s',
-              }}
-              className="vacancy-actions"
-              onMouseEnter={e => e.currentTarget.style.opacity = 1}
-              onMouseLeave={e => e.currentTarget.style.opacity = 0}
+              <div 
+                className="vacancy-actions"
+                style={{ 
+                  position: 'absolute', 
+                  top: '12px', 
+                  right: '12px',
+                  display: 'flex',
+                  gap: '6px',
+                  opacity: 0,
+                  transition: 'opacity 0.15s',
+                }}
               >
                 <button 
                   onClick={(e) => handleEdit(e, v)}
@@ -366,7 +350,6 @@ function Vacancies() {
                 {v.department}
               </div>
 
-              {/* 🔧 ОНОВЛЕНО: Реальна статистика */}
               <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
                 <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
                   <strong style={{ color: 'var(--text)', fontFamily: 'DM Mono' }}>{stats.total}</strong> заявок
@@ -388,7 +371,6 @@ function Vacancies() {
                   {v.is_active ? 'Активна' : 'Закрита'}
                 </span>
                 
-                {/* Ініціали HR (заглушка, можна додати реальні дані) */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--muted)' }}>
                   <div style={{ width: '22px', height: '22px', borderRadius: '6px', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, color: '#fff' }}>
                     HR
@@ -401,7 +383,6 @@ function Vacancies() {
         })}
       </div>
 
-      {/* Модалка створення */}
       {showModal && (
         <AddVacancyModal
           onClose={() => setShowModal(false)}
@@ -409,7 +390,6 @@ function Vacancies() {
         />
       )}
 
-      {/* 🔧 ДОДАНО: Модалка редагування */}
       {showEditModal && selectedVacancy && (
         <EditVacancyModal
           vacancy={selectedVacancy}
@@ -424,7 +404,6 @@ function Vacancies() {
   );
 }
 
-// 🔧 ДОДАНО: Компонент модалки редагування
 function EditVacancyModal({ vacancy, onClose, onUpdated }) {
   const [form, setForm] = useState({
     title: vacancy.title || '',
