@@ -9,7 +9,7 @@ function Vacancies() {
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedVacancy, setSelectedVacancy] = useState(null);
-  const [editModalVacancy, setEditModalVacancy] = useState(null); // 🔧 ДОДАНО
+  const [editModalVacancy, setEditModalVacancy] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
   const [updateKey, setUpdateKey] = useState(0);
@@ -48,7 +48,7 @@ function Vacancies() {
   const handleVacancyClick = (vacancy) => {
     console.log('Opening vacancy:', vacancy);
     setSelectedVacancy(vacancy);
-    setEditModalVacancy(vacancy); // 🔧 Зберігаємо для модалки
+    setEditModalVacancy(vacancy);
     setViewMode('detail');
   };
 
@@ -56,7 +56,7 @@ function Vacancies() {
     e.preventDefault();
     e.stopPropagation();
     console.log('Edit clicked:', vacancy);
-    setEditModalVacancy(vacancy); // 🔧 Встановлюємо перед відкриттям
+    setEditModalVacancy(vacancy);
     setShowEditModal(true);
   };
 
@@ -67,6 +67,7 @@ function Vacancies() {
     const newStatus = !vacancy.is_active;
     const originalStatus = vacancy.is_active;
     
+    // Оптимістичне оновлення
     setVacancies(prev => prev.map(v => 
       v.id === vacancy.id ? { ...v, is_active: newStatus } : v
     ));
@@ -76,12 +77,21 @@ function Vacancies() {
     }
     
     try {
-      await axios.patch(`/api/vacancies/${vacancy.id}/`, {
+      const response = await axios.patch(`/api/vacancies/${vacancy.id}/`, {
         is_active: newStatus
       });
-      setUpdateKey(k => k + 1);
+      // 🔧 ОНОВЛЕНО: Якщо API повертає дані, використовуємо їх
+      if (response.data) {
+        setVacancies(prev => prev.map(v => 
+          v.id === vacancy.id ? response.data : v
+        ));
+        if (selectedVacancy && selectedVacancy.id === vacancy.id) {
+          setSelectedVacancy(response.data);
+        }
+      }
     } catch (err) {
       console.error('Помилка оновлення статусу:', err);
+      // Rollback
       setVacancies(prev => prev.map(v => 
         v.id === vacancy.id ? { ...v, is_active: originalStatus } : v
       ));
@@ -110,12 +120,32 @@ function Vacancies() {
   const handleBack = () => {
     setViewMode('grid');
     setSelectedVacancy(null);
-    setEditModalVacancy(null); // 🔧 Очищаємо
+    setEditModalVacancy(null);
   };
 
   const handleBackAndRefresh = () => {
     handleBack();
     setUpdateKey(k => k + 1);
+  };
+
+  // 🔧 НОВА ФУНКЦІЯ: Оновлення вакансії після редагування
+  const handleVacancyUpdated = (updatedVacancy) => {
+    console.log('Vacancy updated:', updatedVacancy);
+    setUpdateKey(k => k + 1);
+    
+    // Оновлюємо в списку
+    setVacancies(prev => prev.map(v => 
+      v.id === updatedVacancy.id ? updatedVacancy : v
+    ));
+    
+    // 🔧 КЛЮЧОВЕ: Оновлюємо selectedVacancy якщо в детальному view
+    if (selectedVacancy && selectedVacancy.id === updatedVacancy.id) {
+      setSelectedVacancy(updatedVacancy);
+    }
+    
+    // Очищаємо стан модалки
+    setShowEditModal(false);
+    setEditModalVacancy(null);
   };
 
   if (loading && vacancies.length === 0) return <Loader />;
@@ -172,7 +202,7 @@ function Vacancies() {
             onClick={() => {
               console.log('Edit in detail, selectedVacancy:', selectedVacancy);
               if (selectedVacancy) {
-                setEditModalVacancy(selectedVacancy); // 🔧 Встановлюємо явно
+                setEditModalVacancy(selectedVacancy);
                 setShowEditModal(true);
               }
             }}
@@ -325,7 +355,6 @@ function Vacancies() {
           )}
         </div>
 
-        {/* 🔧 ВИПРАВЛЕНО: Модалка використовує editModalVacancy */}
         {showEditModal && editModalVacancy && (
           <EditVacancyModal
             vacancy={editModalVacancy}
@@ -333,7 +362,7 @@ function Vacancies() {
               setShowEditModal(false);
               setEditModalVacancy(null);
             }}
-            onUpdated={() => setUpdateKey(k => k + 1)}
+            onUpdated={handleVacancyUpdated} // 🔧 ВИКОРИСТОВУЄМО НОВУ ФУНКЦІЮ
           />
         )}
       </div>
@@ -475,7 +504,6 @@ function Vacancies() {
         />
       )}
 
-      {/* 🔧 ВИПРАВЛЕНО: Модалка редагування для grid view */}
       {showEditModal && editModalVacancy && (
         <EditVacancyModal
           vacancy={editModalVacancy}
@@ -483,7 +511,7 @@ function Vacancies() {
             setShowEditModal(false);
             setEditModalVacancy(null);
           }}
-          onUpdated={() => setUpdateKey(k => k + 1)}
+          onUpdated={handleVacancyUpdated} // 🔧 ВИКОРИСТОВУЄМО НОВУ ФУНКЦІЮ
         />
       )}
     </div>
@@ -498,7 +526,6 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
   });
   const [saving, setSaving] = useState(false);
 
-  // 🔧 ДОДАНО: Оновлення форми при зміні vacancy
   useEffect(() => {
     if (vacancy) {
       setForm({
@@ -519,13 +546,12 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
     
     setSaving(true);
     try {
-      await axios.patch(`/api/vacancies/${vacancy.id}/`, form);
-      onUpdated();
-      onClose();
+      const response = await axios.patch(`/api/vacancies/${vacancy.id}/`, form);
+      // 🔧 ОНОВЛЕНО: Передаємо оновлені дані назад
+      onUpdated(response.data);
     } catch (err) {
       console.error('Помилка оновлення:', err);
       alert('Помилка збереження');
-    } finally {
       setSaving(false);
     }
   };
