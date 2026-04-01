@@ -1,10 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import AddVacancyModal from '../components/AddVacancyModal';
 import Loader from '../components/Loader';
-
-// 🔧 ВИПРАВЛЕНО: Видалено непотрібний statusConfig
-// Або використовуємо його для статусів вакансії
 
 function Vacancies() {
   const [vacancies, setVacancies] = useState([]);
@@ -13,25 +10,30 @@ function Vacancies() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedVacancy, setSelectedVacancy] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'detail'
+  const [viewMode, setViewMode] = useState('grid');
+  // 🔧 ДОДАНО: Стан для відстеження оновлень
+  const [updateKey, setUpdateKey] = useState(0);
 
-  const loadData = () => {
+  // 🔧 ВИПРАВЛЕНО: useCallback для стабільності
+  const loadData = useCallback(async () => {
     setLoading(true);
-    Promise.all([
-      axios.get('/api/vacancies/'),
-      axios.get('/api/candidates/')
-    ])
-      .then(([vacRes, candRes]) => {
-        setVacancies(vacRes.data);
-        setCandidates(candRes.data);
-      })
-      .catch(err => console.error('Помилка завантаження:', err))
-      .finally(() => setLoading(false));
-  };
+    try {
+      const [vacRes, candRes] = await Promise.all([
+        axios.get('/api/vacancies/'),
+        axios.get('/api/candidates/')
+      ]);
+      setVacancies(vacRes.data);
+      setCandidates(candRes.data);
+    } catch (err) {
+      console.error('Помилка завантаження:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData, updateKey]); // 🔧 ДОДАНО: updateKey для примусового оновлення
 
   const getVacancyStats = (vacancyId) => {
     const vacancyCandidates = candidates.filter(c => c.vacancy === vacancyId);
@@ -49,31 +51,61 @@ function Vacancies() {
     setViewMode('detail');
   };
 
+  // 🔧 ВИПРАВЛЕНО: Зупиняємо спливання правильно
   const handleEdit = (e, vacancy) => {
+    e.preventDefault();
     e.stopPropagation();
+    console.log('Edit clicked:', vacancy); // Дебаг
     setSelectedVacancy(vacancy);
     setShowEditModal(true);
   };
 
+  // 🔧 ВИПРАВЛЕНО: Оптимістичне оновлення + примусове перезавантаження
   const handleToggleStatus = async (e, vacancy) => {
+    e.preventDefault();
     e.stopPropagation();
+    
+    const newStatus = !vacancy.is_active;
+    const originalStatus = vacancy.is_active;
+    
+    // Оптимістичне оновлення UI
+    setVacancies(prev => prev.map(v => 
+      v.id === vacancy.id ? { ...v, is_active: newStatus } : v
+    ));
+    
+    // Оновлення selectedVacancy якщо в детальному view
+    if (selectedVacancy && selectedVacancy.id === vacancy.id) {
+      setSelectedVacancy(prev => ({ ...prev, is_active: newStatus }));
+    }
+    
     try {
       await axios.patch(`/api/vacancies/${vacancy.id}/`, {
-        is_active: !vacancy.is_active
+        is_active: newStatus
       });
-      loadData();
+      // 🔧 ДОДАНО: Примусове оновлення даних з сервера
+      setUpdateKey(k => k + 1);
     } catch (err) {
       console.error('Помилка оновлення статусу:', err);
+      // Rollback при помилці
+      setVacancies(prev => prev.map(v => 
+        v.id === vacancy.id ? { ...v, is_active: originalStatus } : v
+      ));
+      if (selectedVacancy && selectedVacancy.id === vacancy.id) {
+        setSelectedVacancy(prev => ({ ...prev, is_active: originalStatus }));
+      }
+      alert('Помилка оновлення статусу');
     }
   };
 
   const handleDelete = async (e, vacancy) => {
+    e.preventDefault();
     e.stopPropagation();
+    
     if (!window.confirm(`Видалити вакансію "${vacancy.title}"?`)) return;
     
     try {
       await axios.delete(`/api/vacancies/${vacancy.id}/`);
-      loadData();
+      setUpdateKey(k => k + 1);
     } catch (err) {
       console.error('Помилка видалення:', err);
       alert('Помилка видалення вакансії');
@@ -85,7 +117,13 @@ function Vacancies() {
     setSelectedVacancy(null);
   };
 
-  if (loading) return <Loader />;
+  // 🔧 ДОДАНО: Оновлення при поверненні до списку
+  const handleBackAndRefresh = () => {
+    handleBack();
+    setUpdateKey(k => k + 1);
+  };
+
+  if (loading && vacancies.length === 0) return <Loader />;
 
   if (viewMode === 'detail' && selectedVacancy) {
     const stats = getVacancyStats(selectedVacancy.id);
@@ -102,7 +140,7 @@ function Vacancies() {
           borderBottom: '1px solid var(--border)'
         }}>
           <button 
-            onClick={handleBack}
+            onClick={handleBackAndRefresh}
             style={{
               padding: '8px 16px',
               borderRadius: '8px',
@@ -135,6 +173,7 @@ function Vacancies() {
                 color: 'var(--text)',
                 cursor: 'pointer',
                 fontSize: '0.82rem',
+                zIndex: 10, // 🔧 ДОДАНО
               }}
             >
               ✏️ Редагувати
@@ -279,7 +318,7 @@ function Vacancies() {
           
           return (
             <div 
-              key={i} 
+              key={v.id} // 🔧 ВИПРАВЛЕНО: використовуємо v.id замість i
               onClick={() => handleVacancyClick(v)}
               style={{
                 background: 'var(--surface)', 
@@ -300,50 +339,54 @@ function Vacancies() {
                 e.currentTarget.style.boxShadow = 'var(--shadow)';
               }}
             >
+              {/* 🔧 ВИПРАВЛЕНО: Кнопки з правильним z-index та stopPropagation */}
               <div 
-                className="vacancy-actions"
                 style={{ 
                   position: 'absolute', 
                   top: '12px', 
                   right: '12px',
                   display: 'flex',
                   gap: '6px',
-                  opacity: 0,
-                  transition: 'opacity 0.15s',
+                  zIndex: 5,
                 }}
+                onClick={e => e.stopPropagation()} // Зупиняємо спливання для контейнера кнопок
               >
                 <button 
                   onClick={(e) => handleEdit(e, v)}
                   style={{
-                    padding: '4px 8px',
+                    padding: '6px 10px',
                     borderRadius: '6px',
                     border: '1px solid var(--border)',
                     background: 'var(--surface)',
                     cursor: 'pointer',
                     fontSize: '0.75rem',
+                    zIndex: 10,
+                    position: 'relative',
                   }}
-                  title="Редагувати"
+                  type="button"
                 >
                   ✏️
                 </button>
                 <button 
                   onClick={(e) => handleDelete(e, v)}
                   style={{
-                    padding: '4px 8px',
+                    padding: '6px 10px',
                     borderRadius: '6px',
                     border: '1px solid #fee2e2',
                     background: '#fee2e2',
                     color: '#dc2626',
                     cursor: 'pointer',
                     fontSize: '0.75rem',
+                    zIndex: 10,
+                    position: 'relative',
                   }}
-                  title="Видалити"
+                  type="button"
                 >
                   🗑
                 </button>
               </div>
 
-              <div style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px', paddingRight: '60px' }}>
+              <div style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px', paddingRight: '70px' }}>
                 {v.title}
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '14px', fontFamily: 'DM Mono' }}>
@@ -386,7 +429,7 @@ function Vacancies() {
       {showModal && (
         <AddVacancyModal
           onClose={() => setShowModal(false)}
-          onAdded={loadData}
+          onAdded={() => setUpdateKey(k => k + 1)}
         />
       )}
 
@@ -397,7 +440,7 @@ function Vacancies() {
             setShowEditModal(false);
             setSelectedVacancy(null);
           }}
-          onUpdated={loadData}
+          onUpdated={() => setUpdateKey(k => k + 1)}
         />
       )}
     </div>
@@ -417,20 +460,20 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
     setForm({ ...form, [e.target.name]: value });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.title.trim()) return;
     
     setSaving(true);
-    axios.patch(`/api/vacancies/${vacancy.id}/`, form)
-      .then(() => {
-        onUpdated();
-        onClose();
-      })
-      .catch(err => {
-        console.error('Помилка оновлення:', err);
-        alert('Помилка збереження');
-      })
-      .finally(() => setSaving(false));
+    try {
+      await axios.patch(`/api/vacancies/${vacancy.id}/`, form);
+      onUpdated();
+      onClose();
+    } catch (err) {
+      console.error('Помилка оновлення:', err);
+      alert('Помилка збереження');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const overlay = {
@@ -439,7 +482,7 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
   };
   const modal = {
     background: 'var(--surface)', borderRadius: '16px',
-    width: '440px', boxShadow: 'var(--shadow-lg)',
+    width: '440px', boxShadow: 'var(--shadow-lg)', zIndex: 1001,
   };
   const input = {
     width: '100%', padding: '9px 12px', border: '1px solid var(--border)',
