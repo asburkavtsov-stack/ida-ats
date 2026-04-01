@@ -11,10 +11,8 @@ function Vacancies() {
   const [selectedVacancy, setSelectedVacancy] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
-  // 🔧 ДОДАНО: Стан для відстеження оновлень
   const [updateKey, setUpdateKey] = useState(0);
 
-  // 🔧 ВИПРАВЛЕНО: useCallback для стабільності
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -33,7 +31,7 @@ function Vacancies() {
 
   useEffect(() => {
     loadData();
-  }, [loadData, updateKey]); // 🔧 ДОДАНО: updateKey для примусового оновлення
+  }, [loadData, updateKey]);
 
   const getVacancyStats = (vacancyId) => {
     const vacancyCandidates = candidates.filter(c => c.vacancy === vacancyId);
@@ -51,16 +49,14 @@ function Vacancies() {
     setViewMode('detail');
   };
 
-  // 🔧 ВИПРАВЛЕНО: Зупиняємо спливання правильно
   const handleEdit = (e, vacancy) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('Edit clicked:', vacancy); // Дебаг
+    console.log('Edit clicked:', vacancy);
     setSelectedVacancy(vacancy);
     setShowEditModal(true);
   };
 
-  // 🔧 ВИПРАВЛЕНО: Оптимістичне оновлення + примусове перезавантаження
   const handleToggleStatus = async (e, vacancy) => {
     e.preventDefault();
     e.stopPropagation();
@@ -68,12 +64,10 @@ function Vacancies() {
     const newStatus = !vacancy.is_active;
     const originalStatus = vacancy.is_active;
     
-    // Оптимістичне оновлення UI
     setVacancies(prev => prev.map(v => 
       v.id === vacancy.id ? { ...v, is_active: newStatus } : v
     ));
     
-    // Оновлення selectedVacancy якщо в детальному view
     if (selectedVacancy && selectedVacancy.id === vacancy.id) {
       setSelectedVacancy(prev => ({ ...prev, is_active: newStatus }));
     }
@@ -82,11 +76,9 @@ function Vacancies() {
       await axios.patch(`/api/vacancies/${vacancy.id}/`, {
         is_active: newStatus
       });
-      // 🔧 ДОДАНО: Примусове оновлення даних з сервера
       setUpdateKey(k => k + 1);
     } catch (err) {
       console.error('Помилка оновлення статусу:', err);
-      // Rollback при помилці
       setVacancies(prev => prev.map(v => 
         v.id === vacancy.id ? { ...v, is_active: originalStatus } : v
       ));
@@ -117,7 +109,6 @@ function Vacancies() {
     setSelectedVacancy(null);
   };
 
-  // 🔧 ДОДАНО: Оновлення при поверненні до списку
   const handleBackAndRefresh = () => {
     handleBack();
     setUpdateKey(k => k + 1);
@@ -135,7 +126,7 @@ function Vacancies() {
           display: 'flex', 
           alignItems: 'center', 
           gap: '16px', 
-          marginBottom: '24px',
+          marginBottom: '16px',
           paddingBottom: '16px',
           borderBottom: '1px solid var(--border)'
         }}>
@@ -162,38 +153,71 @@ function Vacancies() {
               {selectedVacancy.department}
             </div>
           </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-            <button 
-              onClick={(e) => handleEdit(e, selectedVacancy)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                color: 'var(--text)',
-                cursor: 'pointer',
-                fontSize: '0.82rem',
-                zIndex: 10, // 🔧 ДОДАНО
-              }}
-            >
-              ✏️ Редагувати
-            </button>
-            <button 
-              onClick={(e) => handleToggleStatus(e, selectedVacancy)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '8px',
-                border: 'none',
-                background: selectedVacancy.is_active ? '#fee2e2' : '#dcfce7',
-                color: selectedVacancy.is_active ? '#dc2626' : '#16a34a',
-                cursor: 'pointer',
-                fontSize: '0.82rem',
-                fontWeight: 600,
-              }}
-            >
-              {selectedVacancy.is_active ? '⏸ Закрити' : '▶ Відкрити'}
-            </button>
-          </div>
+        </div>
+
+        <div style={{ 
+          display: 'flex', 
+          gap: '12px', 
+          marginBottom: '24px',
+          padding: '12px 16px',
+          background: 'var(--bg)',
+          borderRadius: '8px',
+          border: '1px solid var(--border)',
+        }}>
+          <button 
+            onClick={() => {
+              console.log('Edit clicked');
+              setShowEditModal(true);
+            }}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text)',
+              cursor: 'pointer',
+              fontSize: '0.82rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            ✏️ Редагувати
+          </button>
+          <button 
+            onClick={(e) => handleToggleStatus(e, selectedVacancy)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: 'none',
+              background: selectedVacancy.is_active ? '#fee2e2' : '#dcfce7',
+              color: selectedVacancy.is_active ? '#dc2626' : '#16a34a',
+              cursor: 'pointer',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            {selectedVacancy.is_active ? '⏸ Закрити вакансію' : '▶ Відкрити вакансію'}
+          </button>
+          <button 
+            onClick={(e) => handleDelete(e, selectedVacancy)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: '1px solid #fee2e2',
+              background: '#fee2e2',
+              color: '#dc2626',
+              cursor: 'pointer',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              marginLeft: 'auto',
+            }}
+          >
+            🗑 Видалити
+          </button>
         </div>
 
         <div style={{ 
@@ -318,7 +342,7 @@ function Vacancies() {
           
           return (
             <div 
-              key={v.id} // 🔧 ВИПРАВЛЕНО: використовуємо v.id замість i
+              key={v.id}
               onClick={() => handleVacancyClick(v)}
               style={{
                 background: 'var(--surface)', 
@@ -339,7 +363,6 @@ function Vacancies() {
                 e.currentTarget.style.boxShadow = 'var(--shadow)';
               }}
             >
-              {/* 🔧 ВИПРАВЛЕНО: Кнопки з правильним z-index та stopPropagation */}
               <div 
                 style={{ 
                   position: 'absolute', 
@@ -349,7 +372,7 @@ function Vacancies() {
                   gap: '6px',
                   zIndex: 5,
                 }}
-                onClick={e => e.stopPropagation()} // Зупиняємо спливання для контейнера кнопок
+                onClick={e => e.stopPropagation()}
               >
                 <button 
                   onClick={(e) => handleEdit(e, v)}
