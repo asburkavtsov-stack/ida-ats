@@ -9,6 +9,7 @@ function Vacancies() {
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedVacancy, setSelectedVacancy] = useState(null);
+  const [editModalVacancy, setEditModalVacancy] = useState(null); // 🔧 ДОДАНО
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
   const [updateKey, setUpdateKey] = useState(0);
@@ -45,7 +46,9 @@ function Vacancies() {
   };
 
   const handleVacancyClick = (vacancy) => {
+    console.log('Opening vacancy:', vacancy);
     setSelectedVacancy(vacancy);
+    setEditModalVacancy(vacancy); // 🔧 Зберігаємо для модалки
     setViewMode('detail');
   };
 
@@ -53,7 +56,7 @@ function Vacancies() {
     e.preventDefault();
     e.stopPropagation();
     console.log('Edit clicked:', vacancy);
-    setSelectedVacancy(vacancy);
+    setEditModalVacancy(vacancy); // 🔧 Встановлюємо перед відкриттям
     setShowEditModal(true);
   };
 
@@ -107,6 +110,7 @@ function Vacancies() {
   const handleBack = () => {
     setViewMode('grid');
     setSelectedVacancy(null);
+    setEditModalVacancy(null); // 🔧 Очищаємо
   };
 
   const handleBackAndRefresh = () => {
@@ -166,8 +170,11 @@ function Vacancies() {
         }}>
           <button 
             onClick={() => {
-              console.log('Edit clicked');
-              setShowEditModal(true);
+              console.log('Edit in detail, selectedVacancy:', selectedVacancy);
+              if (selectedVacancy) {
+                setEditModalVacancy(selectedVacancy); // 🔧 Встановлюємо явно
+                setShowEditModal(true);
+              }
             }}
             style={{
               padding: '8px 16px',
@@ -190,8 +197,8 @@ function Vacancies() {
               padding: '8px 16px',
               borderRadius: '8px',
               border: 'none',
-              background: selectedVacancy.is_active ? '#fee2e2' : '#dcfce7',
-              color: selectedVacancy.is_active ? '#dc2626' : '#16a34a',
+              background: selectedVacancy?.is_active ? '#fee2e2' : '#dcfce7',
+              color: selectedVacancy?.is_active ? '#dc2626' : '#16a34a',
               cursor: 'pointer',
               fontSize: '0.82rem',
               fontWeight: 600,
@@ -200,7 +207,7 @@ function Vacancies() {
               gap: '6px',
             }}
           >
-            {selectedVacancy.is_active ? '⏸ Закрити вакансію' : '▶ Відкрити вакансію'}
+            {selectedVacancy?.is_active ? '⏸ Закрити вакансію' : '▶ Відкрити вакансію'}
           </button>
           <button 
             onClick={(e) => handleDelete(e, selectedVacancy)}
@@ -230,7 +237,7 @@ function Vacancies() {
             { value: stats.total, label: 'Всього заявок', color: '#7a1a2e' },
             { value: stats.interviews, label: 'На співбесіді', color: '#b03050' },
             { value: stats.new, label: 'Нових', color: '#8a3a5a' },
-            { value: selectedVacancy.is_active ? 'Активна' : 'Закрита', label: 'Статус', color: selectedVacancy.is_active ? '#16a34a' : '#757575', isText: true },
+            { value: selectedVacancy?.is_active ? 'Активна' : 'Закрита', label: 'Статус', color: selectedVacancy?.is_active ? '#16a34a' : '#757575', isText: true },
           ].map((s, i) => (
             <div key={i} style={{
               background: 'var(--surface)', 
@@ -317,6 +324,18 @@ function Vacancies() {
             </div>
           )}
         </div>
+
+        {/* 🔧 ВИПРАВЛЕНО: Модалка використовує editModalVacancy */}
+        {showEditModal && editModalVacancy && (
+          <EditVacancyModal
+            vacancy={editModalVacancy}
+            onClose={() => {
+              setShowEditModal(false);
+              setEditModalVacancy(null);
+            }}
+            onUpdated={() => setUpdateKey(k => k + 1)}
+          />
+        )}
       </div>
     );
   }
@@ -456,12 +475,13 @@ function Vacancies() {
         />
       )}
 
-      {showEditModal && selectedVacancy && (
+      {/* 🔧 ВИПРАВЛЕНО: Модалка редагування для grid view */}
+      {showEditModal && editModalVacancy && (
         <EditVacancyModal
-          vacancy={selectedVacancy}
+          vacancy={editModalVacancy}
           onClose={() => {
             setShowEditModal(false);
-            setSelectedVacancy(null);
+            setEditModalVacancy(null);
           }}
           onUpdated={() => setUpdateKey(k => k + 1)}
         />
@@ -472,11 +492,22 @@ function Vacancies() {
 
 function EditVacancyModal({ vacancy, onClose, onUpdated }) {
   const [form, setForm] = useState({
-    title: vacancy.title || '',
-    department: vacancy.department || '',
-    is_active: vacancy.is_active !== false,
+    title: vacancy?.title || '',
+    department: vacancy?.department || '',
+    is_active: vacancy?.is_active !== false,
   });
   const [saving, setSaving] = useState(false);
+
+  // 🔧 ДОДАНО: Оновлення форми при зміні vacancy
+  useEffect(() => {
+    if (vacancy) {
+      setForm({
+        title: vacancy.title || '',
+        department: vacancy.department || '',
+        is_active: vacancy.is_active !== false,
+      });
+    }
+  }, [vacancy]);
 
   const handleChange = e => {
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -517,6 +548,8 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
     fontFamily: 'DM Mono', textTransform: 'uppercase',
     letterSpacing: '0.5px', marginBottom: '6px',
   };
+
+  if (!vacancy) return null;
 
   return (
     <div style={overlay} onClick={onClose}>
