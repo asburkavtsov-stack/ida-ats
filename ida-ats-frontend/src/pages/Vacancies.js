@@ -9,20 +9,32 @@ function Vacancies() {
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedVacancy, setSelectedVacancy] = useState(null);
-  const [editModalVacancy, setEditModalVacancy] = useState(null); // 🔧 ДОДАНО
+  const [editModalVacancy, setEditModalVacancy] = useState(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
   const [updateKey, setUpdateKey] = useState(0);
+  // 🔧 ДОДАНО: Ліміт вакансій
+  const [vacancyLimit, setVacancyLimit] = useState({
+    current: 0,
+    max: 10
+  });
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [vacRes, candRes] = await Promise.all([
+      const [vacRes, candRes, meRes] = await Promise.all([
         axios.get('/api/vacancies/'),
-        axios.get('/api/candidates/')
+        axios.get('/api/candidates/'),
+        axios.get('/api/me/')
       ]);
       setVacancies(vacRes.data);
       setCandidates(candRes.data);
+      // 🔧 ДОДАНО: Завантаження ліміту
+      const maxVacancies = meRes.data.organization?.max_vacancies || 10;
+      setVacancyLimit({
+        current: vacRes.data.length,
+        max: maxVacancies
+      });
     } catch (err) {
       console.error('Помилка завантаження:', err);
     } finally {
@@ -33,6 +45,9 @@ function Vacancies() {
   useEffect(() => {
     loadData();
   }, [loadData, updateKey]);
+
+  // 🔧 ДОДАНО: Перевірка ліміту
+  const isLimitReached = vacancyLimit.current >= vacancyLimit.max;
 
   const getVacancyStats = (vacancyId) => {
     const vacancyCandidates = candidates.filter(c => c.vacancy === vacancyId);
@@ -46,17 +61,15 @@ function Vacancies() {
   };
 
   const handleVacancyClick = (vacancy) => {
-    console.log('Opening vacancy:', vacancy);
     setSelectedVacancy(vacancy);
-    setEditModalVacancy(vacancy); // 🔧 Зберігаємо для модалки
+    setEditModalVacancy(vacancy);
     setViewMode('detail');
   };
 
   const handleEdit = (e, vacancy) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('Edit clicked:', vacancy);
-    setEditModalVacancy(vacancy); // 🔧 Встановлюємо перед відкриттям
+    setEditModalVacancy(vacancy);
     setShowEditModal(true);
   };
 
@@ -110,7 +123,7 @@ function Vacancies() {
   const handleBack = () => {
     setViewMode('grid');
     setSelectedVacancy(null);
-    setEditModalVacancy(null); // 🔧 Очищаємо
+    setEditModalVacancy(null);
   };
 
   const handleBackAndRefresh = () => {
@@ -170,9 +183,8 @@ function Vacancies() {
         }}>
           <button 
             onClick={() => {
-              console.log('Edit in detail, selectedVacancy:', selectedVacancy);
               if (selectedVacancy) {
-                setEditModalVacancy(selectedVacancy); // 🔧 Встановлюємо явно
+                setEditModalVacancy(selectedVacancy);
                 setShowEditModal(true);
               }
             }}
@@ -325,7 +337,6 @@ function Vacancies() {
           )}
         </div>
 
-        {/* 🔧 ВИПРАВЛЕНО: Модалка використовує editModalVacancy */}
         {showEditModal && editModalVacancy && (
           <EditVacancyModal
             vacancy={editModalVacancy}
@@ -342,16 +353,44 @@ function Vacancies() {
 
   return (
     <div>
+      {/* 🔧 ОНОВЛЕНО: Хедер з лімітом вакансій */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <div style={{ fontSize: '0.78rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
-          Всього: {vacancies.length} вакансій
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ fontSize: '0.78rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+            Всього: {vacancyLimit.current} / {vacancyLimit.max} вакансій
+          </div>
+          {isLimitReached && (
+            <span style={{ 
+              fontSize: '0.72rem', 
+              color: '#dc2626', 
+              background: '#fee2e2',
+              padding: '2px 8px',
+              borderRadius: '4px',
+              fontFamily: 'DM Mono',
+              fontWeight: 600
+            }}>
+              ⚠ Ліміт досягнуто
+            </span>
+          )}
         </div>
-        <button onClick={() => setShowModal(true)} style={{
-          padding: '8px 16px', borderRadius: '8px', border: 'none',
-          background: 'var(--accent)', color: '#fff', fontSize: '0.82rem',
-          fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans',
-        }}>
-          + Нова вакансія
+        <button 
+          onClick={() => setShowModal(true)} 
+          disabled={isLimitReached}
+          style={{
+            padding: '8px 16px', 
+            borderRadius: '8px', 
+            border: 'none',
+            background: isLimitReached ? '#e5e7eb' : 'var(--accent)', 
+            color: isLimitReached ? '#9ca3af' : '#fff', 
+            fontSize: '0.82rem',
+            fontWeight: 600, 
+            cursor: isLimitReached ? 'not-allowed' : 'pointer', 
+            fontFamily: 'DM Sans',
+            transition: 'all 0.15s',
+          }}
+          title={isLimitReached ? `Ліміт ${vacancyLimit.max} вакансій досягнуто` : ''}
+        >
+          {isLimitReached ? '⛔ Ліміт досягнуто' : '+ Нова вакансія'}
         </button>
       </div>
 
@@ -472,10 +511,11 @@ function Vacancies() {
         <AddVacancyModal
           onClose={() => setShowModal(false)}
           onAdded={() => setUpdateKey(k => k + 1)}
+          vacancyLimit={vacancyLimit}
+          isLimitReached={isLimitReached}
         />
       )}
 
-      {/* 🔧 ВИПРАВЛЕНО: Модалка редагування для grid view */}
       {showEditModal && editModalVacancy && (
         <EditVacancyModal
           vacancy={editModalVacancy}
@@ -498,7 +538,6 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
   });
   const [saving, setSaving] = useState(false);
 
-  // 🔧 ДОДАНО: Оновлення форми при зміні vacancy
   useEffect(() => {
     if (vacancy) {
       setForm({
