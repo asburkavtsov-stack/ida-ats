@@ -101,7 +101,12 @@ def current_user(request):
     user = request.user
     try:
         org = user.profile.organization
-        org_data = {'id': org.id, 'name': org.name} if org else None
+        org_data = {
+            'id': org.id,
+            'name': org.name,
+            'max_vacancies': org.max_vacancies,  # ← ДОДАТИ
+            'max_hr': org.max_hr,
+        } if org else None
         role = user.profile.role
     except:
         org_data = None
