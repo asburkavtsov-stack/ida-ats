@@ -13,22 +13,59 @@ const emptyForm = { name: '', slug: '', max_hr: 3, max_vacancies: 10, is_active:
 function OrgModal({ org, onClose, onSave }) {
   const [form, setForm] = useState(org || emptyForm);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    if (name === 'name') {
-      setForm(f => ({ ...f, name: value, slug: value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') }));
-    } else {
-      setForm(f => ({ ...f, [name]: type === 'checkbox' ? checked : value }));
-    }
+
+    setForm(f => {
+      const newForm = { ...f, [name]: type === 'checkbox' ? checked : value };
+
+      // Автогенерація slug ТІЛЬКИ при створенні нової організації
+      if (name === 'name' && !org) {
+        newForm.slug = value
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-]/g, '');
+      }
+      return newForm;
+    });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!form.name?.trim()) {
+      setError('Назва організації є обов’язковою');
+      return;
+    }
+    if (!form.slug?.trim() && !org) {
+      setError('Slug є обов’язковим');
+      return;
+    }
+
     setSaving(true);
-    const req = org
-      ? axios.patch(`/api/organizations/${org.id}/`, form)
-      : axios.post('/api/organizations/', form);
-    req.then(() => onSave()).catch(() => {}).finally(() => setSaving(false));
+    setError('');
+
+    try {
+      const payload = { ...form };
+
+      const req = org
+        ? axios.patch(`/api/organizations/${org.id}/`, payload)
+        : axios.post('/api/organizations/', payload);
+
+      await req;
+      onSave();
+      onClose();                    // закриваємо модалку після успіху
+    } catch (err) {
+      console.error('Помилка збереження організації:', err.response?.data || err);
+      const msg = err.response?.data?.detail ||
+                  err.response?.data?.name?.[0] ||
+                  err.response?.data?.slug?.[0] ||
+                  JSON.stringify(err.response?.data) ||
+                  'Не вдалося зберегти організацію';
+      setError(msg);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -37,6 +74,13 @@ function OrgModal({ org, onClose, onSave }) {
         <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '20px' }}>
           {org ? 'Редагувати організацію' : 'Нова організація'}
         </div>
+
+        {error && (
+          <div style={{ color: '#dc2626', fontSize: '0.82rem', marginBottom: '14px', padding: '8px', background: '#fee2e2', borderRadius: '6px' }}>
+            {error}
+          </div>
+        )}
+
         <div style={{ display: 'grid', gap: '14px' }}>
           <div>
             <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Назва</div>
@@ -44,7 +88,13 @@ function OrgModal({ org, onClose, onSave }) {
           </div>
           <div>
             <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Slug</div>
-            <input name="slug" value={form.slug} onChange={handleChange} style={inputStyle} />
+            <input 
+              name="slug" 
+              value={form.slug} 
+              onChange={handleChange} 
+              disabled={!!org}   // при редагуванні slug краще не міняти
+              style={{ ...inputStyle, opacity: org ? 0.7 : 1 }} 
+            />
           </div>
           <div style={{ display: 'flex', gap: '14px' }}>
             <div style={{ flex: 1 }}>
@@ -61,11 +111,16 @@ function OrgModal({ org, onClose, onSave }) {
             Активна
           </label>
         </div>
+
         <div style={{ display: 'flex', gap: '10px', marginTop: '24px', justifyContent: 'flex-end' }}>
           <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans' }}>
             Скасувати
           </button>
-          <button onClick={handleSubmit} disabled={saving} style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+          <button 
+            onClick={handleSubmit} 
+            disabled={saving} 
+            style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}
+          >
             {saving ? 'Збереження...' : org ? 'Зберегти' : 'Створити'}
           </button>
         </div>
@@ -86,14 +141,15 @@ function UsersModal({ org, onClose }) {
   const [error, setError] = useState('');
 
   const fetchUsers = useCallback(() => {
+    setLoading(true);
     axios.get(`/api/users/?organization=${org.id}`)
-      .then(res => { setUsers(res.data); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(res => setUsers(res.data))
+      .catch(err => console.error('Помилка завантаження юзерів:', err))
+      .finally(() => setLoading(false));
   }, [org.id]);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
-  // ✅ ДОДАНО: Функція для редагування юзера
   const handleEdit = (user) => {
     setEditUser(user);
     setForm({
@@ -101,45 +157,78 @@ function UsersModal({ org, onClose }) {
       last_name: user.last_name || '',
       username: user.username || '',
       email: user.email || '',
-      password: '', // Пароль не показуємо, тільки для зміни
+      password: '',
       role: user.role || 'hr'
     });
     setShowForm(true);
     setError('');
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!form.email?.trim()) {
+      setError('Email є обов’язковим');
+      return;
+    }
+    if (!editUser && !form.password?.trim()) {
+      setError('Пароль є обов’язковим при створенні юзера');
+      return;
+    }
+
     setSaving(true);
     setError('');
-    const req = editUser
-      ? axios.patch(`/api/users/${editUser.id}/`, { ...form, organization: org.id })
-      : axios.post('/api/users/', { ...form, organization: org.id });
 
-    req.then(() => {
+    try {
+      const payload = { ...form, organization: org.id };
+
+      // Видаляємо порожній пароль при редагуванні
+      if (editUser && (!payload.password || payload.password.trim() === '')) {
+        delete payload.password;
+      }
+
+      const req = editUser
+        ? axios.patch(`/api/users/${editUser.id}/`, payload)
+        : axios.post('/api/users/', payload);
+
+      await req;
       fetchUsers();
       setShowForm(false);
       setEditUser(null);
       setForm(emptyUserForm);
-    })
-    .catch(err => setError(err.response?.data?.error || 'Помилка'))
-    .finally(() => setSaving(false));
+    } catch (err) {
+      console.error('Помилка збереження юзера:', err.response?.data || err);
+      const msg = err.response?.data?.detail ||
+                  err.response?.data?.email?.[0] ||
+                  err.response?.data?.username?.[0] ||
+                  'Не вдалося зберегти користувача';
+      setError(msg);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = (userId) => {
     if (!window.confirm('Видалити юзера?')) return;
     axios.delete(`/api/users/${userId}/`)
       .then(() => fetchUsers())
-      .catch(() => {});
+      .catch(err => console.error('Помилка видалення:', err));
   };
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
       <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '28px', width: '520px', border: '1px solid var(--border)', maxHeight: '85vh', overflowY: 'auto' }}>
+        {/* ... (шапка залишається без змін) */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>Юзери — {org.name}</div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <button onClick={() => { setShowForm(!showForm); setEditUser(null); setForm(emptyUserForm); }}
-              style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'DM Sans', fontWeight: 600 }}>
+            <button 
+              onClick={() => { 
+                setShowForm(true); 
+                setEditUser(null); 
+                setForm(emptyUserForm); 
+                setError('');
+              }}
+              style={{ padding: '6px 14px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'DM Sans', fontWeight: 600 }}
+            >
               + Додати
             </button>
             <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
@@ -152,8 +241,11 @@ function UsersModal({ org, onClose }) {
             <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '14px' }}>
               {editUser ? 'Редагувати юзера' : 'Новий юзер'}
             </div>
-            {error && <div style={{ color: '#dc2626', fontSize: '0.78rem', marginBottom: '10px', fontFamily: 'DM Mono' }}>{error}</div>}
+
+            {error && <div style={{ color: '#dc2626', fontSize: '0.78rem', marginBottom: '10px' }}>{error}</div>}
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {/* Поля форми (без змін) */}
               <div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Ім'я</div>
                 <input value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))} style={inputStyle} />
@@ -171,7 +263,9 @@ function UsersModal({ org, onClose }) {
                 <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={inputStyle} />
               </div>
               <div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>{editUser ? 'Новий пароль (необов\'язково)' : 'Пароль'}</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>
+                  {editUser ? 'Новий пароль (необов’язково)' : 'Пароль'}
+                </div>
                 <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} style={inputStyle} />
               </div>
               <div>
@@ -182,8 +276,9 @@ function UsersModal({ org, onClose }) {
                 </select>
               </div>
             </div>
+
             <div style={{ display: 'flex', gap: '8px', marginTop: '14px', justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowForm(false); setEditUser(null); }} style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans', fontSize: '0.82rem' }}>
+              <button onClick={() => { setShowForm(false); setEditUser(null); setError(''); }} style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans', fontSize: '0.82rem' }}>
                 Скасувати
               </button>
               <button onClick={handleSubmit} disabled={saving} style={{ padding: '7px 16px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans', fontSize: '0.82rem' }}>
@@ -193,7 +288,7 @@ function UsersModal({ org, onClose }) {
           </div>
         )}
 
-        {/* Список */}
+        {/* Список юзерів (без змін) */}
         {loading ? (
           <div style={{ color: 'var(--muted)', fontFamily: 'DM Mono', fontSize: '0.82rem' }}>Завантаження...</div>
         ) : users.length === 0 ? (
@@ -202,8 +297,9 @@ function UsersModal({ org, onClose }) {
           <div style={{ display: 'grid', gap: '10px' }}>
             {users.map(u => (
               <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '10px', background: 'var(--bg)', border: '1px solid var(--border)' }}>
+                {/* ... решта коду списку без змін ... */}
                 <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>
-                  {u.first_name ? u.first_name[0] : u.username[0].toUpperCase()}
+                  {u.first_name ? u.first_name[0] : u.username[0]?.toUpperCase()}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>
@@ -229,7 +325,7 @@ function UsersModal({ org, onClose }) {
   );
 }
 
-// ✅ ДОДАНО: DeleteConfirmationModal компонент
+// DeleteConfirmationModal залишається без змін
 function DeleteConfirmationModal({ org, onClose, onConfirm }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
@@ -262,26 +358,25 @@ function Admin({ onViewOrg }) {
   const fetchOrgs = () => {
     setLoading(true);
     axios.get('/api/organizations/')
-      .then(res => { setOrgs(res.data); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(res => setOrgs(res.data))
+      .catch(err => console.error('Помилка завантаження організацій:', err))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => { fetchOrgs(); }, []);
 
-  // ✅ ВИПРАВЛЕНО: Функція handleDelete тепер працює з confirmDelete
   const handleDelete = (id) => {
     axios.delete(`/api/organizations/${id}/`)
-      .then(() => { fetchOrgs(); setConfirmDelete(null); })
-      .catch(() => {});
+      .then(() => {
+        fetchOrgs();
+        setConfirmDelete(null);
+      })
+      .catch(err => console.error('Помилка видалення:', err));
   };
 
-  // ✅ ВИПРАВЛЕНО: Обробник для кнопки ATS
   const handleViewOrg = (orgId) => {
-    if (onViewOrg) {
-      onViewOrg(orgId);
-    } else {
-      console.warn('onViewOrg не передано як проп');
-    }
+    if (onViewOrg) onViewOrg(orgId);
+    else console.warn('onViewOrg не передано як проп');
   };
 
   return (
@@ -302,6 +397,7 @@ function Admin({ onViewOrg }) {
         <div style={{ display: 'grid', gap: '16px' }}>
           {orgs.map(org => (
             <div key={org.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '20px' }}>
+              {/* ... картка організації без змін ... */}
               <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '1rem', flexShrink: 0 }}>
                 {org.name[0]}
               </div>
@@ -344,14 +440,13 @@ function Admin({ onViewOrg }) {
       {showOrgModal && (
         <OrgModal
           org={editOrg}
-          onClose={() => setShowOrgModal(false)}
-          onSave={() => { fetchOrgs(); setShowOrgModal(false); }}
+          onClose={() => { setShowOrgModal(false); setError(''); }}
+          onSave={() => { fetchOrgs(); }}
         />
       )}
 
       {usersOrg && <UsersModal org={usersOrg} onClose={() => setUsersOrg(null)} />}
 
-      {/* ✅ ВИПРАВЛЕНО: Використовуємо окремий компонент для підтвердження видалення */}
       {confirmDelete && (
         <DeleteConfirmationModal
           org={confirmDelete}
