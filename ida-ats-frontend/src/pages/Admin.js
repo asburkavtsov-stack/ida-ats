@@ -440,7 +440,7 @@ function Admin({ onViewOrg }) {
       {showOrgModal && (
         <OrgModal
           org={editOrg}
-          onClose={() => { setShowOrgModal(false); setError(''); }}
+          onClose={() => setShowOrgModal(false)}
           onSave={() => { fetchOrgs(); }}
         />
       )}
