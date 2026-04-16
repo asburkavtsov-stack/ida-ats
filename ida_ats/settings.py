@@ -2,6 +2,7 @@ from pathlib import Path
 from datetime import timedelta
 import os
 import dj_database_url
+from urllib.parse import quote
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -63,17 +64,61 @@ WSGI_APPLICATION = 'ida_ats.wsgi.application'
 # Database — PostgreSQL для production, SQLite для локальної розробки
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
-# Перевіряємо чи DATABASE_URL не порожній і починається з postgres
-if DATABASE_URL and DATABASE_URL.startswith('postgres'):
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=600,
-            ssl_require=True
-        )
-    }
+
+def fix_database_url(url):
+    """Кодує спецсимволи в паролі для DATABASE_URL"""
+    if not url or not url.startswith('postgres'):
+        return url
+
+    try:
+        # Парсимо URL вручну для кодування спецсимволів
+        # Формат: postgresql://user:password@host:port/dbname
+        rest = url.replace('postgresql://', '').replace('postgres://', '')
+
+        if '@' not in rest:
+            return url
+
+        creds, host_part = rest.split('@', 1)
+
+        if ':' not in creds:
+            return url
+
+        user, password = creds.split(':', 1)
+
+        # Кодуємо пароль
+        encoded_password = quote(password, safe='')
+
+        # Збираємо назад
+        fixed_url = f"postgres://{user}:{encoded_password}@{host_part}"
+        return fixed_url
+
+    except Exception:
+        return url
+
+
+# Фіксимо URL якщо потрібно
+FIXED_DATABASE_URL = fix_database_url(DATABASE_URL)
+
+# Перевіряємо чи DATABASE_URL валідний
+if FIXED_DATABASE_URL and FIXED_DATABASE_URL.startswith('postgres'):
+    try:
+        DATABASES = {
+            'default': dj_database_url.config(
+                default=FIXED_DATABASE_URL,
+                conn_max_age=600,
+                ssl_require=True
+            )
+        }
+    except Exception:
+        # Якщо помилка парсингу — fallback на SQLite
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
 else:
-    # SQLite для локальної розробки або якщо DATABASE_URL неправильний
+    # SQLite для локальної розробки
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
