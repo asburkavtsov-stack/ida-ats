@@ -80,23 +80,25 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ida_ats.wsgi.application'
 
-# Database
-DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
+# ====================== DATABASE CONFIG ======================
+print("🔍 Checking DATABASE_URL...", file=sys.stderr)
 
-print(f"🔍 DATABASE_URL: {DATABASE_URL[:50]}..." if DATABASE_URL else "🔍 DATABASE_URL: EMPTY", file=sys.stderr)
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
-if DATABASE_URL and 'postgres' in DATABASE_URL:
+if DATABASE_URL:
+    print(f"✅ DATABASE_URL знайдено (довжина: {len(DATABASE_URL)})", file=sys.stderr)
     try:
         DATABASES = {
             'default': dj_database_url.config(
                 default=DATABASE_URL,
                 conn_max_age=600,
-                ssl_require=True
+                ssl_require=True,           # Важливо для Railway
             )
         }
-        print(f"✅ PostgreSQL: {DATABASES['default']['HOST']}", file=sys.stderr)
+        host = DATABASES['default'].get('HOST', 'unknown')
+        print(f"✅ Успішно підключено PostgreSQL. Host: {host}", file=sys.stderr)
     except Exception as e:
-        print(f"❌ PostgreSQL error: {e}", file=sys.stderr)
+        print(f"❌ Помилка парсингу DATABASE_URL: {e}", file=sys.stderr)
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.sqlite3',
@@ -104,14 +106,14 @@ if DATABASE_URL and 'postgres' in DATABASE_URL:
             }
         }
 else:
-    print("⚠️ Using SQLite", file=sys.stderr)
+    print("⚠️ DATABASE_URL відсутній або порожній — використовуємо SQLite", file=sys.stderr)
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-
+# ============================================================
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
