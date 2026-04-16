@@ -2,13 +2,13 @@ from pathlib import Path
 from datetime import timedelta
 import os
 import dj_database_url
-from urllib.parse import quote
+import sys
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-me-in-production')
 
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'  # Тимчасово True для діагностики
 
 ALLOWED_HOSTS = ['*']
 
@@ -80,11 +80,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ida_ats.wsgi.application'
 
-# Database — використовуємо DATABASE_URL з Railway
+# Database
 DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
 
+print(f"🔍 DATABASE_URL: {DATABASE_URL[:50]}..." if DATABASE_URL else "🔍 DATABASE_URL: EMPTY", file=sys.stderr)
+
 if DATABASE_URL and 'postgres' in DATABASE_URL:
-    # Кодуємо пароль якщо потрібно
     try:
         DATABASES = {
             'default': dj_database_url.config(
@@ -93,9 +94,9 @@ if DATABASE_URL and 'postgres' in DATABASE_URL:
                 ssl_require=True
             )
         }
-        print(f"✅ PostgreSQL: {DATABASES['default']['HOST']}")
+        print(f"✅ PostgreSQL: {DATABASES['default']['HOST']}", file=sys.stderr)
     except Exception as e:
-        print(f"⚠️ PostgreSQL error: {e}")
+        print(f"❌ PostgreSQL error: {e}", file=sys.stderr)
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.sqlite3',
@@ -103,13 +104,13 @@ if DATABASE_URL and 'postgres' in DATABASE_URL:
             }
         }
 else:
+    print("⚠️ Using SQLite", file=sys.stderr)
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-    print("⚠️ SQLite mode")
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
