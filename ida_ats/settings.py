@@ -15,6 +15,7 @@ ALLOWED_HOSTS = [
     '127.0.0.1',
     'web-production-007d9.up.railway.app',
     '.railway.app',
+    '*',  # Тимчасово для тестування
 ]
 
 INSTALLED_APPS = [
@@ -31,8 +32,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # ПЕРШИЙ в списку!
     'django.middleware.security.SecurityMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -65,7 +66,6 @@ WSGI_APPLICATION = 'ida_ats.wsgi.application'
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 DATABASE_PUBLIC_URL = os.environ.get('DATABASE_PUBLIC_URL', '')
 
-# Використовуємо PUBLIC_URL якщо основний не працює
 if DATABASE_PUBLIC_URL and DATABASE_PUBLIC_URL.startswith('postgres'):
     ACTIVE_DATABASE_URL = DATABASE_PUBLIC_URL
 elif DATABASE_URL and DATABASE_URL.startswith('postgres'):
@@ -73,37 +73,24 @@ elif DATABASE_URL and DATABASE_URL.startswith('postgres'):
 else:
     ACTIVE_DATABASE_URL = ''
 
-
 def encode_database_url(url):
-    """Кодує спецсимволи в паролі"""
     if not url or not url.startswith('postgres'):
         return url
-
     try:
-        # postgres://user:password@host:port/dbname
         rest = url.replace('postgresql://', '').replace('postgres://', '')
-
         if '@' not in rest:
             return url
-
         creds, host_part = rest.split('@', 1)
-
         if ':' not in creds:
             return url
-
         user, password = creds.split(':', 1)
         encoded_password = quote(password, safe='')
-
         return f"postgres://{user}:{encoded_password}@{host_part}"
-
     except Exception:
         return url
 
-
-# Кодуємо URL
 ENCODED_DATABASE_URL = encode_database_url(ACTIVE_DATABASE_URL)
 
-# Вибираємо базу даних
 if ENCODED_DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.config(
@@ -112,16 +99,13 @@ if ENCODED_DATABASE_URL:
             ssl_require=True
         )
     }
-    print(f"✅ Using PostgreSQL: {DATABASES['default']['HOST']}")
 else:
-    # Fallback на SQLite
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-    print("⚠️  WARNING: Using SQLite - data will be lost on redeploy!")
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -135,37 +119,26 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# Static files
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Media files
 MEDIA_URL = 'media/'
 MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', BASE_DIR / 'media'))
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CORS_ALLOWED_ORIGINS = [
-    "https://ida-ats.vercel.app",
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:3000",
-]
+# === CORS CONFIGURATION ===
+# Дозволяємо всі origins тимчасово для тестування
+CORS_ALLOW_ALL_ORIGINS = True
 
-REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ],
-}
-
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-}
+# Або чіткий список (розкоментуйте після тестування)
+# CORS_ALLOWED_ORIGINS = [
+#     "https://ida-ats.vercel.app",
+#     "http://localhost:3000",
+#     "http://localhost:5173",
+#     "http://127.0.0.1:3000",
+# ]
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -185,6 +158,7 @@ CORS_ALLOW_HEADERS = [
     "origin",
     "x-csrftoken",
     "x-requested-with",
+    "x-requested-by",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -192,3 +166,17 @@ CSRF_TRUSTED_ORIGINS = [
     "https://web-production-007d9.up.railway.app",
     "https://*.railway.app",
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+}
