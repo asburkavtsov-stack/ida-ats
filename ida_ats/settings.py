@@ -25,8 +25,9 @@ INSTALLED_APPS = [
     'candidates',
 ]
 
+# 🔧 КРИТИЧНО: CorsMiddleware має бути ПЕРШИМ!
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # ПЕРШИЙ!
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -122,7 +123,7 @@ MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', BASE_DIR / 'media'))
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS - критично важливі налаштування
+# 🔧 CORS НАЛАШТУВАННЯ - МАКСИМАЛЬНО ВІДКРИТІ
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
@@ -143,11 +144,14 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
-    'x-requested-by',
 ]
 
-# Додаємо CORS middleware для preflight запитів
-CORS_PREFLIGHT_MAX_AGE = 86400
+# 🔧 ДОДАТКОВО: явно дозволяємо origins (навіть з CORS_ALLOW_ALL_ORIGINS)
+CORS_ALLOWED_ORIGINS = [
+    "https://ida-ats.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:5173",
+]
 
 CSRF_TRUSTED_ORIGINS = [
     'https://ida-ats.vercel.app',
