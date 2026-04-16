@@ -1,3 +1,4 @@
+// pages/Team.js - оновлена версія з діагностикою
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
@@ -13,6 +14,7 @@ function Team() {
   const [loading, setLoading] = useState(true);
   const [orgInfo, setOrgInfo] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [form, setForm] = useState({
     first_name: '',
     last_name: '',
@@ -21,23 +23,29 @@ function Team() {
     password: '',
   });
   const [creating, setCreating] = useState(false);
-  const [error, setError] = useState('');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setErrorMsg('');
+    
     try {
-      const [meRes, usersRes] = await Promise.all([
-        axios.get('/api/me/'),
-        axios.get('/api/users/')
-      ]);
-      
+      // Отримуємо інфо про поточного користувача
+      const meRes = await axios.get('/api/me/');
+      console.log('Me response:', meRes.data);
       setOrgInfo(meRes.data.organization);
       
-      // Фільтруємо тільки HR (роль 'hr') з цієї організації
+      // Отримуємо список юзерів через /api/users/
+      const usersRes = await axios.get('/api/users/');
+      console.log('Users response:', usersRes.data);
+      
+      // Фільтруємо HR
       const hrsList = usersRes.data.filter(u => u.role === 'hr');
+      console.log('Filtered HRs:', hrsList);
       setHrs(hrsList);
+      
     } catch (err) {
       console.error('Помилка завантаження:', err);
+      setErrorMsg(`Помилка: ${err.response?.status} ${err.response?.data?.detail || err.message}`);
     } finally {
       setLoading(false);
     }
@@ -55,39 +63,55 @@ function Team() {
       await fetchData();
     } catch (err) {
       console.error('Помилка видалення:', err);
-      alert('Не вдалося видалити користувача');
+      setErrorMsg(`Помилка видалення: ${err.response?.data?.error || err.message}`);
     }
   };
 
   const handleCreate = async () => {
     if (!form.username.trim()) {
-      setError('Username обов\'язковий');
+      setErrorMsg('Username обов\'язковий');
       return;
     }
     if (!form.email.trim()) {
-      setError('Email обов\'язковий');
+      setErrorMsg('Email обов\'язковий');
       return;
     }
     if (!form.password.trim()) {
-      setError('Пароль обов\'язковий');
+      setErrorMsg('Пароль обов\'язковий');
       return;
     }
 
     setCreating(true);
-    setError('');
+    setErrorMsg('');
 
     try {
-      await axios.post('/api/users/', {
-        ...form,
+      const payload = {
+        first_name: form.first_name,
+        last_name: form.last_name,
+        username: form.username,
+        email: form.email,
+        password: form.password,
         role: 'hr',
-        organization: orgInfo?.id || '',
-      });
+      };
+      
+      // Додаємо organization тільки якщо є
+      if (orgInfo?.id) {
+        payload.organization = orgInfo.id;
+      }
+      
+      console.log('Creating HR with payload:', payload);
+      await axios.post('/api/users/', payload);
+      
       await fetchData();
       setShowAddModal(false);
       setForm({ first_name: '', last_name: '', username: '', email: '', password: '' });
     } catch (err) {
       console.error('Помилка створення:', err);
-      setError(err.response?.data?.error || 'Помилка створення HR');
+      const errorText = err.response?.data?.error || 
+                       err.response?.data?.detail || 
+                       JSON.stringify(err.response?.data) ||
+                       'Помилка створення HR';
+      setErrorMsg(errorText);
     } finally {
       setCreating(false);
     }
@@ -96,6 +120,32 @@ function Team() {
   const currentHrCount = hrs.length;
   const maxHrLimit = orgInfo?.max_hr || 3;
   const isLimitReached = currentHrCount >= maxHrLimit;
+
+  // Показуємо діагностику якщо є помилка
+  if (errorMsg && !loading) {
+    return (
+      <div style={{ padding: '28px' }}>
+        <div style={{
+          background: '#fee2e2', border: '1px solid #fecaca',
+          borderRadius: '12px', padding: '20px', color: '#dc2626',
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: '8px' }}>⚠ Помилка</div>
+          <div style={{ fontSize: '0.85rem', fontFamily: 'DM Mono' }}>{errorMsg}</div>
+          <button
+            onClick={fetchData}
+            style={{
+              marginTop: '16px', padding: '8px 16px',
+              borderRadius: '8px', border: 'none',
+              background: 'var(--accent)', color: '#fff',
+              cursor: 'pointer',
+            }}
+          >
+            Спробувати знову
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return <div style={{ padding: '28px', color: 'var(--muted)' }}>Завантаження...</div>;
@@ -108,12 +158,12 @@ function Team() {
         <div>
           <div style={{ fontSize: '1.3rem', fontWeight: 700 }}>Команда HR</div>
           <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: '4px', fontFamily: 'DM Mono' }}>
-            Управління HR-менеджерами вашої організації
+            {orgInfo ? `Організація: ${orgInfo.name}` : 'Завантаження організації...'}
           </div>
         </div>
         <div>
           <div style={{ fontSize: '0.78rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginBottom: '8px', textAlign: 'right' }}>
-            {currentHrCount} / {maxHrLimit} HR
+            HR: {currentHrCount} / {maxHrLimit}
           </div>
           <button
             onClick={() => setShowAddModal(true)}
@@ -140,9 +190,18 @@ function Team() {
           fontSize: '0.78rem', marginBottom: '20px',
           fontFamily: 'DM Mono', display: 'flex', alignItems: 'center', gap: '8px',
         }}>
-          <span>⚠</span> Ви досягли ліміту HR-менеджерів ({maxHrLimit}). Щоб додати більше, зверніться до супер-адміністратора.
+          <span>⚠</span> Ви досягли ліміту HR-менеджерів ({maxHrLimit}).
         </div>
       )}
+
+      {/* Debug info (прибрати після налагодження) */}
+      <div style={{
+        background: '#f0f0f0', padding: '8px 12px', borderRadius: '8px',
+        fontSize: '0.7rem', fontFamily: 'DM Mono', marginBottom: '16px',
+        color: '#666',
+      }}>
+        Debug: {hrs.length} HR знайдено, orgId: {orgInfo?.id || 'немає'}
+      </div>
 
       {/* Список HR */}
       {hrs.length === 0 ? (
@@ -153,7 +212,7 @@ function Team() {
           <div style={{ fontSize: '2rem', marginBottom: '12px' }}>👥</div>
           <div style={{ fontWeight: 500, marginBottom: '6px' }}>Немає HR-менеджерів</div>
           <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
-            Додайте першого HR-менеджера, щоб розширити команду
+            Додайте першого HR-менеджера
           </div>
         </div>
       ) : (
@@ -188,7 +247,7 @@ function Team() {
                 fontFamily: 'DM Mono', fontWeight: 600,
                 background: '#f9eaed', color: '#7a1a2e',
               }}>
-                HR менеджер
+                HR
               </div>
               <button
                 onClick={() => handleDelete(hr.id)}
@@ -220,9 +279,9 @@ function Team() {
               Новий HR-менеджер
             </div>
 
-            {error && (
+            {errorMsg && (
               <div style={{ color: '#dc2626', fontSize: '0.78rem', marginBottom: '14px', padding: '8px', background: '#fee2e2', borderRadius: '6px' }}>
-                {error}
+                {errorMsg}
               </div>
             )}
 
@@ -278,7 +337,7 @@ function Team() {
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '24px', justifyContent: 'flex-end' }}>
               <button
-                onClick={() => { setShowAddModal(false); setError(''); }}
+                onClick={() => { setShowAddModal(false); setErrorMsg(''); }}
                 style={{
                   padding: '8px 16px', borderRadius: '8px',
                   border: '1px solid var(--border)', background: 'transparent',
