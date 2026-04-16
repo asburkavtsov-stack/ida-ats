@@ -1,7 +1,20 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
+// Для Vercel використовуємо відносний шлях, для локального - localhost
+const API_URL = process.env.REACT_APP_API_URL || '';
 axios.defaults.baseURL = API_URL;
+
+// Додаємо токен до кожного запиту
+axios.interceptors.request.use(
+  config => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  error => Promise.reject(error)
+);
 
 // Перехоплювач — якщо 401, виходимо
 axios.interceptors.response.use(
