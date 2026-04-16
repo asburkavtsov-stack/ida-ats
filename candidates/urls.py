@@ -7,7 +7,6 @@ from .views import (
     OrganizationViewSet,
     UserListView,
     current_user,
-    register_user
 )
 
 router = DefaultRouter()
@@ -25,9 +24,6 @@ urlpatterns = [
 
     # 🔧 Поточний користувач
     path('me/', current_user, name='current_user'),
-
-    # 🔧 Реєстрація (опціонально)
-    path('auth/register/', register_user, name='register'),
 
     # 🔧 Детальний URL для юзерів (PATCH/DELETE)
     path('users-detail/<int:pk>/', UserListView.as_view({

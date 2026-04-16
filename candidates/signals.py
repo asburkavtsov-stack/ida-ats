@@ -3,16 +3,27 @@ from django.dispatch import receiver
 from django.contrib.auth.models import User
 from .models import UserProfile
 
-
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
     if created:
-        UserProfile.objects.get_or_create(user=instance)
-
+        UserProfile.objects.get_or_create(
+            user=instance,
+            defaults={'role': 'hr'}
+        )
 
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):
+    # Безпечний доступ до профілю
     try:
-        instance.profile.save()
-    except UserProfile.DoesNotExist:
-        UserProfile.objects.get_or_create(user=instance)
+        if hasattr(instance, 'profile') and instance.profile is not None:
+            instance.profile.save()
+        else:
+            UserProfile.objects.get_or_create(
+                user=instance,
+                defaults={'role': 'hr'}
+            )
+    except Exception:
+        UserProfile.objects.get_or_create(
+            user=instance,
+            defaults={'role': 'hr'}
+        )
