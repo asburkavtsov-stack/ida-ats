@@ -5,7 +5,7 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get('SECRET_KEY')
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-me-in-production')
 
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
@@ -60,17 +60,20 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ida_ats.wsgi.application'
 
-# Database — PostgreSQL на Railway
-DATABASE_URL = os.environ.get('DATABASE_URL')
-if DATABASE_URL:
+# Database — PostgreSQL для production, SQLite для локальної розробки
+DATABASE_URL = os.environ.get('DATABASE_URL', '')
+
+# Перевіряємо чи DATABASE_URL не порожній і починається з postgres
+if DATABASE_URL and DATABASE_URL.startswith('postgres'):
     DATABASES = {
-        'default': dj_database_url.parse(
-            DATABASE_URL,
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
             conn_max_age=600,
             ssl_require=True
         )
     }
 else:
+    # SQLite для локальної розробки або якщо DATABASE_URL неправильний
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
