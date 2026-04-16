@@ -61,18 +61,26 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ida_ats.wsgi.application'
 
-# Database — PostgreSQL для production, SQLite для локальної розробки
+# === DATABASE CONFIGURATION ===
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
+DATABASE_PUBLIC_URL = os.environ.get('DATABASE_PUBLIC_URL', '')
+
+# Використовуємо PUBLIC_URL якщо основний не працює
+if DATABASE_PUBLIC_URL and DATABASE_PUBLIC_URL.startswith('postgres'):
+    ACTIVE_DATABASE_URL = DATABASE_PUBLIC_URL
+elif DATABASE_URL and DATABASE_URL.startswith('postgres'):
+    ACTIVE_DATABASE_URL = DATABASE_URL
+else:
+    ACTIVE_DATABASE_URL = ''
 
 
-def fix_database_url(url):
-    """Кодує спецсимволи в паролі для DATABASE_URL"""
+def encode_database_url(url):
+    """Кодує спецсимволи в паролі"""
     if not url or not url.startswith('postgres'):
         return url
 
     try:
-        # Парсимо URL вручну для кодування спецсимволів
-        # Формат: postgresql://user:password@host:port/dbname
+        # postgres://user:password@host:port/dbname
         rest = url.replace('postgresql://', '').replace('postgres://', '')
 
         if '@' not in rest:
@@ -84,47 +92,36 @@ def fix_database_url(url):
             return url
 
         user, password = creds.split(':', 1)
-
-        # Кодуємо пароль
         encoded_password = quote(password, safe='')
 
-        # Збираємо назад
-        fixed_url = f"postgres://{user}:{encoded_password}@{host_part}"
-        return fixed_url
+        return f"postgres://{user}:{encoded_password}@{host_part}"
 
     except Exception:
         return url
 
 
-# Фіксимо URL якщо потрібно
-FIXED_DATABASE_URL = fix_database_url(DATABASE_URL)
+# Кодуємо URL
+ENCODED_DATABASE_URL = encode_database_url(ACTIVE_DATABASE_URL)
 
-# Перевіряємо чи DATABASE_URL валідний
-if FIXED_DATABASE_URL and FIXED_DATABASE_URL.startswith('postgres'):
-    try:
-        DATABASES = {
-            'default': dj_database_url.config(
-                default=FIXED_DATABASE_URL,
-                conn_max_age=600,
-                ssl_require=True
-            )
-        }
-    except Exception:
-        # Якщо помилка парсингу — fallback на SQLite
-        DATABASES = {
-            'default': {
-                'ENGINE': 'django.db.backends.sqlite3',
-                'NAME': BASE_DIR / 'db.sqlite3',
-            }
-        }
+# Вибираємо базу даних
+if ENCODED_DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=ENCODED_DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True
+        )
+    }
+    print(f"✅ Using PostgreSQL: {DATABASES['default']['HOST']}")
 else:
-    # SQLite для локальної розробки
+    # Fallback на SQLite
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+    print("⚠️  WARNING: Using SQLite - data will be lost on redeploy!")
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
