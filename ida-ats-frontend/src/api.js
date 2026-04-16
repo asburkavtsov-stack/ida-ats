@@ -1,12 +1,19 @@
+// api.js - ВИПРАВЛЕНО
 import axios from 'axios';
 
-// Для Vercel використовуємо відносний шлях, для локального - localhost
-const API_URL = process.env.REACT_APP_API_URL || '';
+// Базовий URL без пробілів
+const API_URL = (process.env.REACT_APP_API_URL || 'https://web-production-007d9.up.railway.app').trim();
+
 axios.defaults.baseURL = API_URL;
 
-// Додаємо токен до кожного запиту
+// Прибираємо пробіли з усіх URL
 axios.interceptors.request.use(
   config => {
+    // Виправляємо URL якщо є пробіли
+    if (config.url) {
+      config.url = config.url.trim();
+    }
+    
     const token = localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -16,7 +23,7 @@ axios.interceptors.request.use(
   error => Promise.reject(error)
 );
 
-// Перехоплювач — якщо 401, виходимо
+// Решта коду без змін...
 axios.interceptors.response.use(
   response => response,
   error => {
