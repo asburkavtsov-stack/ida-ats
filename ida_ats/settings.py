@@ -25,8 +25,31 @@ INSTALLED_APPS = [
     'candidates',
 ]
 
-# 🔧 КРИТИЧНО: CorsMiddleware має бути ПЕРШИМ!
+
+# CORS Middleware
+class CorsMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.method == "OPTIONS":
+            from django.http import HttpResponse
+            response = HttpResponse()
+            response["Access-Control-Allow-Origin"] = "*"
+            response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            response["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-Requested-With"
+            response["Access-Control-Max-Age"] = "86400"
+            return response
+
+        response = self.get_response(request)
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        response["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-Requested-With"
+        return response
+
+
 MIDDLEWARE = [
+    __name__ + '.CorsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -57,43 +80,28 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ida_ats.wsgi.application'
 
-# Database
-DATABASE_URL = os.environ.get('DATABASE_URL', '')
-DATABASE_PUBLIC_URL = os.environ.get('DATABASE_PUBLIC_URL', '')
+# Database — використовуємо DATABASE_URL з Railway
+DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
 
-if DATABASE_PUBLIC_URL and DATABASE_PUBLIC_URL.startswith('postgres'):
-    ACTIVE_DATABASE_URL = DATABASE_PUBLIC_URL
-elif DATABASE_URL and DATABASE_URL.startswith('postgres'):
-    ACTIVE_DATABASE_URL = DATABASE_URL
-else:
-    ACTIVE_DATABASE_URL = ''
-
-def encode_database_url(url):
-    if not url or not url.startswith('postgres'):
-        return url
+if DATABASE_URL and 'postgres' in DATABASE_URL:
+    # Кодуємо пароль якщо потрібно
     try:
-        rest = url.replace('postgresql://', '').replace('postgres://', '')
-        if '@' not in rest:
-            return url
-        creds, host_part = rest.split('@', 1)
-        if ':' not in creds:
-            return url
-        user, password = creds.split(':', 1)
-        encoded_password = quote(password, safe='')
-        return f"postgres://{user}:{encoded_password}@{host_part}"
-    except Exception:
-        return url
-
-ENCODED_DATABASE_URL = encode_database_url(ACTIVE_DATABASE_URL)
-
-if ENCODED_DATABASE_URL:
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=ENCODED_DATABASE_URL,
-            conn_max_age=600,
-            ssl_require=True
-        )
-    }
+        DATABASES = {
+            'default': dj_database_url.config(
+                default=DATABASE_URL,
+                conn_max_age=600,
+                ssl_require=True
+            )
+        }
+        print(f"✅ PostgreSQL: {DATABASES['default']['HOST']}")
+    except Exception as e:
+        print(f"⚠️ PostgreSQL error: {e}")
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
 else:
     DATABASES = {
         'default': {
@@ -101,6 +109,7 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+    print("⚠️ SQLite mode")
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -123,35 +132,8 @@ MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', BASE_DIR / 'media'))
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# 🔧 CORS НАЛАШТУВАННЯ - МАКСИМАЛЬНО ВІДКРИТІ
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-]
-
-# 🔧 ДОДАТКОВО: явно дозволяємо origins (навіть з CORS_ALLOW_ALL_ORIGINS)
-CORS_ALLOWED_ORIGINS = [
-    "https://ida-ats.vercel.app",
-    "http://localhost:3000",
-    "http://localhost:5173",
-]
 
 CSRF_TRUSTED_ORIGINS = [
     'https://ida-ats.vercel.app',
