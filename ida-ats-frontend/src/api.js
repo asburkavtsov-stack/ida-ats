@@ -1,29 +1,9 @@
-// api.js - ВИПРАВЛЕНО
 import axios from 'axios';
 
-// Базовий URL без пробілів
-const API_URL = (process.env.REACT_APP_API_URL || 'https://web-production-007d9.up.railway.app').trim();
-
+const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
 axios.defaults.baseURL = API_URL;
 
-// Прибираємо пробіли з усіх URL
-axios.interceptors.request.use(
-  config => {
-    // Виправляємо URL якщо є пробіли
-    if (config.url) {
-      config.url = config.url.trim();
-    }
-    
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  error => Promise.reject(error)
-);
-
-// Решта коду без змін...
+// Перехоплювач — якщо 401, виходимо
 axios.interceptors.response.use(
   response => response,
   error => {

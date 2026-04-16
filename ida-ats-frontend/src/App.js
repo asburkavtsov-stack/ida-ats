@@ -12,7 +12,6 @@ import Admin from './pages/Admin';
 import Users from './pages/Users';
 import Profile from './pages/Profile';
 import Login from './pages/Login';
-import Team from './pages/Team';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import AddCandidateModal from './components/AddCandidateModal';
@@ -81,7 +80,6 @@ function App() {
       case 'admin':      return <Admin />;
       case 'users':      return <Users />;
       case 'profile':    return <Profile />;
-      case 'team':       return <Team />;
       default:           return <Dashboard />;
     }
   };

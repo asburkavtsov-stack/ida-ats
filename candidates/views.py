@@ -6,14 +6,14 @@ from django.contrib.auth.models import User
 from rest_framework import serializers as drf_serializers
 from .models import Candidate, Vacancy, UserProfile, Organization
 from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer
-from rest_framework.permissions import AllowAny
 
 
 def get_user_org(user):
     try:
         return user.profile.organization
-    except (AttributeError, UserProfile.DoesNotExist):
+    except:
         return None
+
 
 class VacancyViewSet(viewsets.ModelViewSet):
     serializer_class = VacancySerializer
@@ -104,11 +104,11 @@ def current_user(request):
         org_data = {
             'id': org.id,
             'name': org.name,
-            'max_vacancies': org.max_vacancies,
+            'max_vacancies': org.max_vacancies,  # ← ДОДАТИ
             'max_hr': org.max_hr,
         } if org else None
         role = user.profile.role
-    except (AttributeError, UserProfile.DoesNotExist):
+    except:
         org_data = None
         role = None
 
@@ -222,30 +222,3 @@ class UserListView(viewsets.ViewSet):
             return Response({'success': True})
         except User.DoesNotExist:
             return Response({'error': 'Юзер не знайдений'}, status=status.HTTP_404_NOT_FOUND)
-
-        @api_view(['POST'])
-        @permission_classes([AllowAny])  # або IsAdminUser, якщо тільки адміни можуть реєструвати
-        def register_user(request):
-            username = request.data.get('username')
-            password = request.data.get('password')
-            first_name = request.data.get('first_name', '')
-            last_name = request.data.get('last_name', '')
-            email = request.data.get('email', '')
-            org_id = request.data.get('organization')
-            role = request.data.get('role', 'hr')
-
-            if User.objects.filter(username=username).exists():
-                return Response({'error': 'Username вже існує'}, status=status.HTTP_400_BAD_REQUEST)
-
-            user = User.objects.create_user(
-                username=username,
-                password=password,
-                first_name=first_name,
-                last_name=last_name,
-                email=email
-            )
-
-            org = Organization.objects.get(id=org_id) if org_id else None
-            UserProfile.objects.create(user=user, organization=org, role=role)
-
-            return Response({'success': True, 'username': username}, status=status.HTTP_201_CREATED)
