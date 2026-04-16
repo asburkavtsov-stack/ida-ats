@@ -10,13 +10,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-me-in-producti
 
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
-    'web-production-007d9.up.railway.app',
-    '.railway.app',
-    '*',  # Тимчасово для тестування
-]
+ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -32,7 +26,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # ПЕРШИЙ в списку!
+    'corsheaders.middleware.CorsMiddleware',  # ПЕРШИЙ!
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -62,7 +56,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ida_ats.wsgi.application'
 
-# === DATABASE CONFIGURATION ===
+# Database
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 DATABASE_PUBLIC_URL = os.environ.get('DATABASE_PUBLIC_URL', '')
 
@@ -128,43 +122,37 @@ MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', BASE_DIR / 'media'))
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# === CORS CONFIGURATION ===
-# Дозволяємо всі origins тимчасово для тестування
+# CORS - критично важливі налаштування
 CORS_ALLOW_ALL_ORIGINS = True
-
-# Або чіткий список (розкоментуйте після тестування)
-# CORS_ALLOWED_ORIGINS = [
-#     "https://ida-ats.vercel.app",
-#     "http://localhost:3000",
-#     "http://localhost:5173",
-#     "http://127.0.0.1:3000",
-# ]
-
 CORS_ALLOW_CREDENTIALS = True
-
 CORS_ALLOW_METHODS = [
-    "DELETE",
-    "GET",
-    "OPTIONS",
-    "PATCH",
-    "POST",
-    "PUT",
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-requested-by',
 ]
 
-CORS_ALLOW_HEADERS = [
-    "accept",
-    "authorization",
-    "content-type",
-    "origin",
-    "x-csrftoken",
-    "x-requested-with",
-    "x-requested-by",
-]
+# Додаємо CORS middleware для preflight запитів
+CORS_PREFLIGHT_MAX_AGE = 86400
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://ida-ats.vercel.app",
-    "https://web-production-007d9.up.railway.app",
-    "https://*.railway.app",
+    'https://ida-ats.vercel.app',
+    'https://web-production-007d9.up.railway.app',
+    'https://*.railway.app',
 ]
 
 REST_FRAMEWORK = {
