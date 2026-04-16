@@ -1,29 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-/*const navItems = userRole === 'superadmin' ? [
-  { key: 'admin', icon: '⚙', label: 'Адмінка IDA', badgeKey: null },
-] : [
-  { key: 'dashboard',  icon: '◈', label: 'Дашборд',   badgeKey: null },
-  { key: 'kanban',     icon: '⊞', label: 'Канбан',     badgeKey: 'kanban' },
-  { key: 'candidates', icon: '◉', label: 'Кандидати',  badgeKey: 'candidates' },
-  { key: 'vacancies',  icon: '◫', label: 'Вакансії',   badgeKey: 'vacancies' },
-  { key: 'analytics',  icon: '◎', label: 'Аналітика',  badgeKey: null },
-];*/
-
 function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
   const [user, setUser] = useState(null);
   const [counts, setCounts] = useState({ candidates: 0, vacancies: 0 });
+  
   const navItems = userRole === 'superadmin' ? [
-  { key: 'admin', icon: '⚙', label: 'Організації', badgeKey: null },
-  { key: 'users', icon: '👥', label: 'Юзери', badgeKey: null },
+    { key: 'admin', icon: '⚙', label: 'Організації', badgeKey: null },
+    { key: 'users', icon: '👥', label: 'Юзери', badgeKey: null },
+  ] : userRole === 'admin' ? [
+    { key: 'dashboard',  icon: '◈', label: 'Дашборд',   badgeKey: null },
+    { key: 'kanban',     icon: '⊞', label: 'Канбан',     badgeKey: 'kanban' },
+    { key: 'candidates', icon: '◉', label: 'Кандидати',  badgeKey: 'candidates' },
+    { key: 'vacancies',  icon: '◫', label: 'Вакансії',   badgeKey: 'vacancies' },
+    { key: 'analytics',  icon: '◎', label: 'Аналітика',  badgeKey: null },
+    { key: 'team',       icon: '👥', label: 'Команда',    badgeKey: null },
+    { key: 'profile',    icon: '◉', label: 'Профіль',    badgeKey: null },
   ] : [
-  { key: 'dashboard',  icon: '◈', label: 'Дашборд',   badgeKey: null },
-  { key: 'kanban',     icon: '⊞', label: 'Канбан',     badgeKey: 'kanban' },
-  { key: 'candidates', icon: '◉', label: 'Кандидати',  badgeKey: 'candidates' },
-  { key: 'vacancies',  icon: '◫', label: 'Вакансії',   badgeKey: 'vacancies' },
-  { key: 'analytics',  icon: '◎', label: 'Аналітика',  badgeKey: null },
-  { key: 'profile', icon: '◉', label: 'Профіль', badgeKey: null },
+    { key: 'dashboard',  icon: '◈', label: 'Дашборд',   badgeKey: null },
+    { key: 'kanban',     icon: '⊞', label: 'Канбан',     badgeKey: 'kanban' },
+    { key: 'candidates', icon: '◉', label: 'Кандидати',  badgeKey: 'candidates' },
+    { key: 'vacancies',  icon: '◫', label: 'Вакансії',   badgeKey: 'vacancies' },
+    { key: 'analytics',  icon: '◎', label: 'Аналітика',  badgeKey: null },
+    { key: 'profile',    icon: '◉', label: 'Профіль',    badgeKey: null },
   ];
 
   useEffect(() => {
@@ -55,6 +54,13 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
         : user.username)
     : '...';
 
+  // Відображаємо роль
+  const roleLabels = {
+    superadmin: 'Супер-адмін',
+    admin: 'Адмін орг.',
+    hr: 'HR менеджер',
+  };
+
   return (
     <div style={{
       width: '220px', background: 'var(--sidebar-bg)',
@@ -75,7 +81,7 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
         <div style={{ fontFamily: 'DM Mono', fontSize: '0.6rem', color: 'rgba(200,176,182,0.3)', letterSpacing: '2px', textTransform: 'uppercase', padding: '0 8px', marginBottom: '6px' }}>
           Головне
         </div>
-        {navItems.filter(item => item.key !== 'admin' || user?.role === 'superadmin').map(item => (
+        {navItems.map(item => (
           <div
             key={item.key}
             onClick={() => onNavigate(item.key)}
@@ -119,8 +125,8 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
             <div style={{ fontWeight: 600, fontSize: '0.82rem', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {displayName}
             </div>
-            <div style={{ fontSize: '0.68rem', color: 'rgba(200,176,182,0.5)', fontFamily: 'DM Mono', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {user?.email || ''}
+            <div style={{ fontSize: '0.65rem', color: 'rgba(200,176,182,0.5)', fontFamily: 'DM Mono', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {roleLabels[userRole] || userRole}
             </div>
           </div>
         </div>
