@@ -3,7 +3,6 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.contrib.auth.models import User
-from rest_framework import serializers as drf_serializers
 from .models import Candidate, Vacancy, UserProfile, Organization
 from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer
 
@@ -11,7 +10,14 @@ from .serializers import CandidateSerializer, VacancySerializer, OrganizationSer
 def get_user_org(user):
     try:
         return user.profile.organization
-    except:
+    except (UserProfile.DoesNotExist, AttributeError):
+        return None
+
+
+def get_user_role(user):
+    try:
+        return user.profile.role
+    except (UserProfile.DoesNotExist, AttributeError):
         return None
 
 
@@ -19,11 +25,7 @@ class VacancyViewSet(viewsets.ModelViewSet):
     serializer_class = VacancySerializer
 
     def get_queryset(self):
-        try:
-            role = self.request.user.profile.role
-        except:
-            role = None
-
+        role = get_user_role(self.request.user)
         org_id = self.request.query_params.get('organization')
 
         if role == 'superadmin':
@@ -39,24 +41,21 @@ class VacancyViewSet(viewsets.ModelViewSet):
 
         return queryset
 
-
     def perform_create(self, serializer):
         org = get_user_org(self.request.user)
         serializer.save(organization=org)
+
 
 class OrganizationViewSet(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
 
+
 class CandidateViewSet(viewsets.ModelViewSet):
     serializer_class = CandidateSerializer
 
     def get_queryset(self):
-        try:
-            role = self.request.user.profile.role
-        except:
-            role = None
-
+        role = get_user_role(self.request.user)
         org_id = self.request.query_params.get('organization')
 
         if role == 'superadmin':
@@ -104,11 +103,11 @@ def current_user(request):
         org_data = {
             'id': org.id,
             'name': org.name,
-            'max_vacancies': org.max_vacancies,  # ← ДОДАТИ
+            'max_vacancies': org.max_vacancies,
             'max_hr': org.max_hr,
         } if org else None
         role = user.profile.role
-    except:
+    except (UserProfile.DoesNotExist, AttributeError):
         org_data = None
         role = None
 
@@ -122,12 +121,27 @@ def current_user(request):
         'role': role,
     })
 
+
 class UserListView(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     def list(self, request):
+        role = get_user_role(request.user)
         org_id = request.query_params.get('organization')
-        profiles = UserProfile.objects.filter(organization_id=org_id).select_related('user')
+
+        # Superadmin може дивитись будь-яку організацію
+        # Admin/HR — тільки свою
+        if role == 'superadmin':
+            if not org_id:
+                return Response({'error': 'organization parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+            profiles = UserProfile.objects.filter(organization_id=org_id).select_related('user')
+        else:
+            user_org = get_user_org(request.user)
+            if not user_org:
+                return Response([], status=status.HTTP_200_OK)
+            # Ігноруємо org_id з params — завжди тільки своя організація
+            profiles = UserProfile.objects.filter(organization=user_org).select_related('user')
+
         data = [{
             'id': p.user.id,
             'username': p.user.username,
@@ -141,17 +155,21 @@ class UserListView(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def all(self, request):
+        role = get_user_role(request.user)
+        if role != 'superadmin':
+            return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
         users = User.objects.all().select_related('profile__organization')
         data = []
         for u in users:
             try:
                 profile = u.profile
                 org = profile.organization
-                role = profile.role
+                role_name = profile.role
                 org_id = org.id if org else None
                 org_name = org.name if org else None
-            except:
-                role = None
+            except (UserProfile.DoesNotExist, AttributeError):
+                role_name = None
                 org_id = None
                 org_name = None
             data.append({
@@ -160,7 +178,7 @@ class UserListView(viewsets.ViewSet):
                 'first_name': u.first_name,
                 'last_name': u.last_name,
                 'email': u.email,
-                'role': role,
+                'role': role_name,
                 'organization_id': org_id,
                 'organization_name': org_name,
             })
@@ -208,7 +226,7 @@ class UserListView(viewsets.ViewSet):
             elif org_id == '':
                 profile.organization = None
             profile.save()
-        except UserProfile.DoesNotExist:
+        except (UserProfile.DoesNotExist, AttributeError):
             org_id = request.data.get('organization')
             org = Organization.objects.get(id=org_id) if org_id else None
             UserProfile.objects.create(user=user, organization=org, role=request.data.get('role', 'hr'))

@@ -1,11 +1,12 @@
 from rest_framework import serializers
-from .models import Candidate, Vacancy
-from .models import Organization
+from .models import Candidate, Vacancy, Organization
+
 
 class VacancySerializer(serializers.ModelSerializer):
     class Meta:
         model = Vacancy
         fields = ['id', 'title', 'department', 'is_active', 'created_at']
+
 
 class CandidateSerializer(serializers.ModelSerializer):
     vacancy_title = serializers.CharField(source='vacancy.title', read_only=True)
@@ -17,7 +18,16 @@ class CandidateSerializer(serializers.ModelSerializer):
             'phone', 'vacancy', 'vacancy_title',
             'status', 'notes', 'created_at'
         ]
+
+
 class OrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ['id', 'name', 'slug', 'is_active', 'created_at']
+
+
+class OrganizationDetailSerializer(serializers.ModelSerializer):
+    """Повні дані — тільки для superadmin"""
     class Meta:
         model = Organization
         fields = '__all__'

@@ -59,5 +59,9 @@ class Candidate(models.Model):
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        # Унікальний email в межах організації
+        unique_together = [('email', 'organization')]
+
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
