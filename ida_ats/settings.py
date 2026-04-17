@@ -23,7 +23,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.CorsMiddleware',  # ПЕРШИМ — обов'язково
+    'corsheaders.middleware.CorsMiddleware',  # ПЕРШИМ — єдиний правильний рядок
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -53,7 +53,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ida_ats.wsgi.application'
 
-# Database
 import dj_database_url
 
 DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
