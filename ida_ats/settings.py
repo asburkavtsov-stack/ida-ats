@@ -1,14 +1,11 @@
 from pathlib import Path
 from datetime import timedelta
 import os
-import dj_database_url
-import sys
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-me-in-production')
-
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'  # Тимчасово True для діагностики
+DEBUG = True  # Тимчасово для діагностики
 
 ALLOWED_HOSTS = ['*']
 
@@ -26,31 +23,32 @@ INSTALLED_APPS = [
 ]
 
 
-# CORS Middleware
+# 🔧 CORS MIDDLEWARE — ПЕРШИЙ у списку!
 class CorsMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        if request.method == "OPTIONS":
+        # Обробка preflight запиту (OPTIONS)
+        if request.method == 'OPTIONS':
             from django.http import HttpResponse
-            response = HttpResponse()
-            response["Access-Control-Allow-Origin"] = "*"
-            response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-            response["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-Requested-With"
-            response["Access-Control-Max-Age"] = "86400"
+            response = HttpResponse(status=200)
+            response['Access-Control-Allow-Origin'] = '*'
+            response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+            response['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Requested-With, Accept, Origin'
+            response['Access-Control-Max-Age'] = '86400'
             return response
 
+        # Звичайний запит
         response = self.get_response(request)
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        response["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-Requested-With"
+        response['Access-Control-Allow-Origin'] = '*'
+        response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, X-Requested-With, Accept, Origin'
         return response
 
 
 MIDDLEWARE = [
-    __name__ + '.CorsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
+    'ida_ats.settings.CorsMiddleware',  # ВАЖЛИВО: повний шлях!
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -80,40 +78,27 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ida_ats.wsgi.application'
 
-# ====================== DATABASE CONFIG ======================
-print("🔍 Checking DATABASE_URL...", file=sys.stderr)
+# Database
+import dj_database_url
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
+DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
 
-if DATABASE_URL:
-    print(f"✅ DATABASE_URL знайдено (довжина: {len(DATABASE_URL)})", file=sys.stderr)
-    try:
-        DATABASES = {
-            'default': dj_database_url.config(
-                default=DATABASE_URL,
-                conn_max_age=600,
-                ssl_require=True,           # Важливо для Railway
-            )
-        }
-        host = DATABASES['default'].get('HOST', 'unknown')
-        print(f"✅ Успішно підключено PostgreSQL. Host: {host}", file=sys.stderr)
-    except Exception as e:
-        print(f"❌ Помилка парсингу DATABASE_URL: {e}", file=sys.stderr)
-        DATABASES = {
-            'default': {
-                'ENGINE': 'django.db.backends.sqlite3',
-                'NAME': BASE_DIR / 'db.sqlite3',
-            }
-        }
+if DATABASE_URL and 'postgres' in DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True
+        )
+    }
 else:
-    print("⚠️ DATABASE_URL відсутній або порожній — використовуємо SQLite", file=sys.stderr)
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-# ============================================================
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -135,6 +120,7 @@ MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', BASE_DIR / 'media'))
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# CORS налаштування (додатково до middleware)
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
