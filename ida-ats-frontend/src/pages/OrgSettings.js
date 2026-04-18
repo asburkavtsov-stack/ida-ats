@@ -43,18 +43,18 @@ function OrgSettings() {
   }, []);
 
   // Завантажуємо HR-юзерів організації
-  const fetchUsers = () => {
+  const fetchUsers = React.useCallback(() => {
     if (!org) return;
     setLoadingUsers(true);
     axios.get(`/api/users/?organization=${org.id}`)
       .then(res => setUsers(res.data))
       .catch(() => {})
       .finally(() => setLoadingUsers(false));
-  };
+  }, [org]);
 
   useEffect(() => {
-    if (org) fetchUsers();
-  }, [org]);
+    fetchUsers();
+  }, [fetchUsers]);
 
   // Зберегти назву організації
   const handleSaveOrg = () => {
