@@ -11,6 +11,7 @@ import Analytics from './pages/Analytics';
 import Admin from './pages/Admin';
 import Users from './pages/Users';
 import Profile from './pages/Profile';
+import OrgSettings from './pages/OrgSettings';
 import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -23,25 +24,24 @@ function App() {
   const [showModal, setShowModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isAuth, setIsAuth] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [viewOrgId, setViewOrgId] = useState(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const fetchRole = () => {
     axios.get('/api/me/')
       .then(res => {
         const role = res.data.role;
         setUserRole(role);
-        if (role === 'superadmin') {
-          setCurrentPage('admin');
-        } else {
-          setCurrentPage('dashboard');
-        }
+        if (role === 'superadmin') setCurrentPage('admin');
+        else if (role === 'admin') setCurrentPage('dashboard');
+        else setCurrentPage('dashboard');
       })
       .catch(() => {});
   };
@@ -72,22 +72,21 @@ function App() {
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'dashboard':  return <Dashboard />;
-      case 'kanban':     return <Kanban key={refreshKey} searchQuery={debouncedSearch} />;
-      case 'candidates': return <Candidates key={refreshKey} searchQuery={debouncedSearch} />;
-      case 'vacancies':  return <Vacancies />;
-      case 'analytics':  return <Analytics />;
-      case 'admin':      return <Admin />;
-      case 'users':      return <Users />;
-      case 'profile':    return <Profile />;
-      default:           return <Dashboard />;
+      case 'dashboard':    return <Dashboard />;
+      case 'kanban':       return <Kanban key={refreshKey} searchQuery={debouncedSearch} />;
+      case 'candidates':   return <Candidates key={refreshKey} searchQuery={debouncedSearch} />;
+      case 'vacancies':    return <Vacancies />;
+      case 'analytics':    return <Analytics />;
+      case 'org_settings': return <OrgSettings />;
+      case 'profile':      return <Profile />;
+      default:             return <Dashboard />;
     }
   };
 
   if (!isAuth) return <Login onLogin={handleLogin} />;
 
-  // Superadmin бачить тільки адмінку
- if (userRole === 'superadmin') {
+  // Superadmin
+  if (userRole === 'superadmin') {
     return (
       <div className="app-layout">
         <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} onLogout={handleLogout} userRole={userRole} />
@@ -98,7 +97,8 @@ function App() {
                 <div style={{ padding: '16px 28px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <button
                     onClick={() => setViewOrgId(null)}
-                    style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Mono', fontSize: '0.78rem' }}>
+                    style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Mono', fontSize: '0.78rem' }}
+                  >
                     ← Назад до адмінки
                   </button>
                   <span style={{ fontSize: '0.82rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>Перегляд організації</span>
@@ -116,6 +116,32 @@ function App() {
     );
   }
 
+  // Admin — з Topbar тільки для основних сторінок, без модалки
+  if (userRole === 'admin') {
+    const showTopbar = ['dashboard', 'kanban', 'candidates', 'vacancies', 'analytics'].includes(currentPage);
+    return (
+      <div className="app-layout">
+        <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} onLogout={handleLogout} userRole={userRole} />
+        <div className="main">
+          {showTopbar && (
+            <Topbar
+              currentPage={currentPage}
+              onAddCandidate={() => setShowModal(true)}
+              onSearch={setSearchQuery}
+            />
+          )}
+          <div className="content" style={showTopbar ? {} : { padding: 0 }}>
+            {renderPage()}
+          </div>
+        </div>
+        {showModal && (
+          <AddCandidateModal onClose={() => setShowModal(false)} onAdded={handleAdded} />
+        )}
+      </div>
+    );
+  }
+
+  // HR
   return (
     <div className="app-layout">
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} onLogout={handleLogout} userRole={userRole} />
@@ -130,10 +156,7 @@ function App() {
         </div>
       </div>
       {showModal && (
-        <AddCandidateModal
-          onClose={() => setShowModal(false)}
-          onAdded={handleAdded}
-        />
+        <AddCandidateModal onClose={() => setShowModal(false)} onAdded={handleAdded} />
       )}
     </div>
   );

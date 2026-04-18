@@ -3,39 +3,37 @@ import axios from 'axios';
 
 function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
   const [user, setUser] = useState(null);
-  const [counts, setCounts] = useState({ candidates: 0, vacancies: 0 });
-  
+  const [counts, setCounts] = useState({ candidates: 0, vacancies: 0, kanban: 0 });
+
   const navItems = userRole === 'superadmin' ? [
-    { key: 'admin', icon: '⚙', label: 'Організації', badgeKey: null },
-    { key: 'users', icon: '👥', label: 'Юзери', badgeKey: null },
+    { key: 'admin', icon: '⚙', label: 'Організації' },
+    { key: 'users', icon: '👥', label: 'Юзери' },
   ] : userRole === 'admin' ? [
-    { key: 'dashboard',  icon: '◈', label: 'Дашборд',   badgeKey: null },
-    { key: 'kanban',     icon: '⊞', label: 'Канбан',     badgeKey: 'kanban' },
-    { key: 'candidates', icon: '◉', label: 'Кандидати',  badgeKey: 'candidates' },
-    { key: 'vacancies',  icon: '◫', label: 'Вакансії',   badgeKey: 'vacancies' },
-    { key: 'analytics',  icon: '◎', label: 'Аналітика',  badgeKey: null },
-    { key: 'team',       icon: '👥', label: 'Команда',    badgeKey: null },
-    { key: 'profile',    icon: '◉', label: 'Профіль',    badgeKey: null },
+    { key: 'dashboard',    icon: '◈', label: 'Дашборд',      badgeKey: null },
+    { key: 'kanban',       icon: '⊞', label: 'Канбан',        badgeKey: 'kanban' },
+    { key: 'candidates',   icon: '◉', label: 'Кандидати',     badgeKey: 'candidates' },
+    { key: 'vacancies',    icon: '◫', label: 'Вакансії',      badgeKey: 'vacancies' },
+    { key: 'analytics',   icon: '◎', label: 'Аналітика',     badgeKey: null },
+    { key: 'org_settings', icon: '🏢', label: 'Організація',  badgeKey: null },
+    { key: 'profile',      icon: '◉', label: 'Профіль',       badgeKey: null },
   ] : [
-    { key: 'dashboard',  icon: '◈', label: 'Дашборд',   badgeKey: null },
-    { key: 'kanban',     icon: '⊞', label: 'Канбан',     badgeKey: 'kanban' },
-    { key: 'candidates', icon: '◉', label: 'Кандидати',  badgeKey: 'candidates' },
-    { key: 'vacancies',  icon: '◫', label: 'Вакансії',   badgeKey: 'vacancies' },
-    { key: 'analytics',  icon: '◎', label: 'Аналітика',  badgeKey: null },
-    { key: 'profile',    icon: '◉', label: 'Профіль',    badgeKey: null },
+    { key: 'dashboard',  icon: '◈', label: 'Дашборд',    badgeKey: null },
+    { key: 'kanban',     icon: '⊞', label: 'Канбан',      badgeKey: 'kanban' },
+    { key: 'candidates', icon: '◉', label: 'Кандидати',   badgeKey: 'candidates' },
+    { key: 'vacancies',  icon: '◫', label: 'Вакансії',    badgeKey: 'vacancies' },
+    { key: 'analytics',  icon: '◎', label: 'Аналітика',   badgeKey: null },
+    { key: 'profile',    icon: '◉', label: 'Профіль',     badgeKey: null },
   ];
 
   useEffect(() => {
-    axios.get('/api/me/')
-      .then(res => setUser(res.data))
-      .catch(() => {});
+    axios.get('/api/me/').then(res => setUser(res.data)).catch(() => {});
 
     axios.get('/api/candidates/')
-    .then(res => {
-      const active = res.data.filter(c => c.status !== 'rejected');
-      setCounts(c => ({ ...c, candidates: res.data.length, kanban: active.length }));
-    })
-    .catch(() => {});
+      .then(res => {
+        const active = res.data.filter(c => c.status !== 'rejected');
+        setCounts(c => ({ ...c, candidates: res.data.length, kanban: active.length }));
+      })
+      .catch(() => {});
 
     axios.get('/api/vacancies/')
       .then(res => setCounts(c => ({ ...c, vacancies: res.data.length })))
@@ -54,7 +52,6 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
         : user.username)
     : '...';
 
-  // Відображаємо роль
   const roleLabels = {
     superadmin: 'Супер-адмін',
     admin: 'Адмін орг.',
@@ -77,7 +74,7 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
       </div>
 
       {/* Навігація */}
-      <div style={{ padding: '20px 12px 8px' }}>
+      <div style={{ padding: '20px 12px 8px', flex: 1 }}>
         <div style={{ fontFamily: 'DM Mono', fontSize: '0.6rem', color: 'rgba(200,176,182,0.3)', letterSpacing: '2px', textTransform: 'uppercase', padding: '0 8px', marginBottom: '6px' }}>
           Головне
         </div>
@@ -95,29 +92,28 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
           >
             <span>{item.icon}</span>
             <span style={{ flex: 1 }}>{item.label}</span>
-              {item.badgeKey && counts[item.badgeKey] > 0 && (
-                <span style={{
-                  fontFamily: 'DM Mono', fontSize: '0.65rem',
-                  background: currentPage === item.key ? 'rgba(42,10,18,0.15)' : 'rgba(255,255,255,0.1)',
-                  color: currentPage === item.key ? 'var(--sidebar-active-text)' : 'var(--sidebar-text)',
-                  padding: '2px 7px', borderRadius: '20px',
-                }}>
-                  {counts[item.badgeKey]}
-            </span>
-              )}
+            {item.badgeKey && counts[item.badgeKey] > 0 && (
+              <span style={{
+                fontFamily: 'DM Mono', fontSize: '0.65rem',
+                background: currentPage === item.key ? 'rgba(42,10,18,0.15)' : 'rgba(255,255,255,0.1)',
+                color: currentPage === item.key ? 'var(--sidebar-active-text)' : 'var(--sidebar-text)',
+                padding: '2px 7px', borderRadius: '20px',
+              }}>
+                {counts[item.badgeKey]}
+              </span>
+            )}
           </div>
         ))}
       </div>
 
       {/* Юзер */}
-      <div style={{ marginTop: 'auto', padding: '16px 12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <div style={{ padding: '16px 12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', borderRadius: '8px' }}>
           <div style={{
             width: '32px', height: '32px', borderRadius: '8px',
             background: 'var(--sidebar-active)', display: 'flex',
             alignItems: 'center', justifyContent: 'center',
-            fontSize: '0.75rem', fontWeight: 700, color: 'var(--sidebar-active-text)',
-            flexShrink: 0,
+            fontSize: '0.75rem', fontWeight: 700, color: 'var(--sidebar-active-text)', flexShrink: 0,
           }}>
             {initials}
           </div>
@@ -125,7 +121,7 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
             <div style={{ fontWeight: 600, fontSize: '0.82rem', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {displayName}
             </div>
-            <div style={{ fontSize: '0.65rem', color: 'rgba(200,176,182,0.5)', fontFamily: 'DM Mono', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontSize: '0.65rem', color: 'rgba(200,176,182,0.5)', fontFamily: 'DM Mono' }}>
               {roleLabels[userRole] || userRole}
             </div>
           </div>
