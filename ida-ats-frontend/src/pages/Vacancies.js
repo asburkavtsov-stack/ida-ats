@@ -27,14 +27,12 @@ function Vacancies() {
         axios.get('/api/candidates/'),
         axios.get('/api/me/')
       ]);
-      setVacancies(vacRes.data);
-      setCandidates(candRes.data);
-      // 🔧 ДОДАНО: Завантаження ліміту
+      const vacsData = vacRes.data.results ?? vacRes.data;
+      const candsData = candRes.data.results ?? candRes.data;
+      setVacancies(vacsData);
+      setCandidates(candsData);
       const maxVacancies = meRes.data.organization?.max_vacancies || 10;
-      setVacancyLimit({
-        current: vacRes.data.length,
-        max: maxVacancies
-      });
+      setVacancyLimit({ current: vacsData.length, max: maxVacancies });
     } catch (err) {
       console.error('Помилка завантаження:', err);
     } finally {
