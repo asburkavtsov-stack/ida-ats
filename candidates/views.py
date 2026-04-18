@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from django.contrib.auth.models import User
 from .models import Candidate, Vacancy, UserProfile, Organization
 from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer
+from .pagination import StandardPagination
 
 
 def get_user_org(user):
@@ -53,6 +54,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
 class CandidateViewSet(viewsets.ModelViewSet):
     serializer_class = CandidateSerializer
+    pagination_class = StandardPagination
 
     def get_queryset(self):
         role = get_user_role(self.request.user)
@@ -77,7 +79,7 @@ class CandidateViewSet(viewsets.ModelViewSet):
         if status_filter:
             queryset = queryset.filter(status=status_filter)
 
-        return queryset
+        return queryset.order_by('-created_at')
 
     def perform_create(self, serializer):
         org = get_user_org(self.request.user)
@@ -129,8 +131,6 @@ class UserListView(viewsets.ViewSet):
         role = get_user_role(request.user)
         org_id = request.query_params.get('organization')
 
-        # Superadmin може дивитись будь-яку організацію
-        # Admin/HR — тільки свою
         if role == 'superadmin':
             if not org_id:
                 return Response({'error': 'organization parameter required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -139,7 +139,6 @@ class UserListView(viewsets.ViewSet):
             user_org = get_user_org(request.user)
             if not user_org:
                 return Response([], status=status.HTTP_200_OK)
-            # Ігноруємо org_id з params — завжди тільки своя організація
             profiles = UserProfile.objects.filter(organization=user_org).select_related('user')
 
         data = [{

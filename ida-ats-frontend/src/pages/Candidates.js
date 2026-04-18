@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import Loader from '../components/Loader';
 
@@ -20,45 +20,64 @@ const filters = [
 ];
 
 const formatDate = (dateString) => {
-  if (!dateString || dateString === 'Invalid date') return '—';
-  
+  if (!dateString) return '—';
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return '—';
-  
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  
-  return `${day}.${month}.${year}`;
+  return `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}`;
 };
 
 function Candidates({ searchQuery = '' }) {
   const [filter, setFilter] = useState('all');
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PAGE_SIZE = 20;
 
-  useEffect(() => {
-    axios.get('/api/candidates/')
-      .then(res => setCandidates(res.data))
+  const fetchCandidates = useCallback((page = 1) => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    params.set('page', page);
+    params.set('page_size', PAGE_SIZE);
+    if (filter !== 'all') params.set('status', filter);
+    if (searchQuery) params.set('search', searchQuery);
+
+    axios.get(`/api/candidates/?${params.toString()}`)
+      .then(res => {
+        // Підтримка як пагінованої відповіді, так і списку
+        if (res.data.results !== undefined) {
+          setCandidates(res.data.results);
+          setTotalPages(res.data.total_pages || 1);
+          setTotalCount(res.data.count || 0);
+        } else {
+          setCandidates(res.data);
+          setTotalPages(1);
+          setTotalCount(res.data.length);
+        }
+      })
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
-  }, []);
+  }, [filter, searchQuery]);
 
-  const filtered = candidates.filter(c => {
-    const matchesFilter = filter === 'all' || c.status === filter;
-    const matchesSearch = searchQuery === '' ||
-      `${c.first_name} ${c.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.vacancy_title && c.vacancy_title.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesFilter && matchesSearch;
-  });
+  // Скидаємо на першу сторінку при зміні фільтру або пошуку
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, searchQuery]);
 
-  if (loading) return <Loader />;
+  useEffect(() => {
+    fetchCandidates(currentPage);
+  }, [fetchCandidates, currentPage]);
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div>
       {/* Фільтри */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
         {filters.map(f => (
           <div
             key={f.key}
@@ -75,7 +94,12 @@ function Candidates({ searchQuery = '' }) {
             {f.label}
           </div>
         ))}
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {totalCount > 0 && (
+            <span style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+              {totalCount} кандидатів
+            </span>
+          )}
           <button style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--muted)', fontSize: '0.78rem', cursor: 'pointer' }}>
             ⬇ Експорт CSV
           </button>
@@ -87,7 +111,7 @@ function Candidates({ searchQuery = '' }) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'var(--bg)' }}>
-              {['Кандидат', 'Вакансія', 'Статус', 'Джерело', 'Дата'].map(h => (
+              {['Кандидат', 'Вакансія', 'Статус', 'Дата'].map(h => (
                 <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontSize: '0.72rem', fontFamily: 'DM Mono', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', borderBottom: '1px solid var(--border)' }}>
                   {h}
                 </th>
@@ -95,8 +119,22 @@ function Candidates({ searchQuery = '' }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((c, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.1s' }}
+            {loading ? (
+              <tr>
+                <td colSpan={4} style={{ padding: '40px', textAlign: 'center' }}>
+                  <Loader />
+                </td>
+              </tr>
+            ) : candidates.length === 0 ? (
+              <tr>
+                <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.82rem', fontFamily: 'DM Mono' }}>
+                  Кандидатів не знайдено
+                </td>
+              </tr>
+            ) : candidates.map((c, i) => (
+              <tr
+                key={c.id || i}
+                style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.1s' }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
@@ -109,19 +147,18 @@ function Candidates({ searchQuery = '' }) {
                   </div>
                 </td>
                 <td style={{ padding: '13px 16px', fontSize: '0.82rem' }}>
-                  {c.vacancy_title}
+                  {c.vacancy_title || '—'}
                 </td>
                 <td style={{ padding: '13px 16px' }}>
-                  <span style={{ fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px', borderRadius: '4px', background: statusConfig[c.status].bg, color: statusConfig[c.status].text }}>
-                    {statusConfig[c.status].label}
+                  <span style={{
+                    fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px',
+                    borderRadius: '4px',
+                    background: statusConfig[c.status]?.bg || '#f5f5f5',
+                    color: statusConfig[c.status]?.text || '#757575',
+                  }}>
+                    {statusConfig[c.status]?.label || c.status}
                   </span>
                 </td>
-                <td style={{ padding: '13px 16px' }}>
-                  <span style={{ fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px', borderRadius: '4px', background: 'var(--surface2)', color: 'var(--muted)' }}>
-                    {c.source || '—'}
-                  </span>
-                </td>
-                {/* 🔧 ВИПРАВЛЕНО: Використовуємо formatDate */}
                 <td style={{ padding: '13px 16px', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)' }}>
                   {formatDate(c.created_at)}
                 </td>
@@ -130,6 +167,76 @@ function Candidates({ searchQuery = '' }) {
           </tbody>
         </table>
       </div>
+
+      {/* Пагінація */}
+      {totalPages > 1 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          gap: '6px', marginTop: '20px',
+        }}>
+          {/* Попередня */}
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            style={{
+              padding: '7px 14px', borderRadius: '8px',
+              border: '1px solid var(--border)', background: 'var(--surface)',
+              color: currentPage === 1 ? 'var(--muted)' : 'var(--text)',
+              fontSize: '0.78rem', cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+              fontFamily: 'DM Mono', opacity: currentPage === 1 ? 0.5 : 1,
+            }}
+          >
+            ← Назад
+          </button>
+
+          {/* Номери сторінок */}
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+            .reduce((acc, p, idx, arr) => {
+              if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+              acc.push(p);
+              return acc;
+            }, [])
+            .map((p, idx) =>
+              p === '...' ? (
+                <span key={`dots-${idx}`} style={{ padding: '0 4px', color: 'var(--muted)', fontFamily: 'DM Mono', fontSize: '0.78rem' }}>
+                  ...
+                </span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => handlePageChange(p)}
+                  style={{
+                    width: '36px', height: '36px', borderRadius: '8px',
+                    border: `1px solid ${currentPage === p ? 'var(--accent)' : 'var(--border)'}`,
+                    background: currentPage === p ? 'var(--accent)' : 'var(--surface)',
+                    color: currentPage === p ? '#fff' : 'var(--text)',
+                    fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'DM Mono',
+                    fontWeight: currentPage === p ? 700 : 400,
+                  }}
+                >
+                  {p}
+                </button>
+              )
+            )
+          }
+
+          {/* Наступна */}
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            style={{
+              padding: '7px 14px', borderRadius: '8px',
+              border: '1px solid var(--border)', background: 'var(--surface)',
+              color: currentPage === totalPages ? 'var(--muted)' : 'var(--text)',
+              fontSize: '0.78rem', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+              fontFamily: 'DM Mono', opacity: currentPage === totalPages ? 0.5 : 1,
+            }}
+          >
+            Вперед →
+          </button>
+        </div>
+      )}
     </div>
   );
 }
