@@ -28,7 +28,7 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
   useEffect(() => {
     axios.get('/api/me/').then(res => setUser(res.data)).catch(() => {});
 
-    axios.get('/api/candidates/')
+    axios.get("/api/candidates/?page_size=1")
       .then(res => {
         const active = res.data.filter(c => c.status !== 'rejected');
         setCounts(c => ({ ...c, candidates: res.data.length, kanban: active.length }));
@@ -145,3 +145,4 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
 }
 
 export default Sidebar;
+// Note: Sidebar already handles this — no candidates.filter needed

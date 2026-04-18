@@ -4,11 +4,11 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import Loader from '../components/Loader';
 
 const columns = [
-  { key: 'new',        label: 'Нові',       color: '#7a1a2e' },
-  { key: 'screening',  label: 'Скринінг',   color: '#b03050' },
-  { key: 'interview',  label: 'Співбесіда', color: '#8a3a5a' },
-  { key: 'offer',      label: 'Оффер',      color: '#e8a0b0' },
-  { key: 'rejected',   label: 'Відмова',    color: '#aaaaaa' },
+  { key: 'new',       label: 'Нові',       color: '#7a1a2e' },
+  { key: 'screening', label: 'Скринінг',   color: '#b03050' },
+  { key: 'interview', label: 'Співбесіда', color: '#8a3a5a' },
+  { key: 'offer',     label: 'Оффер',      color: '#e8a0b0' },
+  { key: 'rejected',  label: 'Відмова',    color: '#aaaaaa' },
 ];
 
 const statusColors = {
@@ -23,21 +23,12 @@ const statusLabels = {
   new: 'Новий', screening: 'Скринінг', interview: 'Співбесіда', offer: 'Оффер', rejected: 'Відмова'
 };
 
-// 🔧 ДОДАНО: Надійне форматування дати
 const formatDate = (dateString) => {
-  if (!dateString || dateString === 'Invalid date') return '';
-  
+  if (!dateString) return '';
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return '';
-  
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  
-  return `${day}.${month}.${year}`;
+  return `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}`;
 };
-
-const getFilterKey = (vacancy) => `vac_${vacancy.id}`;
 
 function Kanban({ searchQuery = '', orgId = null }) {
   const [filter, setFilter] = useState('all');
@@ -46,21 +37,24 @@ function Kanban({ searchQuery = '', orgId = null }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const url = orgId ? `/api/candidates/?organization=${orgId}` : '/api/candidates/';
-    const vacUrl = orgId ? `/api/vacancies/?organization=${orgId}` : '/api/vacancies/';
+    const candUrl = orgId
+      ? `/api/candidates/?organization=${orgId}&page_size=200`
+      : '/api/candidates/?page_size=200';
+    const vacUrl = orgId
+      ? `/api/vacancies/?organization=${orgId}`
+      : '/api/vacancies/';
 
-    Promise.all([axios.get(url), axios.get(vacUrl)])
+    Promise.all([axios.get(candUrl), axios.get(vacUrl)])
       .then(([candidatesRes, vacanciesRes]) => {
-        setCandidates(candidatesRes.data);
-        setVacancies(vacanciesRes.data);
+        // Підтримка пагінованої відповіді
+        setCandidates(candidatesRes.data.results ?? candidatesRes.data);
+        setVacancies(vacanciesRes.data.results ?? vacanciesRes.data);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [orgId]);
 
-  useEffect(() => {
-    setFilter('all');
-  }, [orgId]);
+  useEffect(() => { setFilter('all'); }, [orgId]);
 
   const onDragEnd = (result) => {
     const { destination, source, draggableId } = result;
@@ -81,26 +75,18 @@ function Kanban({ searchQuery = '', orgId = null }) {
   };
 
   const filtered = candidates.filter(c => {
-    let matchesFilter = true;
-    if (filter !== 'all') {
-      const vacancyId = parseInt(filter.replace('vac_', ''));
-      matchesFilter = c.vacancy === vacancyId;
-    }
-
+    const matchesFilter = filter === 'all'
+      ? true
+      : c.vacancy === parseInt(filter.replace('vac_', ''));
     const matchesSearch = searchQuery === '' ||
       `${c.first_name} ${c.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (c.vacancy_title && c.vacancy_title.toLowerCase().includes(searchQuery.toLowerCase()));
-    
     return matchesFilter && matchesSearch;
   });
 
   const vacancyFilters = [
     { key: 'all', label: 'Всі' },
-    ...vacancies.map(v => ({ 
-      key: getFilterKey(v),
-      label: v.title,
-      id: v.id
-    })),
+    ...vacancies.map(v => ({ key: `vac_${v.id}`, label: v.title, id: v.id })),
   ];
 
   if (loading) return <Loader />;
@@ -113,9 +99,9 @@ function Kanban({ searchQuery = '', orgId = null }) {
           Вакансія:
         </span>
         {vacancyFilters.map(v => (
-          <div 
-            key={v.key} 
-            onClick={() => setFilter(v.key)} 
+          <div
+            key={v.key}
+            onClick={() => setFilter(v.key)}
             style={{
               padding: '6px 12px', borderRadius: '20px', fontSize: '0.78rem',
               fontWeight: 500, cursor: 'pointer',
@@ -131,16 +117,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
         {filter !== 'all' && (
           <button
             onClick={() => setFilter('all')}
-            style={{
-              padding: '4px 10px',
-              borderRadius: '6px',
-              border: '1px solid var(--border)',
-              background: 'transparent',
-              color: 'var(--muted)',
-              fontSize: '0.72rem',
-              cursor: 'pointer',
-              marginLeft: '8px',
-            }}
+            style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: '0.72rem', cursor: 'pointer', marginLeft: '8px' }}
           >
             ✕ Скинути
           </button>
@@ -160,7 +137,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
         })}
       </div>
 
-      {/* Канбан дошка */}
+      {/* Канбан */}
       <DragDropContext onDragEnd={onDragEnd}>
         <div style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '16px' }}>
           {columns.map(col => {
@@ -174,7 +151,6 @@ function Kanban({ searchQuery = '', orgId = null }) {
                     {cards.length}
                   </span>
                 </div>
-
                 <Droppable droppableId={col.key}>
                   {(provided, snapshot) => (
                     <div
@@ -189,15 +165,9 @@ function Kanban({ searchQuery = '', orgId = null }) {
                     >
                       {cards.length === 0 && (
                         <div style={{
-                          textAlign: 'center',
-                          padding: '30px 16px',
-                          color: 'var(--muted)',
-                          fontSize: '0.78rem',
-                          border: '1px dashed var(--border)',
-                          borderRadius: '10px',
-                          opacity: snapshot.isDraggingOver ? 0 : 1,
-                          transition: 'opacity 0.15s',
-                          pointerEvents: 'none',
+                          textAlign: 'center', padding: '30px 16px', color: 'var(--muted)',
+                          fontSize: '0.78rem', border: '1px dashed var(--border)', borderRadius: '10px',
+                          opacity: snapshot.isDraggingOver ? 0 : 1, transition: 'opacity 0.15s', pointerEvents: 'none',
                         }}>
                           Перетягніть кандидата сюди
                         </div>
@@ -221,10 +191,9 @@ function Kanban({ searchQuery = '', orgId = null }) {
                               <div style={{ fontSize: '0.88rem', fontWeight: 600, marginBottom: '4px' }}>{c.first_name} {c.last_name}</div>
                               <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginBottom: '10px' }}>{c.vacancy_title}</div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px', borderRadius: '4px', background: statusColors[c.status].bg, color: statusColors[c.status].text }}>
+                                <span style={{ fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px', borderRadius: '4px', background: statusColors[c.status]?.bg, color: statusColors[c.status]?.text }}>
                                   {statusLabels[c.status]}
                                 </span>
-                                {/* 🔧 ВИПРАВЛЕНО: formatDate замість slice */}
                                 <span style={{ fontSize: '0.62rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
                                   {formatDate(c.created_at)}
                                 </span>
