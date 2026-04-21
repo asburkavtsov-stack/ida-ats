@@ -34,18 +34,20 @@ function Login({ onLogin }) {
 
   return (
     <div style={{
-      height: '100vh', display: 'flex', alignItems: 'center',
+      minHeight: '100vh', display: 'flex', alignItems: 'center',
       justifyContent: 'center', background: 'var(--bg)',
+      padding: '16px',
     }}>
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: '16px', padding: '40px', width: '380px',
+        borderRadius: '16px', padding: 'clamp(24px, 5vw, 40px)',
+        width: '100%', maxWidth: '380px',
         boxShadow: 'var(--shadow-lg)',
       }}>
         {/* Лого */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{
-            fontFamily: 'DM Sans', fontSize: '2rem', fontWeight: 700,
+            fontFamily: 'DM Sans', fontSize: 'clamp(1.6rem, 6vw, 2rem)', fontWeight: 700,
             color: 'var(--accent)', letterSpacing: '-1px',
           }}>
             IDA
@@ -59,7 +61,7 @@ function Login({ onLogin }) {
         </div>
 
         <div style={{ marginBottom: '20px' }}>
-          <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '4px' }}>
+          <div style={{ fontSize: 'clamp(1rem, 3.5vw, 1.1rem)', fontWeight: 700, marginBottom: '4px' }}>
             Вхід в систему
           </div>
           <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
@@ -95,7 +97,7 @@ function Login({ onLogin }) {
               style={{
                 width: '100%', padding: '10px 14px',
                 border: '1px solid var(--border)', borderRadius: '8px',
-                fontSize: '0.85rem', fontFamily: 'DM Sans',
+                fontSize: 'clamp(0.8rem, 3vw, 0.85rem)', fontFamily: 'DM Sans',
                 background: 'var(--bg)', outline: 'none',
               }}
             />
@@ -117,7 +119,7 @@ function Login({ onLogin }) {
               style={{
                 width: '100%', padding: '10px 14px',
                 border: '1px solid var(--border)', borderRadius: '8px',
-                fontSize: '0.85rem', fontFamily: 'DM Sans',
+                fontSize: 'clamp(0.8rem, 3vw, 0.85rem)', fontFamily: 'DM Sans',
                 background: 'var(--bg)', outline: 'none',
               }}
             />
@@ -129,9 +131,10 @@ function Login({ onLogin }) {
             style={{
               width: '100%', padding: '11px', borderRadius: '8px',
               border: 'none', background: 'var(--accent)', color: '#fff',
-              fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer',
+              fontSize: 'clamp(0.82rem, 3vw, 0.88rem)', fontWeight: 600, cursor: 'pointer',
               fontFamily: 'DM Sans', marginTop: '4px',
               opacity: loading ? 0.7 : 1,
+              minHeight: '44px',
             }}
           >
             {loading ? 'Вхід...' : 'Увійти →'}

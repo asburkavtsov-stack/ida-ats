@@ -35,6 +35,14 @@ function Kanban({ searchQuery = '', orgId = null }) {
   const [candidates, setCandidates] = useState([]);
   const [vacancies, setVacancies] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     const candUrl = orgId
@@ -46,7 +54,6 @@ function Kanban({ searchQuery = '', orgId = null }) {
 
     Promise.all([axios.get(candUrl), axios.get(vacUrl)])
       .then(([candidatesRes, vacanciesRes]) => {
-        // Підтримка пагінованої відповіді
         setCandidates(candidatesRes.data.results ?? candidatesRes.data);
         setVacancies(vacanciesRes.data.results ?? vacanciesRes.data);
       })
@@ -74,6 +81,18 @@ function Kanban({ searchQuery = '', orgId = null }) {
       });
   };
 
+  const handleStatusChange = (candidateId, newStatus) => {
+    setCandidates(prev => prev.map(c =>
+      c.id === candidateId ? { ...c, status: newStatus } : c
+    ));
+    axios.patch(`/api/candidates/${candidateId}/update_status/`, { status: newStatus })
+      .catch(() => {
+        setCandidates(prev => prev.map(c =>
+          c.id === candidateId ? { ...c, status: c.status } : c
+        ));
+      });
+  };
+
   const filtered = candidates.filter(c => {
     const matchesFilter = filter === 'all'
       ? true
@@ -92,7 +111,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
   if (loading) return <Loader />;
 
   return (
-    <div>
+    <div style={{ padding: isMobile ? '8px' : '0' }}>
       {/* Фільтри */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
         <span style={{ fontFamily: 'DM Mono', fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
@@ -103,7 +122,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
             key={v.key}
             onClick={() => setFilter(v.key)}
             style={{
-              padding: '6px 12px', borderRadius: '20px', fontSize: '0.78rem',
+              padding: isMobile ? '8px 14px' : '6px 12px', borderRadius: '20px', fontSize: '0.78rem',
               fontWeight: 500, cursor: 'pointer',
               border: `1px solid ${filter === v.key ? 'var(--accent)' : 'var(--border)'}`,
               background: filter === v.key ? 'var(--accent)' : 'var(--surface)',
@@ -117,7 +136,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
         {filter !== 'all' && (
           <button
             onClick={() => setFilter('all')}
-            style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: '0.72rem', cursor: 'pointer', marginLeft: '8px' }}
+            style={{ padding: isMobile ? '6px 12px' : '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: '0.72rem', cursor: 'pointer', marginLeft: '8px' }}
           >
             ✕ Скинути
           </button>
@@ -125,7 +144,12 @@ function Kanban({ searchQuery = '', orgId = null }) {
       </div>
 
       {/* Summary */}
-      <div style={{ display: 'flex', gap: '20px', padding: '10px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '16px' }}>
+      <div style={{
+        display: 'flex', gap: isMobile ? '12px' : '20px',
+        padding: isMobile ? '10px 12px' : '10px 16px',
+        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '16px',
+        flexWrap: 'wrap',
+      }}>
         {columns.map(col => {
           const count = filtered.filter(c => c.status === col.key).length;
           return (
@@ -139,11 +163,20 @@ function Kanban({ searchQuery = '', orgId = null }) {
 
       {/* Канбан */}
       <DragDropContext onDragEnd={onDragEnd}>
-        <div style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '16px' }}>
+        <div style={{
+          display: 'flex', gap: isMobile ? '8px' : '16px',
+          overflowX: 'auto', paddingBottom: '16px',
+          scrollSnapType: isMobile ? 'x mandatory' : 'none',
+          WebkitOverflowScrolling: 'touch',
+        }}>
           {columns.map(col => {
             const cards = filtered.filter(c => c.status === col.key);
             return (
-              <div key={col.key} style={{ width: '250px', flexShrink: 0 }}>
+              <div key={col.key} style={{
+                width: isMobile ? '85vw' : '250px',
+                flexShrink: 0,
+                scrollSnapAlign: isMobile ? 'start' : 'none',
+              }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 4px', marginBottom: '10px' }}>
                   <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: col.color }} />
                   <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>{col.label}</span>
@@ -151,7 +184,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
                     {cards.length}
                   </span>
                 </div>
-                <Droppable droppableId={col.key}>
+                <Droppable droppableId={col.key} isDropDisabled={isMobile}>
                   {(provided, snapshot) => (
                     <div
                       ref={provided.innerRef}
@@ -173,7 +206,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
                         </div>
                       )}
                       {cards.map((c, i) => (
-                        <Draggable key={c.id} draggableId={String(c.id)} index={i}>
+                        <Draggable key={c.id} draggableId={String(c.id)} index={i} isDragDisabled={isMobile}>
                           {(provided, snapshot) => (
                             <div
                               ref={provided.innerRef}
@@ -182,15 +215,16 @@ function Kanban({ searchQuery = '', orgId = null }) {
                               style={{
                                 background: 'var(--surface)',
                                 border: `1px solid ${snapshot.isDragging ? 'var(--accent)' : 'var(--border)'}`,
-                                borderRadius: '10px', padding: '14px', marginBottom: '10px',
-                                cursor: 'grab', boxShadow: snapshot.isDragging ? '0 8px 24px rgba(0,0,0,0.15)' : 'var(--shadow)',
+                                borderRadius: '10px', padding: isMobile ? '12px' : '14px', marginBottom: '10px',
+                                cursor: isMobile ? 'default' : 'grab',
+                                boxShadow: snapshot.isDragging ? '0 8px 24px rgba(0,0,0,0.15)' : 'var(--shadow)',
                                 transition: 'box-shadow 0.15s',
                                 ...provided.draggableProps.style,
                               }}
                             >
                               <div style={{ fontSize: '0.88rem', fontWeight: 600, marginBottom: '4px' }}>{c.first_name} {c.last_name}</div>
                               <div style={{ fontSize: '0.74rem', color: 'var(--muted)', marginBottom: '10px' }}>{c.vacancy_title}</div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                 <span style={{ fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px', borderRadius: '4px', background: statusColors[c.status]?.bg, color: statusColors[c.status]?.text }}>
                                   {statusLabels[c.status]}
                                 </span>
@@ -201,6 +235,25 @@ function Kanban({ searchQuery = '', orgId = null }) {
                                   {c.first_name?.[0]}{c.last_name?.[0]}
                                 </div>
                               </div>
+                              {isMobile && (
+                                <div style={{ marginTop: '10px', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
+                                  <select
+                                    value={c.status}
+                                    onChange={(e) => handleStatusChange(c.id, e.target.value)}
+                                    style={{
+                                      width: '100%', padding: '8px 12px',
+                                      border: '1px solid var(--border)', borderRadius: '6px',
+                                      fontSize: '0.78rem', fontFamily: 'DM Sans',
+                                      background: 'var(--bg)', color: 'var(--text)',
+                                      outline: 'none', cursor: 'pointer',
+                                    }}
+                                  >
+                                    {columns.map(col => (
+                                      <option key={col.key} value={col.key}>{col.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
                             </div>
                           )}
                         </Draggable>
