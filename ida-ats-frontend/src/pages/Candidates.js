@@ -33,7 +33,15 @@ function Candidates({ searchQuery = '' }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
   const PAGE_SIZE = 20;
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const fetchCandidates = useCallback((page = 1) => {
     setLoading(true);
@@ -45,7 +53,6 @@ function Candidates({ searchQuery = '' }) {
 
     axios.get(`/api/candidates/?${params.toString()}`)
       .then(res => {
-        // Підтримка як пагінованої відповіді, так і списку
         if (res.data.results !== undefined) {
           setCandidates(res.data.results);
           setTotalPages(res.data.total_pages || 1);
@@ -60,7 +67,6 @@ function Candidates({ searchQuery = '' }) {
       .finally(() => setLoading(false));
   }, [filter, searchQuery]);
 
-  // Скидаємо на першу сторінку при зміні фільтру або пошуку
   useEffect(() => {
     setCurrentPage(1);
   }, [filter, searchQuery]);
@@ -75,7 +81,7 @@ function Candidates({ searchQuery = '' }) {
   };
 
   return (
-    <div>
+    <div style={{ padding: isMobile ? '8px' : '0' }}>
       {/* Фільтри */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
         {filters.map(f => (
@@ -83,7 +89,7 @@ function Candidates({ searchQuery = '' }) {
             key={f.key}
             onClick={() => setFilter(f.key)}
             style={{
-              padding: '6px 14px', borderRadius: '20px', fontSize: '0.78rem',
+              padding: isMobile ? '8px 14px' : '6px 14px', borderRadius: '20px', fontSize: '0.78rem',
               fontWeight: 500, cursor: 'pointer',
               border: `1px solid ${filter === f.key ? 'var(--accent)' : 'var(--border)'}`,
               background: filter === f.key ? 'var(--accent)' : 'var(--surface)',
@@ -100,86 +106,142 @@ function Candidates({ searchQuery = '' }) {
               {totalCount} кандидатів
             </span>
           )}
-          <button style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--muted)', fontSize: '0.78rem', cursor: 'pointer' }}>
+          <button style={{ padding: isMobile ? '8px 14px' : '6px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--muted)', fontSize: '0.78rem', cursor: 'pointer' }}>
             ⬇ Експорт CSV
           </button>
         </div>
       </div>
 
-      {/* Таблиця */}
+      {/* Таблиця / Картки */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: 'var(--bg)' }}>
-              {['Кандидат', 'Вакансія', 'Статус', 'Дата'].map(h => (
-                <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontSize: '0.72rem', fontFamily: 'DM Mono', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', borderBottom: '1px solid var(--border)' }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
+        {isMobile ? (
+          /* Мобільний вигляд — картки */
+          <div>
             {loading ? (
-              <tr>
-                <td colSpan={4} style={{ padding: '40px', textAlign: 'center' }}>
-                  <Loader />
-                </td>
-              </tr>
+              <div style={{ padding: '40px', textAlign: 'center' }}>
+                <Loader />
+              </div>
             ) : candidates.length === 0 ? (
-              <tr>
-                <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.82rem', fontFamily: 'DM Mono' }}>
-                  Кандидатів не знайдено
-                </td>
-              </tr>
-            ) : candidates.map((c, i) => (
-              <tr
-                key={c.id || i}
-                style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.1s' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-              >
-                <td style={{ padding: '13px 16px' }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>
-                    {c.first_name} {c.last_name}
+              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.82rem', fontFamily: 'DM Mono' }}>
+                Кандидатів не знайдено
+              </div>
+            ) : (
+              candidates.map((c, i) => (
+                <div
+                  key={c.id || i}
+                  style={{
+                    padding: '14px 16px',
+                    borderBottom: '1px solid var(--border)',
+                    cursor: 'pointer',
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>
+                        {c.first_name} {c.last_name}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '2px' }}>
+                        {c.email}
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px',
+                      borderRadius: '4px', flexShrink: 0,
+                      background: statusConfig[c.status]?.bg || '#f5f5f5',
+                      color: statusConfig[c.status]?.text || '#757575',
+                    }}>
+                      {statusConfig[c.status]?.label || c.status}
+                    </span>
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '1px' }}>
-                    {c.email}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
+                      {c.vacancy_title || '—'}
+                    </div>
+                    <div style={{ fontFamily: 'DM Mono', fontSize: '0.7rem', color: 'var(--muted)' }}>
+                      {formatDate(c.created_at)}
+                    </div>
                   </div>
-                </td>
-                <td style={{ padding: '13px 16px', fontSize: '0.82rem' }}>
-                  {c.vacancy_title || '—'}
-                </td>
-                <td style={{ padding: '13px 16px' }}>
-                  <span style={{
-                    fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px',
-                    borderRadius: '4px',
-                    background: statusConfig[c.status]?.bg || '#f5f5f5',
-                    color: statusConfig[c.status]?.text || '#757575',
-                  }}>
-                    {statusConfig[c.status]?.label || c.status}
-                  </span>
-                </td>
-                <td style={{ padding: '13px 16px', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)' }}>
-                  {formatDate(c.created_at)}
-                </td>
+                </div>
+              ))
+            )}
+          </div>
+        ) : (
+          /* Десктоп — таблиця */
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'var(--bg)' }}>
+                {['Кандидат', 'Вакансія', 'Статус', 'Дата'].map(h => (
+                  <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontSize: '0.72rem', fontFamily: 'DM Mono', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', borderBottom: '1px solid var(--border)' }}>
+                    {h}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={4} style={{ padding: '40px', textAlign: 'center' }}>
+                    <Loader />
+                  </td>
+                </tr>
+              ) : candidates.length === 0 ? (
+                <tr>
+                  <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.82rem', fontFamily: 'DM Mono' }}>
+                    Кандидатів не знайдено
+                  </td>
+                </tr>
+              ) : candidates.map((c, i) => (
+                <tr
+                  key={c.id || i}
+                  style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.1s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <td style={{ padding: '13px 16px' }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>
+                      {c.first_name} {c.last_name}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '1px' }}>
+                      {c.email}
+                    </div>
+                  </td>
+                  <td style={{ padding: '13px 16px', fontSize: '0.82rem' }}>
+                    {c.vacancy_title || '—'}
+                  </td>
+                  <td style={{ padding: '13px 16px' }}>
+                    <span style={{
+                      fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px',
+                      borderRadius: '4px',
+                      background: statusConfig[c.status]?.bg || '#f5f5f5',
+                      color: statusConfig[c.status]?.text || '#757575',
+                    }}>
+                      {statusConfig[c.status]?.label || c.status}
+                    </span>
+                  </td>
+                  <td style={{ padding: '13px 16px', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)' }}>
+                    {formatDate(c.created_at)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Пагінація */}
       {totalPages > 1 && (
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          gap: '6px', marginTop: '20px',
+          gap: '6px', marginTop: '20px', flexWrap: 'wrap',
         }}>
-          {/* Попередня */}
           <button
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage === 1}
             style={{
-              padding: '7px 14px', borderRadius: '8px',
+              padding: isMobile ? '9px 16px' : '7px 14px', borderRadius: '8px',
               border: '1px solid var(--border)', background: 'var(--surface)',
               color: currentPage === 1 ? 'var(--muted)' : 'var(--text)',
               fontSize: '0.78rem', cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
@@ -189,7 +251,6 @@ function Candidates({ searchQuery = '' }) {
             ← Назад
           </button>
 
-          {/* Номери сторінок */}
           {Array.from({ length: totalPages }, (_, i) => i + 1)
             .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
             .reduce((acc, p, idx, arr) => {
@@ -207,7 +268,7 @@ function Candidates({ searchQuery = '' }) {
                   key={p}
                   onClick={() => handlePageChange(p)}
                   style={{
-                    width: '36px', height: '36px', borderRadius: '8px',
+                    width: isMobile ? '42px' : '36px', height: isMobile ? '42px' : '36px', borderRadius: '8px',
                     border: `1px solid ${currentPage === p ? 'var(--accent)' : 'var(--border)'}`,
                     background: currentPage === p ? 'var(--accent)' : 'var(--surface)',
                     color: currentPage === p ? '#fff' : 'var(--text)',
@@ -221,12 +282,11 @@ function Candidates({ searchQuery = '' }) {
             )
           }
 
-          {/* Наступна */}
           <button
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
             style={{
-              padding: '7px 14px', borderRadius: '8px',
+              padding: isMobile ? '9px 16px' : '7px 14px', borderRadius: '8px',
               border: '1px solid var(--border)', background: 'var(--surface)',
               color: currentPage === totalPages ? 'var(--muted)' : 'var(--text)',
               fontSize: '0.78rem', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',

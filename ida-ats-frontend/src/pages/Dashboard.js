@@ -11,13 +11,20 @@ const formatDate = (dateString) => {
 function Dashboard() {
   const [stats, setStats] = useState({ total: 0, active_vacancies: 0, offers: 0, new: 0 });
   const [activity, setActivity] = useState([]);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     Promise.all([
       axios.get('/api/candidates/?page_size=100'),
       axios.get('/api/vacancies/')
     ]).then(([candidatesRes, vacanciesRes]) => {
-      // Підтримка пагінованої відповіді
       const candidates = candidatesRes.data.results ?? candidatesRes.data;
       const vacancies = vacanciesRes.data.results ?? vacanciesRes.data;
 
@@ -39,8 +46,13 @@ function Dashboard() {
   };
 
   return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+    <div style={{ padding: isMobile ? '8px' : '0' }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+        gap: isMobile ? '10px' : '16px',
+        marginBottom: '24px',
+      }}>
         {[
           { value: stats.total,            label: 'Всього кандидатів', color: '#7a1a2e' },
           { value: stats.active_vacancies, label: 'Активних вакансій', color: '#b03050' },
@@ -49,16 +61,16 @@ function Dashboard() {
         ].map((s, i) => (
           <div key={i} style={{
             background: 'var(--surface)', border: '1px solid var(--border)',
-            borderRadius: '12px', padding: '20px', borderTop: `3px solid ${s.color}`,
+            borderRadius: '12px', padding: isMobile ? '14px' : '20px', borderTop: `3px solid ${s.color}`,
           }}>
-            <div style={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1 }}>{s.value}</div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: '6px' }}>{s.label}</div>
+            <div style={{ fontSize: isMobile ? '1.6rem' : '2rem', fontWeight: 700, lineHeight: 1 }}>{s.value}</div>
+            <div style={{ fontSize: isMobile ? '0.7rem' : '0.78rem', color: 'var(--muted)', marginTop: '6px' }}>{s.label}</div>
           </div>
         ))}
       </div>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 600 }}>
+        <div style={{ padding: isMobile ? '14px 16px' : '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 600 }}>
           Останні кандидати
         </div>
         {activity.length === 0 && (
@@ -67,10 +79,14 @@ function Dashboard() {
           </div>
         )}
         {activity.map((c, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px 20px', borderBottom: '1px solid var(--border)' }}>
+          <div key={i} style={{
+            display: 'flex', alignItems: 'flex-start', gap: '12px',
+            padding: isMobile ? '10px 16px' : '12px 20px',
+            borderBottom: '1px solid var(--border)',
+          }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusColors[c.status] || 'var(--muted)', marginTop: '5px', flexShrink: 0 }} />
-            <div>
-              <div style={{ fontSize: '0.8rem' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '0.8rem', wordBreak: 'break-word' }}>
                 <strong>{c.first_name} {c.last_name}</strong> · {c.vacancy_title}
               </div>
               <div style={{ fontFamily: 'DM Mono', fontSize: '0.65rem', color: 'var(--muted)', marginTop: '2px' }}>
