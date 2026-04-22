@@ -13,11 +13,15 @@ function Vacancies() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
   const [updateKey, setUpdateKey] = useState(0);
-  // 🔧 ДОДАНО: Ліміт вакансій
-  const [vacancyLimit, setVacancyLimit] = useState({
-    current: 0,
-    max: 10
-  });
+  const [isMobile, setIsMobile] = useState(false);
+  const [vacancyLimit, setVacancyLimit] = useState({ current: 0, max: 10 });
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -44,14 +48,13 @@ function Vacancies() {
     loadData();
   }, [loadData, updateKey]);
 
-  // 🔧 ДОДАНО: Перевірка ліміту
   const isLimitReached = vacancyLimit.current >= vacancyLimit.max;
 
   const getVacancyStats = (vacancyId) => {
     const vacancyCandidates = candidates.filter(c => c.vacancy === vacancyId);
     return {
       total: vacancyCandidates.length,
-      interviews: vacancyCandidates.filter(c => 
+      interviews: vacancyCandidates.filter(c =>
         ['interview', 'offer'].includes(c.status)
       ).length,
       new: vacancyCandidates.filter(c => c.status === 'new').length,
@@ -74,18 +77,18 @@ function Vacancies() {
   const handleToggleStatus = async (e, vacancy) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const newStatus = !vacancy.is_active;
     const originalStatus = vacancy.is_active;
-    
-    setVacancies(prev => prev.map(v => 
+
+    setVacancies(prev => prev.map(v =>
       v.id === vacancy.id ? { ...v, is_active: newStatus } : v
     ));
-    
+
     if (selectedVacancy && selectedVacancy.id === vacancy.id) {
       setSelectedVacancy(prev => ({ ...prev, is_active: newStatus }));
     }
-    
+
     try {
       await axios.patch(`/api/vacancies/${vacancy.id}/`, {
         is_active: newStatus
@@ -93,7 +96,7 @@ function Vacancies() {
       setUpdateKey(k => k + 1);
     } catch (err) {
       console.error('Помилка оновлення статусу:', err);
-      setVacancies(prev => prev.map(v => 
+      setVacancies(prev => prev.map(v =>
         v.id === vacancy.id ? { ...v, is_active: originalStatus } : v
       ));
       if (selectedVacancy && selectedVacancy.id === vacancy.id) {
@@ -106,9 +109,9 @@ function Vacancies() {
   const handleDelete = async (e, vacancy) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (!window.confirm(`Видалити вакансію "${vacancy.title}"?`)) return;
-    
+
     try {
       await axios.delete(`/api/vacancies/${vacancy.id}/`);
       setUpdateKey(k => k + 1);
@@ -136,19 +139,20 @@ function Vacancies() {
     const vacancyCandidates = candidates.filter(c => c.vacancy === selectedVacancy.id);
 
     return (
-      <div>
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '16px', 
+      <div style={{ padding: isMobile ? '8px' : '0' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '12px',
           marginBottom: '16px',
           paddingBottom: '16px',
-          borderBottom: '1px solid var(--border)'
+          borderBottom: '1px solid var(--border)',
+          flexDirection: isMobile ? 'column' : 'row',
         }}>
-          <button 
+          <button
             onClick={handleBackAndRefresh}
             style={{
-              padding: '8px 16px',
+              padding: isMobile ? '10px 16px' : '8px 16px',
               borderRadius: '8px',
               border: '1px solid var(--border)',
               background: 'var(--surface)',
@@ -158,28 +162,30 @@ function Vacancies() {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
+              flexShrink: 0,
             }}
           >
             ← Назад до вакансій
           </button>
           <div>
-            <div style={{ fontSize: '1.3rem', fontWeight: 700 }}>{selectedVacancy.title}</div>
+            <div style={{ fontSize: '1.3rem', fontWeight: 700, wordBreak: 'break-word' }}>{selectedVacancy.title}</div>
             <div style={{ fontSize: '0.78rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
               {selectedVacancy.department}
             </div>
           </div>
         </div>
 
-        <div style={{ 
-          display: 'flex', 
-          gap: '12px', 
+        <div style={{
+          display: 'flex',
+          gap: '8px',
           marginBottom: '24px',
           padding: '12px 16px',
           background: 'var(--bg)',
           borderRadius: '8px',
           border: '1px solid var(--border)',
+          flexWrap: 'wrap',
         }}>
-          <button 
+          <button
             onClick={() => {
               if (selectedVacancy) {
                 setEditModalVacancy(selectedVacancy);
@@ -187,7 +193,7 @@ function Vacancies() {
               }
             }}
             style={{
-              padding: '8px 16px',
+              padding: isMobile ? '10px 14px' : '8px 16px',
               borderRadius: '8px',
               border: '1px solid var(--border)',
               background: 'var(--surface)',
@@ -201,10 +207,10 @@ function Vacancies() {
           >
             ✏️ Редагувати
           </button>
-          <button 
+          <button
             onClick={(e) => handleToggleStatus(e, selectedVacancy)}
             style={{
-              padding: '8px 16px',
+              padding: isMobile ? '10px 14px' : '8px 16px',
               borderRadius: '8px',
               border: 'none',
               background: selectedVacancy?.is_active ? '#fee2e2' : '#dcfce7',
@@ -219,10 +225,10 @@ function Vacancies() {
           >
             {selectedVacancy?.is_active ? '⏸ Закрити вакансію' : '▶ Відкрити вакансію'}
           </button>
-          <button 
+          <button
             onClick={(e) => handleDelete(e, selectedVacancy)}
             style={{
-              padding: '8px 16px',
+              padding: isMobile ? '10px 14px' : '8px 16px',
               borderRadius: '8px',
               border: '1px solid #fee2e2',
               background: '#fee2e2',
@@ -230,18 +236,18 @@ function Vacancies() {
               cursor: 'pointer',
               fontSize: '0.82rem',
               fontWeight: 600,
-              marginLeft: 'auto',
+              marginLeft: isMobile ? '0' : 'auto',
             }}
           >
             🗑 Видалити
           </button>
         </div>
 
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(4, 1fr)', 
-          gap: '16px', 
-          marginBottom: '24px' 
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+          gap: isMobile ? '10px' : '16px',
+          marginBottom: '24px',
         }}>
           {[
             { value: stats.total, label: 'Всього заявок', color: '#7a1a2e' },
@@ -250,28 +256,28 @@ function Vacancies() {
             { value: selectedVacancy?.is_active ? 'Активна' : 'Закрита', label: 'Статус', color: selectedVacancy?.is_active ? '#16a34a' : '#757575', isText: true },
           ].map((s, i) => (
             <div key={i} style={{
-              background: 'var(--surface)', 
+              background: 'var(--surface)',
               border: '1px solid var(--border)',
-              borderRadius: '12px', 
-              padding: '20px', 
+              borderRadius: '12px',
+              padding: isMobile ? '14px' : '20px',
               borderTop: `3px solid ${s.color}`,
             }}>
-              <div style={{ fontSize: s.isText ? '1.2rem' : '2rem', fontWeight: 700, lineHeight: 1, color: s.isText ? s.color : 'var(--text)' }}>
+              <div style={{ fontSize: s.isText ? (isMobile ? '1rem' : '1.2rem') : (isMobile ? '1.6rem' : '2rem'), fontWeight: 700, lineHeight: 1, color: s.isText ? s.color : 'var(--text)' }}>
                 {s.value}
               </div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: '6px' }}>{s.label}</div>
+              <div style={{ fontSize: isMobile ? '0.7rem' : '0.78rem', color: 'var(--muted)', marginTop: '6px' }}>{s.label}</div>
             </div>
           ))}
         </div>
 
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px' }}>
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: isMobile ? '14px 16px' : '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Кандидати на вакансію</span>
             <span style={{ fontSize: '0.78rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
               {stats.total} кандидатів
             </span>
           </div>
-          
+
           {vacancyCandidates.length === 0 ? (
             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>
               <div style={{ fontSize: '1.5rem', marginBottom: '12px' }}>👤</div>
@@ -281,45 +287,47 @@ function Vacancies() {
           ) : (
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
               {vacancyCandidates.map((c, i) => (
-                <div key={i} style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '12px', 
-                  padding: '12px 20px',
+                <div key={i} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: isMobile ? '10px 16px' : '12px 20px',
                   borderBottom: '1px solid var(--border)',
                 }}>
-                  <div style={{ 
-                    width: '36px', 
-                    height: '36px', 
-                    borderRadius: '8px', 
-                    background: 'var(--accent)', 
-                    display: 'flex', 
-                    alignItems: 'center', 
+                  <div style={{
+                    width: isMobile ? '32px' : '36px',
+                    height: isMobile ? '32px' : '36px',
+                    borderRadius: '8px',
+                    background: 'var(--accent)',
+                    display: 'flex',
+                    alignItems: 'center',
                     justifyContent: 'center',
                     color: '#fff',
                     fontWeight: 700,
                     fontSize: '0.8rem',
+                    flexShrink: 0,
                   }}>
                     {c.first_name?.[0]}{c.last_name?.[0]}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', wordBreak: 'break-word' }}>
                       {c.first_name} {c.last_name}
                     </div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono', wordBreak: 'break-word' }}>
                       {c.email}
                     </div>
                   </div>
-                  <span style={{ 
-                    fontSize: '0.66rem', 
-                    fontFamily: 'DM Mono', 
-                    padding: '3px 8px', 
-                    borderRadius: '4px', 
-                    background: c.status === 'new' ? '#f9eaed' : 
+                  <span style={{
+                    fontSize: '0.66rem',
+                    fontFamily: 'DM Mono',
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    flexShrink: 0,
+                    background: c.status === 'new' ? '#f9eaed' :
                                 c.status === 'screening' ? '#fff3e0' :
                                 c.status === 'interview' ? '#f5eaf0' :
                                 c.status === 'offer' ? '#fce4ec' : '#f5f5f5',
-                    color: c.status === 'new' ? '#7a1a2e' : 
+                    color: c.status === 'new' ? '#7a1a2e' :
                            c.status === 'screening' ? '#c94f2a' :
                            c.status === 'interview' ? '#8a3a5a' :
                            c.status === 'offer' ? '#c2185b' : '#757575',
@@ -350,17 +358,16 @@ function Vacancies() {
   }
 
   return (
-    <div>
-      {/* 🔧 ОНОВЛЕНО: Хедер з лімітом вакансій */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+    <div style={{ padding: isMobile ? '8px' : '0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           <div style={{ fontSize: '0.78rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
             Всього: {vacancyLimit.current} / {vacancyLimit.max} вакансій
           </div>
           {isLimitReached && (
-            <span style={{ 
-              fontSize: '0.72rem', 
-              color: '#dc2626', 
+            <span style={{
+              fontSize: '0.72rem',
+              color: '#dc2626',
               background: '#fee2e2',
               padding: '2px 8px',
               borderRadius: '4px',
@@ -371,18 +378,18 @@ function Vacancies() {
             </span>
           )}
         </div>
-        <button 
-          onClick={() => setShowModal(true)} 
+        <button
+          onClick={() => setShowModal(true)}
           disabled={isLimitReached}
           style={{
-            padding: '8px 16px', 
-            borderRadius: '8px', 
+            padding: isMobile ? '10px 16px' : '8px 16px',
+            borderRadius: '8px',
             border: 'none',
-            background: isLimitReached ? '#e5e7eb' : 'var(--accent)', 
-            color: isLimitReached ? '#9ca3af' : '#fff', 
+            background: isLimitReached ? '#e5e7eb' : 'var(--accent)',
+            color: isLimitReached ? '#9ca3af' : '#fff',
             fontSize: '0.82rem',
-            fontWeight: 600, 
-            cursor: isLimitReached ? 'not-allowed' : 'pointer', 
+            fontWeight: 600,
+            cursor: isLimitReached ? 'not-allowed' : 'pointer',
             fontFamily: 'DM Sans',
             transition: 'all 0.15s',
           }}
@@ -392,21 +399,25 @@ function Vacancies() {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+        gap: isMobile ? '12px' : '16px',
+      }}>
         {vacancies.map((v, i) => {
           const stats = getVacancyStats(v.id);
-          
+
           return (
-            <div 
+            <div
               key={v.id}
               onClick={() => handleVacancyClick(v)}
               style={{
-                background: 'var(--surface)', 
+                background: 'var(--surface)',
                 border: '1px solid var(--border)',
-                borderRadius: '12px', 
-                padding: '20px', 
+                borderRadius: '12px',
+                padding: isMobile ? '16px' : '20px',
                 cursor: 'pointer',
-                boxShadow: 'var(--shadow)', 
+                boxShadow: 'var(--shadow)',
                 transition: 'all 0.15s',
                 position: 'relative',
               }}
@@ -419,10 +430,10 @@ function Vacancies() {
                 e.currentTarget.style.boxShadow = 'var(--shadow)';
               }}
             >
-              <div 
-                style={{ 
-                  position: 'absolute', 
-                  top: '12px', 
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '12px',
                   right: '12px',
                   display: 'flex',
                   gap: '6px',
@@ -430,10 +441,10 @@ function Vacancies() {
                 }}
                 onClick={e => e.stopPropagation()}
               >
-                <button 
+                <button
                   onClick={(e) => handleEdit(e, v)}
                   style={{
-                    padding: '6px 10px',
+                    padding: isMobile ? '8px 12px' : '6px 10px',
                     borderRadius: '6px',
                     border: '1px solid var(--border)',
                     background: 'var(--surface)',
@@ -446,10 +457,10 @@ function Vacancies() {
                 >
                   ✏️
                 </button>
-                <button 
+                <button
                   onClick={(e) => handleDelete(e, v)}
                   style={{
-                    padding: '6px 10px',
+                    padding: isMobile ? '8px 12px' : '6px 10px',
                     borderRadius: '6px',
                     border: '1px solid #fee2e2',
                     background: '#fee2e2',
@@ -465,10 +476,10 @@ function Vacancies() {
                 </button>
               </div>
 
-              <div style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px', paddingRight: '70px' }}>
+              <div style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px', paddingRight: '70px', wordBreak: 'break-word' }}>
                 {v.title}
               </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '14px', fontFamily: 'DM Mono' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '14px', fontFamily: 'DM Mono', wordBreak: 'break-word' }}>
                 {v.department}
               </div>
 
@@ -483,16 +494,16 @@ function Vacancies() {
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
                 <span style={{
-                  fontSize: '0.7rem', 
-                  fontFamily: 'DM Mono', 
-                  padding: '3px 8px', 
+                  fontSize: '0.7rem',
+                  fontFamily: 'DM Mono',
+                  padding: '3px 8px',
                   borderRadius: '4px',
                   background: v.is_active ? '#f9eaed' : '#f5f5f5',
                   color: v.is_active ? '#7a1a2e' : '#757575',
                 }}>
                   {v.is_active ? 'Активна' : 'Закрита'}
                 </span>
-                
+
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--muted)' }}>
                   <div style={{ width: '22px', height: '22px', borderRadius: '6px', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, color: '#fff' }}>
                     HR
@@ -535,6 +546,14 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
     is_active: vacancy?.is_active !== false,
   });
   const [saving, setSaving] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     if (vacancy) {
@@ -553,7 +572,7 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
 
   const handleSubmit = async () => {
     if (!form.title.trim()) return;
-    
+
     setSaving(true);
     try {
       await axios.patch(`/api/vacancies/${vacancy.id}/`, form);
@@ -570,14 +589,15 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
   const overlay = {
     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+    padding: isMobile ? '16px' : '0',
   };
   const modal = {
     background: 'var(--surface)', borderRadius: '16px',
-    width: '440px', boxShadow: 'var(--shadow-lg)', zIndex: 1001,
+    width: '100%', maxWidth: '440px', boxShadow: 'var(--shadow-lg)', zIndex: 1001,
   };
   const input = {
-    width: '100%', padding: '9px 12px', border: '1px solid var(--border)',
-    borderRadius: '8px', fontSize: '0.85rem', fontFamily: 'DM Sans',
+    width: '100%', padding: isMobile ? '11px 14px' : '9px 12px', border: '1px solid var(--border)',
+    borderRadius: '8px', fontSize: isMobile ? '0.9rem' : '0.85rem', fontFamily: 'DM Sans',
     background: 'var(--bg)', outline: 'none',
   };
   const label = {
@@ -599,32 +619,32 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div>
             <label style={label}>Назва вакансії</label>
-            <input 
-              style={input} 
-              name="title" 
+            <input
+              style={input}
+              name="title"
               value={form.title}
-              placeholder="Python Developer" 
-              onChange={handleChange} 
+              placeholder="Python Developer"
+              onChange={handleChange}
             />
           </div>
           <div>
             <label style={label}>Відділ</label>
-            <input 
-              style={input} 
-              name="department" 
+            <input
+              style={input}
+              name="department"
               value={form.department}
-              placeholder="Engineering · Remote" 
-              onChange={handleChange} 
+              placeholder="Engineering · Remote"
+              onChange={handleChange}
             />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <input 
-              type="checkbox" 
-              name="is_active" 
-              checked={form.is_active} 
-              onChange={handleChange} 
-              id="is_active_edit" 
-              style={{ width: '16px', height: '16px', cursor: 'pointer' }} 
+            <input
+              type="checkbox"
+              name="is_active"
+              checked={form.is_active}
+              onChange={handleChange}
+              id="is_active_edit"
+              style={{ width: '18px', height: '18px', cursor: 'pointer' }}
             />
             <label htmlFor="is_active_edit" style={{ fontSize: '0.85rem', cursor: 'pointer' }}>
               Активна вакансія
@@ -632,21 +652,21 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
           </div>
         </div>
 
-        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: '0.82rem' }}>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+          <button onClick={onClose} style={{ padding: isMobile ? '10px 16px' : '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: '0.82rem' }}>
             Скасувати
           </button>
-          <button 
-            onClick={handleSubmit} 
+          <button
+            onClick={handleSubmit}
             disabled={saving}
-            style={{ 
-              padding: '8px 16px', 
-              borderRadius: '8px', 
-              border: 'none', 
-              background: 'var(--accent)', 
-              color: '#fff', 
-              cursor: saving ? 'not-allowed' : 'pointer', 
-              fontSize: '0.82rem', 
+            style={{
+              padding: isMobile ? '10px 16px' : '8px 16px',
+              borderRadius: '8px',
+              border: 'none',
+              background: 'var(--accent)',
+              color: '#fff',
+              cursor: saving ? 'not-allowed' : 'pointer',
+              fontSize: '0.82rem',
               fontWeight: 600,
               opacity: saving ? 0.7 : 1,
             }}
