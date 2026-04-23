@@ -27,9 +27,9 @@ function AddCandidateModal({ onClose, onAdded }) {
   };
 
   const handleSubmit = () => {
-    if (!form.first_name.trim()) { setError("Ім'я обов\'язкове"); return; }
-    if (!form.last_name.trim()) { setError("Прізвище обов\'язкове"); return; }
-    if (!form.email.trim()) { setError("Email обов\'язковий"); return; }
+    if (!form.first_name.trim()) { setError("Ім'я обов'язкове"); return; }
+    if (!form.last_name.trim()) { setError("Прізвище обов'язкове"); return; }
+    if (!form.email.trim()) { setError("Email обов'язковий"); return; }
     if (!form.vacancy) { setError("Оберіть вакансію"); return; }
 
     axios.post('/api/candidates/', form)
