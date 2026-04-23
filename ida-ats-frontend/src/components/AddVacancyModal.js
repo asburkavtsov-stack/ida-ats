@@ -1,10 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 function AddVacancyModal({ onClose, onAdded }) {
   const [form, setForm] = useState({
     title: '', department: '', is_active: true,
   });
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const handleChange = e => {
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -20,15 +28,20 @@ function AddVacancyModal({ onClose, onAdded }) {
 
   const overlay = {
     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+    display: 'flex', alignItems: isMobile ? 'flex-end' : 'center',
+    justifyContent: 'center', zIndex: 1000,
+    padding: isMobile ? '0' : '0',
   };
   const modal = {
-    background: 'var(--surface)', borderRadius: '16px',
-    width: '440px', boxShadow: 'var(--shadow-lg)',
+    background: 'var(--surface)', borderRadius: isMobile ? '16px 16px 0 0' : '16px',
+    width: '100%', maxWidth: '440px',
+    maxHeight: isMobile ? '85vh' : '90vh',
+    overflowY: 'auto',
+    boxShadow: 'var(--shadow-lg)',
   };
   const input = {
-    width: '100%', padding: '9px 12px', border: '1px solid var(--border)',
-    borderRadius: '8px', fontSize: '0.85rem', fontFamily: 'DM Sans',
+    width: '100%', padding: isMobile ? '11px 14px' : '9px 12px', border: '1px solid var(--border)',
+    borderRadius: '8px', fontSize: isMobile ? '0.9rem' : '0.85rem', fontFamily: 'DM Sans',
     background: 'var(--bg)', outline: 'none',
   };
   const label = {
@@ -56,16 +69,16 @@ function AddVacancyModal({ onClose, onAdded }) {
             <input style={input} name="department" placeholder="Engineering · Remote" onChange={handleChange} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <input type="checkbox" name="is_active" checked={form.is_active} onChange={handleChange} id="is_active" style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+            <input type="checkbox" name="is_active" checked={form.is_active} onChange={handleChange} id="is_active" style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
             <label htmlFor="is_active" style={{ fontSize: '0.85rem', cursor: 'pointer' }}>Активна вакансія</label>
           </div>
         </div>
 
-        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: '0.82rem' }}>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+          <button onClick={onClose} style={{ padding: isMobile ? '10px 16px' : '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: '0.82rem' }}>
             Скасувати
           </button>
-          <button onClick={handleSubmit} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
+          <button onClick={handleSubmit} style={{ padding: isMobile ? '10px 16px' : '8px 16px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
             Створити
           </button>
         </div>

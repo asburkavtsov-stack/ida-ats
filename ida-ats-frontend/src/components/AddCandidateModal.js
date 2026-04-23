@@ -4,10 +4,18 @@ import axios from 'axios';
 function AddCandidateModal({ onClose, onAdded }) {
   const [vacancies, setVacancies] = useState([]);
   const [error, setError] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
   const [form, setForm] = useState({
     first_name: '', last_name: '', email: '',
     phone: '', vacancy: '', status: 'new', notes: '',
   });
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     axios.get('/api/vacancies/')
@@ -19,26 +27,31 @@ function AddCandidateModal({ onClose, onAdded }) {
   };
 
   const handleSubmit = () => {
-    if (!form.first_name.trim()) { setError("Ім'я обов'язкове"); return; }
-    if (!form.last_name.trim()) { setError('Прізвище обов\'язкове'); return; }
-    if (!form.email.trim()) { setError('Email обов\'язковий'); return; }
-    if (!form.vacancy) { setError('Оберіть вакансію'); return; }
+    if (!form.first_name.trim()) { setError("Ім'я обов\'язкове"); return; }
+    if (!form.last_name.trim()) { setError("Прізвище обов\'язкове"); return; }
+    if (!form.email.trim()) { setError("Email обов\'язковий"); return; }
+    if (!form.vacancy) { setError("Оберіть вакансію"); return; }
 
     axios.post('/api/candidates/', form)
       .then(() => { onAdded(); onClose(); })
       .catch(err => console.error(err));
   };
+
   const overlay = {
     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+    display: 'flex', alignItems: isMobile ? 'flex-end' : 'center',
+    justifyContent: 'center', zIndex: 1000,
   };
   const modal = {
-    background: 'var(--surface)', borderRadius: '16px',
-    width: '480px', boxShadow: 'var(--shadow-lg)',
+    background: 'var(--surface)', borderRadius: isMobile ? '16px 16px 0 0' : '16px',
+    width: '100%', maxWidth: '480px',
+    maxHeight: isMobile ? '85vh' : '90vh',
+    overflowY: 'auto',
+    boxShadow: 'var(--shadow-lg)',
   };
   const input = {
-    width: '100%', padding: '9px 12px', border: '1px solid var(--border)',
-    borderRadius: '8px', fontSize: '0.85rem', fontFamily: 'DM Sans',
+    width: '100%', padding: isMobile ? '11px 14px' : '9px 12px', border: '1px solid var(--border)',
+    borderRadius: '8px', fontSize: isMobile ? '0.9rem' : '0.85rem', fontFamily: 'DM Sans',
     background: 'var(--bg)', outline: 'none',
   };
   const label = {
@@ -57,7 +70,7 @@ function AddCandidateModal({ onClose, onAdded }) {
         </div>
 
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={label}>Ім'я</label>
               <input style={input} name="first_name" placeholder="Олена" onChange={handleChange} />
@@ -90,16 +103,16 @@ function AddCandidateModal({ onClose, onAdded }) {
           </div>
         </div>
 
-        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: '0.82rem' }}>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+          <button onClick={onClose} style={{ padding: isMobile ? '10px 16px' : '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: '0.82rem' }}>
             Скасувати
           </button>
           {error && (
-            <div style={{ color: '#dc2626', fontSize: '0.78rem', fontFamily: 'DM Mono', marginBottom: '8px' }}>
+            <div style={{ color: '#dc2626', fontSize: '0.78rem', fontFamily: 'DM Mono', marginBottom: '8px', width: '100%' }}>
               ⚠ {error}
             </div>
           )}
-          <button onClick={handleSubmit} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
+          <button onClick={handleSubmit} style={{ padding: isMobile ? '10px 16px' : '8px 16px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
             Зберегти
           </button>
         </div>

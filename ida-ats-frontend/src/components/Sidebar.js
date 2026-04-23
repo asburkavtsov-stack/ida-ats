@@ -4,6 +4,8 @@ import axios from 'axios';
 function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
   const [user, setUser] = useState(null);
   const [counts, setCounts] = useState({ candidates: 0, vacancies: 0, kanban: 0 });
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = userRole === 'superadmin' ? [
     { key: 'admin', icon: '⚙', label: 'Організації' },
@@ -24,6 +26,13 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
     { key: 'analytics',  icon: '◎', label: 'Аналітика',   badgeKey: null },
     { key: 'profile',    icon: '◉', label: 'Профіль',     badgeKey: null },
   ];
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     axios.get('/api/me/').then(res => setUser(res.data)).catch(() => {});
@@ -58,11 +67,13 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
     hr: 'HR менеджер',
   };
 
-  return (
-    <div style={{
-      width: '220px', background: 'var(--sidebar-bg)',
-      display: 'flex', flexDirection: 'column', flexShrink: 0,
-    }}>
+  const handleNavClick = (key) => {
+    onNavigate(key);
+    setMobileOpen(false);
+  };
+
+  const sidebarContent = (
+    <>
       {/* Лого */}
       <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={{ fontFamily: 'DM Sans', fontSize: '1.4rem', fontWeight: 700, color: 'var(--sidebar-active)', letterSpacing: '-0.5px' }}>
@@ -81,10 +92,10 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
         {navItems.map(item => (
           <div
             key={item.key}
-            onClick={() => onNavigate(item.key)}
+            onClick={() => handleNavClick(item.key)}
             style={{
               display: 'flex', alignItems: 'center', gap: '10px',
-              padding: '9px 12px', borderRadius: '8px', cursor: 'pointer',
+              padding: isMobile ? '11px 14px' : '9px 12px', borderRadius: '8px', cursor: 'pointer',
               color: currentPage === item.key ? 'var(--sidebar-active-text)' : 'var(--sidebar-text)',
               background: currentPage === item.key ? 'var(--sidebar-active)' : 'transparent',
               fontSize: '0.85rem', fontWeight: 500, marginBottom: '2px', transition: 'all 0.15s',
@@ -140,9 +151,61 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
           ← Вийти
         </button>
       </div>
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <>
+        {/* Кнопка гамбургер */}
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          style={{
+            position: 'fixed', top: '12px', left: '12px', zIndex: 1100,
+            width: '40px', height: '40px', borderRadius: '8px',
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            color: 'var(--text)', fontSize: '1.2rem', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: 'var(--shadow)',
+          }}
+        >
+          ☰
+        </button>
+
+        {/* Overlay */}
+        {mobileOpen && (
+          <div
+            onClick={() => setMobileOpen(false)}
+            style={{
+              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+              zIndex: 1098,
+            }}
+          />
+        )}
+
+        {/* Мобільний сайдбар */}
+        <div style={{
+          position: 'fixed', top: 0, left: 0, bottom: 0,
+          width: '260px', background: 'var(--sidebar-bg)',
+          display: 'flex', flexDirection: 'column',
+          zIndex: 1099,
+          transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.25s ease',
+        }}>
+          {sidebarContent}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div style={{
+      width: '220px', background: 'var(--sidebar-bg)',
+      display: 'flex', flexDirection: 'column', flexShrink: 0,
+    }}>
+      {sidebarContent}
     </div>
   );
 }
 
 export default Sidebar;
-// Note: Sidebar already handles this — no candidates.filter needed

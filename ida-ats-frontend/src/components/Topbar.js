@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const pageTitles = {
   dashboard:  'Дашборд',
@@ -10,6 +10,14 @@ const pageTitles = {
 
 function Topbar({ currentPage, onAddCandidate, onSearch }) {
   const [query, setQuery] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const handleSearch = e => {
     setQuery(e.target.value);
@@ -20,14 +28,15 @@ function Topbar({ currentPage, onAddCandidate, onSearch }) {
     <div style={{
       background: 'var(--surface)',
       borderBottom: '1px solid var(--border)',
-      padding: '0 28px',
-      height: '56px',
+      padding: isMobile ? '0 16px' : '0 28px',
+      paddingLeft: isMobile ? '56px' : '28px',
+      height: isMobile ? '48px' : '56px',
       display: 'flex',
       alignItems: 'center',
-      gap: '16px',
+      gap: '12px',
       flexShrink: 0,
     }}>
-      <div style={{ fontFamily: 'DM Sans', fontSize: '1.1rem', fontWeight: 600 }}>
+      <div style={{ fontFamily: 'DM Sans', fontSize: isMobile ? '0.95rem' : '1.1rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
         {pageTitles[currentPage]}
       </div>
 
@@ -37,13 +46,15 @@ function Topbar({ currentPage, onAddCandidate, onSearch }) {
       <div style={{
         display: 'flex', alignItems: 'center', gap: '8px',
         background: 'var(--bg)', border: '1px solid var(--border)',
-        borderRadius: '8px', padding: '7px 14px', width: '260px',
+        borderRadius: '8px', padding: isMobile ? '6px 10px' : '7px 14px',
+        width: isMobile ? '140px' : '260px',
+        transition: 'width 0.2s',
       }}>
-        <span style={{ color: 'var(--muted)' }}>🔍</span>
+        <span style={{ color: 'var(--muted)', fontSize: isMobile ? '0.8rem' : '0.9rem' }}>🔍</span>
         <input
           value={query}
           onChange={handleSearch}
-          placeholder="Пошук кандидатів..."
+          placeholder={isMobile ? 'Пошук...' : 'Пошук кандидатів...'}
           style={{
             border: 'none', background: 'transparent', outline: 'none',
             fontSize: '0.82rem', fontFamily: 'DM Sans', width: '100%',
@@ -65,12 +76,13 @@ function Topbar({ currentPage, onAddCandidate, onSearch }) {
         onClick={onAddCandidate}
         style={{
           display: 'flex', alignItems: 'center', gap: '6px',
-          padding: '8px 16px', borderRadius: '8px', fontSize: '0.82rem',
+          padding: isMobile ? '7px 10px' : '8px 16px', borderRadius: '8px', fontSize: '0.82rem',
           fontWeight: 600, cursor: 'pointer', border: 'none',
           background: 'var(--accent)', color: '#fff', fontFamily: 'DM Sans',
+          whiteSpace: 'nowrap',
         }}
       >
-        + Додати кандидата
+        {isMobile ? '+' : '+ Додати кандидата'}
       </button>
     </div>
   );
