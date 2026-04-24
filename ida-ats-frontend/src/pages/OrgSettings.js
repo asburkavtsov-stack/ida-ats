@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const inputStyle = {
-  width: '100%', padding: '9px 12px', borderRadius: '8px',
+const inputStyle = (isMobile) => ({
+  width: '100%', padding: isMobile ? '11px 14px' : '9px 12px', borderRadius: '8px',
   border: '1px solid var(--border)', background: 'var(--bg)',
-  color: 'var(--text)', fontSize: '0.85rem', fontFamily: 'DM Sans',
+  color: 'var(--text)', fontSize: isMobile ? '0.9rem' : '0.85rem', fontFamily: 'DM Sans',
   outline: 'none', boxSizing: 'border-box',
-};
+});
 
 const emptyCreateForm = {
   first_name: '', last_name: '', username: '', email: '', password: '', role: 'hr',
@@ -30,8 +30,15 @@ function OrgSettings() {
   const [editUser, setEditUser] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
-  // Завантажуємо поточного юзера → отримуємо org
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   useEffect(() => {
     axios.get('/api/me/').then(res => {
       const o = res.data.organization;
@@ -42,7 +49,6 @@ function OrgSettings() {
     });
   }, []);
 
-  // Завантажуємо HR-юзерів організації
   const fetchUsers = React.useCallback(() => {
     if (!org) return;
     setLoadingUsers(true);
@@ -56,7 +62,6 @@ function OrgSettings() {
     fetchUsers();
   }, [fetchUsers]);
 
-  // Зберегти назву організації
   const handleSaveOrg = () => {
     if (!orgName.trim()) return;
     setSavingOrg(true);
@@ -72,7 +77,6 @@ function OrgSettings() {
       .finally(() => setSavingOrg(false));
   };
 
-  // Створити HR
   const handleCreate = () => {
     if (!createForm.username || !createForm.password) {
       setCreateError('Username і пароль обов\'язкові');
@@ -90,7 +94,6 @@ function OrgSettings() {
       .finally(() => setCreating(false));
   };
 
-  // Редагувати HR
   const handleEdit = (u) => {
     setEditUser(u);
     setEditForm({
@@ -109,7 +112,6 @@ function OrgSettings() {
       .finally(() => setSaving(false));
   };
 
-  // Видалити HR
   const handleDelete = (userId) => {
     if (!window.confirm('Видалити HR-менеджера?')) return;
     axios.delete(`/api/users/${userId}/`)
@@ -118,9 +120,8 @@ function OrgSettings() {
   };
 
   return (
-    <div style={{ padding: '28px', maxWidth: '680px' }}>
+    <div style={{ padding: isMobile ? '16px' : '28px', maxWidth: '680px' }}>
 
-      {/* Заголовок */}
       <div style={{ marginBottom: '28px' }}>
         <div style={{ fontSize: '1.3rem', fontWeight: 700 }}>Організація</div>
         <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: '4px', fontFamily: 'DM Mono' }}>
@@ -128,10 +129,9 @@ function OrgSettings() {
         </div>
       </div>
 
-      {/* Блок: назва організації */}
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: '14px', padding: '24px', marginBottom: '24px',
+        borderRadius: '14px', padding: isMobile ? '18px' : '24px', marginBottom: '24px',
       }}>
         <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '18px' }}>
           Загальні налаштування
@@ -154,7 +154,7 @@ function OrgSettings() {
             value={orgName}
             onChange={e => setOrgName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSaveOrg()}
-            style={inputStyle}
+            style={inputStyle(isMobile)}
             placeholder="Назва організації"
           />
         </div>
@@ -162,7 +162,8 @@ function OrgSettings() {
           onClick={handleSaveOrg}
           disabled={savingOrg}
           style={{
-            padding: '9px 20px', borderRadius: '8px', border: 'none',
+            width: isMobile ? '100%' : 'auto',
+            padding: isMobile ? '12px 20px' : '9px 20px', borderRadius: '8px', border: 'none',
             background: 'var(--accent)', color: '#fff', fontWeight: 600,
             fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'DM Sans',
             opacity: savingOrg ? 0.7 : 1,
@@ -172,14 +173,13 @@ function OrgSettings() {
         </button>
       </div>
 
-      {/* Блок: HR-команда */}
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: '14px', padding: '24px',
+        borderRadius: '14px', padding: isMobile ? '18px' : '24px',
       }}>
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          marginBottom: '20px',
+          marginBottom: '20px', flexWrap: 'wrap', gap: '10px',
         }}>
           <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>
             HR-команда
@@ -194,7 +194,7 @@ function OrgSettings() {
           <button
             onClick={() => setShowCreate(true)}
             style={{
-              padding: '7px 16px', borderRadius: '8px', border: 'none',
+              padding: isMobile ? '9px 16px' : '7px 16px', borderRadius: '8px', border: 'none',
               background: 'var(--accent)', color: '#fff', fontWeight: 600,
               fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'DM Sans',
             }}
@@ -222,8 +222,8 @@ function OrgSettings() {
                 display: 'flex', alignItems: 'center', gap: '14px',
                 padding: '12px 16px', borderRadius: '10px',
                 border: '1px solid var(--border)', background: 'var(--bg)',
+                flexWrap: 'wrap',
               }}>
-                {/* Аватар */}
                 <div style={{
                   width: '38px', height: '38px', borderRadius: '9px',
                   background: 'var(--accent)', display: 'flex',
@@ -233,9 +233,8 @@ function OrgSettings() {
                   {u.first_name ? u.first_name[0] : u.username[0].toUpperCase()}
                 </div>
 
-                {/* Інфо */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.85rem', wordBreak: 'break-word' }}>
                     {u.first_name && u.last_name
                       ? `${u.first_name} ${u.last_name}`
                       : u.username}
@@ -249,7 +248,6 @@ function OrgSettings() {
                   </div>
                 </div>
 
-                {/* Роль */}
                 <span style={{
                   fontSize: '0.66rem', fontFamily: 'DM Mono',
                   padding: '3px 8px', borderRadius: '4px',
@@ -258,12 +256,11 @@ function OrgSettings() {
                   HR
                 </span>
 
-                {/* Дії */}
-                <div style={{ display: 'flex', gap: '6px' }}>
+                <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                   <button
                     onClick={() => handleEdit(u)}
                     style={{
-                      padding: '5px 10px', borderRadius: '6px',
+                      padding: isMobile ? '7px 10px' : '5px 10px', borderRadius: '6px',
                       border: '1px solid var(--border)', background: 'transparent',
                       color: 'var(--text)', fontSize: '0.72rem',
                       cursor: 'pointer', fontFamily: 'DM Mono',
@@ -274,7 +271,7 @@ function OrgSettings() {
                   <button
                     onClick={() => handleDelete(u.id)}
                     style={{
-                      padding: '5px 10px', borderRadius: '6px',
+                      padding: isMobile ? '7px 10px' : '5px 10px', borderRadius: '6px',
                       border: '1px solid #fee2e2', background: 'transparent',
                       color: '#dc2626', fontSize: '0.72rem',
                       cursor: 'pointer', fontFamily: 'DM Mono',
@@ -289,15 +286,19 @@ function OrgSettings() {
         )}
       </div>
 
-      {/* Модалка: створити HR */}
       {showCreate && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          display: 'flex', alignItems: isMobile ? 'flex-end' : 'center',
+          justifyContent: 'center', zIndex: 1000,
         }}>
           <div style={{
-            background: 'var(--surface)', borderRadius: '16px',
-            padding: '28px', width: '420px', border: '1px solid var(--border)',
+            background: 'var(--surface)', borderRadius: isMobile ? '16px 16px 0 0' : '16px',
+            padding: isMobile ? '20px' : '28px',
+            width: '100%', maxWidth: '420px',
+            maxHeight: isMobile ? '85vh' : 'auto',
+            overflowY: 'auto',
+            border: '1px solid var(--border)',
           }}>
             <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '20px' }}>
               Новий HR-менеджер
@@ -308,40 +309,40 @@ function OrgSettings() {
               </div>
             )}
             <div style={{ display: 'grid', gap: '12px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
                 <div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Ім'я</div>
-                  <input value={createForm.first_name} onChange={e => setCreateForm(f => ({ ...f, first_name: e.target.value }))} style={inputStyle} />
+                  <input value={createForm.first_name} onChange={e => setCreateForm(f => ({ ...f, first_name: e.target.value }))} style={inputStyle(isMobile)} />
                 </div>
                 <div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Прізвище</div>
-                  <input value={createForm.last_name} onChange={e => setCreateForm(f => ({ ...f, last_name: e.target.value }))} style={inputStyle} />
+                  <input value={createForm.last_name} onChange={e => setCreateForm(f => ({ ...f, last_name: e.target.value }))} style={inputStyle(isMobile)} />
                 </div>
               </div>
               <div>
                 <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Username</div>
-                <input value={createForm.username} onChange={e => setCreateForm(f => ({ ...f, username: e.target.value }))} style={inputStyle} placeholder="user_login" />
+                <input value={createForm.username} onChange={e => setCreateForm(f => ({ ...f, username: e.target.value }))} style={inputStyle(isMobile)} placeholder="user_login" />
               </div>
               <div>
                 <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Email</div>
-                <input value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} style={inputStyle} placeholder="email@example.com" />
+                <input value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} style={inputStyle(isMobile)} placeholder="email@example.com" />
               </div>
               <div>
                 <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Пароль</div>
-                <input type="password" value={createForm.password} onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))} style={inputStyle} />
+                <input type="password" value={createForm.password} onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))} style={inputStyle(isMobile)} />
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button
                 onClick={() => { setShowCreate(false); setCreateError(''); setCreateForm(emptyCreateForm); }}
-                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans' }}
+                style={{ padding: isMobile ? '10px 16px' : '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans' }}
               >
                 Скасувати
               </button>
               <button
                 onClick={handleCreate}
                 disabled={creating}
-                style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}
+                style={{ padding: isMobile ? '10px 18px' : '8px 18px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}
               >
                 {creating ? 'Створення...' : 'Створити'}
               </button>
@@ -350,50 +351,54 @@ function OrgSettings() {
         </div>
       )}
 
-      {/* Модалка: редагувати HR */}
       {editUser && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          display: 'flex', alignItems: isMobile ? 'flex-end' : 'center',
+          justifyContent: 'center', zIndex: 1000,
         }}>
           <div style={{
-            background: 'var(--surface)', borderRadius: '16px',
-            padding: '28px', width: '420px', border: '1px solid var(--border)',
+            background: 'var(--surface)', borderRadius: isMobile ? '16px 16px 0 0' : '16px',
+            padding: isMobile ? '20px' : '28px',
+            width: '100%', maxWidth: '420px',
+            maxHeight: isMobile ? '85vh' : 'auto',
+            overflowY: 'auto',
+            border: '1px solid var(--border)',
           }}>
             <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '20px' }}>
               Редагувати HR
             </div>
             <div style={{ display: 'grid', gap: '12px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
                 <div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Ім'я</div>
-                  <input value={editForm.first_name} onChange={e => setEditForm(f => ({ ...f, first_name: e.target.value }))} style={inputStyle} />
+                  <input value={editForm.first_name} onChange={e => setEditForm(f => ({ ...f, first_name: e.target.value }))} style={inputStyle(isMobile)} />
                 </div>
                 <div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Прізвище</div>
-                  <input value={editForm.last_name} onChange={e => setEditForm(f => ({ ...f, last_name: e.target.value }))} style={inputStyle} />
+                  <input value={editForm.last_name} onChange={e => setEditForm(f => ({ ...f, last_name: e.target.value }))} style={inputStyle(isMobile)} />
                 </div>
               </div>
               <div>
                 <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Email</div>
-                <input value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} style={inputStyle} />
+                <input value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} style={inputStyle(isMobile)} />
               </div>
               <div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Новий пароль (необов'язково)</div>
-                <input type="password" value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} style={inputStyle} />
+                <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Новий пароль (необов\'язково)</div>
+                <input type="password" value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} style={inputStyle(isMobile)} />
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button
                 onClick={() => setEditUser(null)}
-                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans' }}
+                style={{ padding: isMobile ? '10px 16px' : '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans' }}
               >
                 Скасувати
               </button>
               <button
                 onClick={handleSaveEdit}
                 disabled={saving}
-                style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}
+                style={{ padding: isMobile ? '10px 18px' : '8px 18px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}
               >
                 {saving ? 'Збереження...' : 'Зберегти'}
               </button>
