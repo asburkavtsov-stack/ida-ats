@@ -11,9 +11,30 @@ const inputStyle = (isMobile) => ({
 const emptyForm = { name: '', slug: '', max_hr: 3, max_vacancies: 10, is_active: true };
 
 function OrgModal({ org, onClose, onSave, isMobile }) {
-  const [form, setForm] = useState(org || emptyForm);
+  const [form, setForm] = useState(() => {
+    if (!org) return emptyForm;
+    return {
+      ...org,
+      max_hr: org.max_hr ?? 3,
+      max_vacancies: org.max_vacancies ?? 10,
+      is_active: org.is_active ?? true,
+    };
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (org) {
+      setForm({
+        ...org,
+        max_hr: org.max_hr ?? 3,
+        max_vacancies: org.max_vacancies ?? 10,
+        is_active: org.is_active ?? true,
+      });
+    } else {
+      setForm(emptyForm);
+    }
+  }, [org]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -119,11 +140,11 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '14px' }}>
             <div>
               <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>HR ліміт</div>
-              <input name="max_hr" type="number" min="0" max="100" value={form.max_hr} onChange={handleChange} style={inputStyle(isMobile)} />
+              <input name="max_hr" type="number" min="0" max="100" value={form.max_hr === "" ? "" : form.max_hr} onChange={handleChange} style={inputStyle(isMobile)} />
             </div>
             <div>
               <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Вакансій ліміт</div>
-              <input name="max_vacancies" type="number" min="0" max="1000" value={form.max_vacancies} onChange={handleChange} style={inputStyle(isMobile)} />
+              <input name="max_vacancies" type="number" min="0" max="1000" value={form.max_vacancies === "" ? "" : form.max_vacancies} onChange={handleChange} style={inputStyle(isMobile)} />
             </div>
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer' }}>
@@ -509,11 +530,11 @@ function Admin({ onViewOrg }) {
                 justifyContent: isMobile ? 'flex-start' : 'center',
               }}>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: '1rem' }}>{org.max_hr}</div>
+                  <div style={{ fontWeight: 700, fontSize: '1rem' }}>{org.max_hr ?? 0}</div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>HR ліміт</div>
                 </div>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: '1rem' }}>{org.max_vacancies}</div>
+                  <div style={{ fontWeight: 700, fontSize: '1rem' }}>{org.max_vacancies ?? 0}</div>
                   <div style={{ fontSize: '0.7rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>Вакансій</div>
                 </div>
               </div>
