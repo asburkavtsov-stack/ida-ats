@@ -19,7 +19,16 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
     const { name, value, type, checked } = e.target;
 
     setForm(f => {
-      const newForm = { ...f, [name]: type === 'checkbox' ? checked : value };
+      let newValue;
+      if (type === 'checkbox') {
+        newValue = checked;
+      } else if (type === 'number') {
+        newValue = value === '' ? '' : parseInt(value, 10);
+      } else {
+        newValue = value;
+      }
+
+      const newForm = { ...f, [name]: newValue };
 
       if (name === 'name' && !org) {
         newForm.slug = value
@@ -110,11 +119,11 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '14px' }}>
             <div>
               <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>HR ліміт</div>
-              <input name="max_hr" type="number" value={form.max_hr} onChange={handleChange} style={inputStyle(isMobile)} />
+              <input name="max_hr" type="number" min="0" max="100" value={form.max_hr} onChange={handleChange} style={inputStyle(isMobile)} />
             </div>
             <div>
               <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Вакансій ліміт</div>
-              <input name="max_vacancies" type="number" value={form.max_vacancies} onChange={handleChange} style={inputStyle(isMobile)} />
+              <input name="max_vacancies" type="number" min="0" max="1000" value={form.max_vacancies} onChange={handleChange} style={inputStyle(isMobile)} />
             </div>
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer' }}>
