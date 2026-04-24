@@ -8,6 +8,11 @@ const inputStyle = (isMobile) => ({
   outline: 'none', boxSizing: 'border-box',
 });
 
+const safeInt = (val, fallback = 0) => {
+  const n = parseInt(val, 10);
+  return isNaN(n) ? fallback : n;
+};
+
 const emptyForm = { name: '', slug: '', max_hr: 3, max_vacancies: 10, is_active: true };
 
 function OrgModal({ org, onClose, onSave, isMobile }) {
@@ -15,8 +20,8 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
     if (!org) return emptyForm;
     return {
       ...org,
-      max_hr: org.max_hr ?? 3,
-      max_vacancies: org.max_vacancies ?? 10,
+      max_hr: org.max_hr != null && !isNaN(org.max_hr) ? org.max_hr : 3,
+      max_vacancies: org.max_vacancies != null && !isNaN(org.max_vacancies) ? org.max_vacancies : 10,
       is_active: org.is_active ?? true,
     };
   });
@@ -27,8 +32,8 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
     if (org) {
       setForm({
         ...org,
-        max_hr: org.max_hr ?? 3,
-        max_vacancies: org.max_vacancies ?? 10,
+        max_hr: org.max_hr != null && !isNaN(org.max_hr) ? org.max_hr : 3,
+        max_vacancies: org.max_vacancies != null && !isNaN(org.max_vacancies) ? org.max_vacancies : 10,
         is_active: org.is_active ?? true,
       });
     } else {
@@ -44,7 +49,8 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
       if (type === 'checkbox') {
         newValue = checked;
       } else if (type === 'number') {
-        newValue = value === '' ? '' : parseInt(value, 10);
+        // Зберігаємо рядок поки юзер вводить, але не допускаємо NaN у стейті
+        newValue = value === '' ? '' : safeInt(value, 0);
       } else {
         newValue = value;
       }
@@ -75,7 +81,14 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
     setError('');
 
     try {
-      const payload = { ...form };
+      // Гарантуємо що ліміти — числа, ніколи не NaN/''
+      const payload = {
+        ...form,
+        max_hr: form.max_hr === '' || isNaN(Number(form.max_hr)) ? 0 : Number(form.max_hr),
+        max_vacancies: form.max_vacancies === '' || isNaN(Number(form.max_vacancies)) ? 0 : Number(form.max_vacancies),
+      };
+
+      console.log('Sending payload:', JSON.stringify(payload));
 
       const req = org
         ? axios.patch(`/api/organizations/${org.id}/`, payload)
@@ -140,11 +153,27 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '14px' }}>
             <div>
               <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>HR ліміт</div>
-              <input name="max_hr" type="number" min="0" max="100" value={form.max_hr === "" ? "" : form.max_hr} onChange={handleChange} style={inputStyle(isMobile)} />
+              <input
+                name="max_hr"
+                type="number"
+                min="0"
+                max="100"
+                value={form.max_hr === '' ? '' : form.max_hr}
+                onChange={handleChange}
+                style={inputStyle(isMobile)}
+              />
             </div>
             <div>
               <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Вакансій ліміт</div>
-              <input name="max_vacancies" type="number" min="0" max="1000" value={form.max_vacancies === "" ? "" : form.max_vacancies} onChange={handleChange} style={inputStyle(isMobile)} />
+              <input
+                name="max_vacancies"
+                type="number"
+                min="0"
+                max="1000"
+                value={form.max_vacancies === '' ? '' : form.max_vacancies}
+                onChange={handleChange}
+                style={inputStyle(isMobile)}
+              />
             </div>
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer' }}>
