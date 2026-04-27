@@ -23,7 +23,7 @@ class CandidateSerializer(serializers.ModelSerializer):
 class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
-        fields = ['id', 'name', 'slug', 'is_active', 'created_at']
+        fields = ['id', 'name', 'slug', 'is_active', 'created_at', 'max_hr', 'max_vacancies']
 
 
 class OrganizationDetailSerializer(serializers.ModelSerializer):
