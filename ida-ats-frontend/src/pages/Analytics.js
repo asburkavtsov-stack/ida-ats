@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { STATUS_CONFIG, KANBAN_COLUMNS, getStatusLabel, getStatusColor } from '../constants/statusColors';
 
 function Analytics() {
   const [candidates, setCandidates] = useState([]);
@@ -23,14 +24,10 @@ function Analytics() {
     });
   }, []);
 
-  const statuses = ['new', 'screening', 'interview', 'offer', 'rejected'];
-  const statusLabels = { new: 'Нові', screening: 'Скринінг', interview: 'Співбесіда', offer: 'Оффер', rejected: 'Відмова' };
-  const statusColors = { new: '#7a1a2e', screening: '#b03050', interview: '#8a3a5a', offer: '#e8a0b0', rejected: '#aaaaaa' };
-
   const total = candidates.length || 1;
-  const funnel = statuses.map(s => ({
-    key: s, label: statusLabels[s], color: statusColors[s],
-    count: candidates.filter(c => c.status === s).length,
+  const funnel = KANBAN_COLUMNS.map(col => ({
+    key: col.key, label: col.label, color: col.color,
+    count: candidates.filter(c => c.status === col.key).length,
   }));
 
   const byVacancy = vacancies.map(v => ({

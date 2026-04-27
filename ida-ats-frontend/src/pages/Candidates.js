@@ -1,23 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import Loader from '../components/Loader';
-
-const statusConfig = {
-  new:       { label: 'Новий',      bg: '#f9eaed', text: '#7a1a2e' },
-  screening: { label: 'Скринінг',   bg: '#fff3e0', text: '#c94f2a' },
-  interview: { label: 'Співбесіда', bg: '#f5eaf0', text: '#8a3a5a' },
-  offer:     { label: 'Оффер',      bg: '#fce4ec', text: '#c2185b' },
-  rejected:  { label: 'Відмова',    bg: '#f5f5f5', text: '#757575' },
-};
-
-const filters = [
-  { key: 'all',       label: 'Всі'        },
-  { key: 'new',       label: 'Нові'       },
-  { key: 'screening', label: 'Скринінг'   },
-  { key: 'interview', label: 'Співбесіда' },
-  { key: 'offer',     label: 'Оффер'      },
-  { key: 'rejected',  label: 'Відмова'    },
-];
+import { STATUS_CONFIG, STATUS_FILTERS, getStatusLabel, getStatusBg, getStatusText } from '../constants/statusColors';
 
 const formatDate = (dateString) => {
   if (!dateString) return '—';
@@ -114,7 +98,7 @@ function Candidates({ searchQuery = '' }) {
     <div style={{ padding: isMobile ? '8px' : '0' }}>
       {/* Фільтри */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-        {filters.map(f => (
+        {STATUS_FILTERS.map(f => (
           <div
             key={f.key}
             onClick={() => setFilter(f.key)}
@@ -197,10 +181,10 @@ function Candidates({ searchQuery = '' }) {
                     <span style={{
                       fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px',
                       borderRadius: '4px', flexShrink: 0,
-                      background: statusConfig[c.status]?.bg || '#f5f5f5',
-                      color: statusConfig[c.status]?.text || '#757575',
+                      background: getStatusBg(c.status),
+                      color: getStatusText(c.status),
                     }}>
-                      {statusConfig[c.status]?.label || c.status}
+                      {getStatusLabel(c.status)}
                     </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -262,10 +246,10 @@ function Candidates({ searchQuery = '' }) {
                     <span style={{
                       fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px',
                       borderRadius: '4px',
-                      background: statusConfig[c.status]?.bg || '#f5f5f5',
-                      color: statusConfig[c.status]?.text || '#757575',
+                      background: getStatusBg(c.status),
+                      color: getStatusText(c.status),
                     }}>
-                      {statusConfig[c.status]?.label || c.status}
+                      {getStatusLabel(c.status)}
                     </span>
                   </td>
                   <td style={{ padding: '13px 16px', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)' }}>
