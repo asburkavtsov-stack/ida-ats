@@ -3,6 +3,9 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.contrib.auth.models import User
+from django.db import models  # Додано для Q
+import csv
+from django.http import HttpResponse
 from .models import Candidate, Vacancy, UserProfile, Organization
 from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer
 from .pagination import StandardPagination
@@ -94,6 +97,80 @@ class CandidateViewSet(viewsets.ModelViewSet):
             candidate.save()
             return Response(CandidateSerializer(candidate).data)
         return Response({'error': 'Status required'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CandidateExportCSVView(APIView):
+    """Експорт кандидатів у CSV з урахуванням фільтрів та прав доступу"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        role = get_user_role(request.user)
+        org_id = request.query_params.get('organization')
+
+        # Базовий queryset з тими ж правилами доступу, що й CandidateViewSet
+        if role == 'superadmin':
+            queryset = Candidate.objects.all()
+            if org_id:
+                queryset = queryset.filter(organization_id=org_id)
+        else:
+            org = get_user_org(request.user)
+            if org:
+                queryset = Candidate.objects.filter(organization=org)
+            else:
+                queryset = Candidate.objects.none()
+
+        # Фільтри
+        vacancy = request.query_params.get('vacancy')
+        status_filter = request.query_params.get('status')
+        search = request.query_params.get('search')
+
+        if vacancy:
+            queryset = queryset.filter(vacancy_id=vacancy)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if search:
+            queryset = queryset.filter(
+                models.Q(first_name__icontains=search) |
+                models.Q(last_name__icontains=search) |
+                models.Q(email__icontains=search)
+            )
+
+        queryset = queryset.select_related('vacancy', 'organization').order_by('-created_at')
+
+        # Формуємо CSV
+        response = HttpResponse(content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = 'attachment; filename="candidates.csv"'
+        response.write('\ufeff')  # BOM для Excel
+
+        writer = csv.writer(response)
+        writer.writerow([
+            'ID', 'Ім\'я', 'Прізвище', 'Email', 'Телефон',
+            'Вакансія', 'Організація', 'Статус', 'Нотатки', 'Дата створення'
+        ])
+
+        status_labels = {
+            'new': 'Новий',
+            'screening': 'Скринінг',
+            'interview': 'Співбесіда',
+            'offer': 'Оффер',
+            'rejected': 'Відмова',
+        }
+
+        for c in queryset:
+            writer.writerow([
+                c.id,
+                c.first_name or '',
+                c.last_name or '',
+                c.email or '',
+                c.phone or '',
+                c.vacancy.title if c.vacancy else '—',
+                c.organization.name if c.organization else '—',
+                status_labels.get(c.status, c.status),
+                (c.notes or '').replace('\n', ' ').replace('\r', ''),
+                c.created_at.strftime('%d.%m.%Y %H:%M') if c.created_at else '—',
+            ])
+
+        return response
 
 
 @api_view(['GET'])

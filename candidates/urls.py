@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import CandidateViewSet, VacancyViewSet, OrganizationViewSet, UserListView, current_user
+from .views import CandidateViewSet, VacancyViewSet, OrganizationViewSet, UserListView, current_user, CandidateExportCSVView
 
 router = DefaultRouter()
 router.register(r'candidates', CandidateViewSet, basename='candidate')
@@ -16,4 +16,5 @@ urlpatterns = [
         'patch': 'partial_update',
         'delete': 'destroy',
     })),
+    path('api/candidates/export/', CandidateExportCSVView.as_view(), name='candidates-export'),
 ]

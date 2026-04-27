@@ -30,6 +30,7 @@ function Candidates({ searchQuery = '' }) {
   const [filter, setFilter] = useState('all');
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -80,6 +81,35 @@ function Candidates({ searchQuery = '' }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (filter !== 'all') params.set('status', filter);
+      if (searchQuery) params.set('search', searchQuery);
+
+      const response = await axios.get(`/api/candidates/export/?${params.toString()}`, {
+        responseType: 'blob',
+      });
+
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.setAttribute('download', `candidates_${dateStr}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Помилка експорту CSV:', err);
+      alert('Не вдалося експортувати CSV');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div style={{ padding: isMobile ? '8px' : '0' }}>
       {/* Фільтри */}
@@ -106,8 +136,25 @@ function Candidates({ searchQuery = '' }) {
               {totalCount} кандидатів
             </span>
           )}
-          <button style={{ padding: isMobile ? '8px 14px' : '6px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--muted)', fontSize: '0.78rem', cursor: 'pointer' }}>
-            ⬇ Експорт CSV
+          <button
+            onClick={handleExportCSV}
+            disabled={exporting || totalCount === 0}
+            style={{
+              padding: isMobile ? '8px 14px' : '6px 14px',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: exporting || totalCount === 0 ? 'var(--muted)' : 'var(--text)',
+              fontSize: '0.78rem',
+              cursor: exporting || totalCount === 0 ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              opacity: exporting || totalCount === 0 ? 0.6 : 1,
+              transition: 'opacity 0.15s',
+            }}
+          >
+            {exporting ? '⏳ Експорт...' : '⬇ Експорт CSV'}
           </button>
         </div>
       </div>
