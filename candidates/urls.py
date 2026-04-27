@@ -11,10 +11,9 @@ router.register(r'users', UserListView, basename='users')
 urlpatterns = [
     path('', include(router.urls)),
     path('me/', current_user),
-    # 🔧 ДОДАТИ: явний маршрут для PATCH/DELETE по конкретному юзеру
     path('users-detail/<int:pk>/', UserListView.as_view({
         'patch': 'partial_update',
         'delete': 'destroy',
     })),
-    path('api/candidates/export/', CandidateExportCSVView.as_view(), name='candidates-export'),
+    path('candidates/export/', CandidateExportCSVView.as_view(), name='candidates-export'),
 ]
