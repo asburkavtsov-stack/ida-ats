@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { STATUS_CONFIG, KANBAN_COLUMNS, getStatusLabel, getStatusColor } from '../constants/statusColors';
+import { KANBAN_COLUMNS } from '../constants/statusColors';
 
 function Analytics() {
   const [candidates, setCandidates] = useState([]);

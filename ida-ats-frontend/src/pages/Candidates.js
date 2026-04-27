@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import Loader from '../components/Loader';
-import { STATUS_CONFIG, STATUS_FILTERS, getStatusLabel, getStatusBg, getStatusText } from '../constants/statusColors';
+import { STATUS_FILTERS, getStatusLabel, getStatusBg, getStatusText } from '../constants/statusColors';
 
 const formatDate = (dateString) => {
   if (!dateString) return '—';

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import Loader from '../components/Loader';
-import { STATUS_CONFIG, KANBAN_COLUMNS, getStatusLabel, getStatusBg, getStatusText } from '../constants/statusColors';
+import { KANBAN_COLUMNS, getStatusLabel, getStatusBg, getStatusText } from '../constants/statusColors';
 
 const formatDate = (dateString) => {
   if (!dateString) return '';
