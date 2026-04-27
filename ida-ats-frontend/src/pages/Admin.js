@@ -8,20 +8,16 @@ const inputStyle = (isMobile) => ({
   outline: 'none', boxSizing: 'border-box',
 });
 
-const safeInt = (val, fallback = 0) => {
-  const n = parseInt(val, 10);
-  return isNaN(n) ? fallback : n;
-};
-
 const emptyForm = { name: '', slug: '', max_hr: 3, max_vacancies: 10, is_active: true };
 
 function OrgModal({ org, onClose, onSave, isMobile }) {
   const [form, setForm] = useState(() => {
     if (!org) return emptyForm;
     return {
-      ...org,
-      max_hr: org.max_hr != null && !isNaN(org.max_hr) ? org.max_hr : 3,
-      max_vacancies: org.max_vacancies != null && !isNaN(org.max_vacancies) ? org.max_vacancies : 10,
+      name: org.name || '',
+      slug: org.slug || '',
+      max_hr: org.max_hr != null && !isNaN(org.max_hr) ? Number(org.max_hr) : 3,
+      max_vacancies: org.max_vacancies != null && !isNaN(org.max_vacancies) ? Number(org.max_vacancies) : 10,
       is_active: org.is_active ?? true,
     };
   });
@@ -31,9 +27,10 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
   useEffect(() => {
     if (org) {
       setForm({
-        ...org,
-        max_hr: org.max_hr != null && !isNaN(org.max_hr) ? org.max_hr : 3,
-        max_vacancies: org.max_vacancies != null && !isNaN(org.max_vacancies) ? org.max_vacancies : 10,
+        name: org.name || '',
+        slug: org.slug || '',
+        max_hr: org.max_hr != null && !isNaN(org.max_hr) ? Number(org.max_hr) : 3,
+        max_vacancies: org.max_vacancies != null && !isNaN(org.max_vacancies) ? Number(org.max_vacancies) : 10,
         is_active: org.is_active ?? true,
       });
     } else {
@@ -49,8 +46,12 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
       if (type === 'checkbox') {
         newValue = checked;
       } else if (type === 'number') {
-        // Зберігаємо рядок поки юзер вводить, але не допускаємо NaN у стейті
-        newValue = value === '' ? '' : safeInt(value, 0);
+        if (value === '') {
+          newValue = 0;
+        } else {
+          const num = Number(value);
+          newValue = isNaN(num) ? 0 : num;
+        }
       } else {
         newValue = value;
       }
@@ -81,11 +82,12 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
     setError('');
 
     try {
-      // Гарантуємо що ліміти — числа, ніколи не NaN/''
       const payload = {
-        ...form,
-        max_hr: form.max_hr === '' || isNaN(Number(form.max_hr)) ? 0 : Number(form.max_hr),
-        max_vacancies: form.max_vacancies === '' || isNaN(Number(form.max_vacancies)) ? 0 : Number(form.max_vacancies),
+        name: form.name.trim(),
+        slug: form.slug.trim(),
+        max_hr: Number(form.max_hr) || 0,
+        max_vacancies: Number(form.max_vacancies) || 0,
+        is_active: form.is_active,
       };
 
       console.log('Sending payload:', JSON.stringify(payload));
@@ -158,7 +160,7 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
                 type="number"
                 min="0"
                 max="100"
-                value={form.max_hr === '' ? '' : form.max_hr}
+                value={form.max_hr}
                 onChange={handleChange}
                 style={inputStyle(isMobile)}
               />
@@ -170,7 +172,7 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
                 type="number"
                 min="0"
                 max="1000"
-                value={form.max_vacancies === '' ? '' : form.max_vacancies}
+                value={form.max_vacancies}
                 onChange={handleChange}
                 style={inputStyle(isMobile)}
               />
@@ -268,14 +270,12 @@ function UsersModal({ org, onClose, isMobile }) {
         payload.password = form.password;
       }
 
-      let res;
       if (editUser) {
-        res = await axios.patch(`/api/users-detail/${editUser.id}/`, payload);
+        await axios.patch(`/api/users-detail/${editUser.id}/`, payload);
       } else {
-        res = await axios.post('/api/users/', payload);
+        await axios.post('/api/users/', payload);
       }
 
-      console.log('User saved successfully:', res.data);
       await fetchUsers();
       setShowForm(false);
       setEditUser(null);
