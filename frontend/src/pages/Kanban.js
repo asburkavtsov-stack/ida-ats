@@ -102,6 +102,11 @@ function Kanban({ searchQuery = '', orgId = null }) {
           <div
             key={v.key}
             onClick={() => setFilter(v.key)}
+            role="button"
+            tabIndex={0}
+            aria-label={`Фільтр за вакансією: ${v.label}`}
+            aria-pressed={filter === v.key}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFilter(v.key); }}}
             style={{
               padding: isMobile ? '8px 14px' : '6px 12px', borderRadius: '20px', fontSize: '0.78rem',
               fontWeight: 500, cursor: 'pointer',
@@ -117,9 +122,11 @@ function Kanban({ searchQuery = '', orgId = null }) {
         {filter !== 'all' && (
           <button
             onClick={() => setFilter('all')}
+            aria-label="Скинути фільтр вакансій"
+            type="button"
             style={{ padding: isMobile ? '6px 12px' : '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: '0.72rem', cursor: 'pointer', marginLeft: '8px' }}
           >
-            ✕ Скинути
+            <span aria-hidden="true">✕</span> Скинути
           </button>
         )}
       </div>
@@ -135,7 +142,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
           const count = filtered.filter(c => c.status === col.key).length;
           return (
             <div key={col.key} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--muted)' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: col.color }} />
+              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: col.color }} aria-hidden="true" />
               <strong style={{ color: 'var(--text)', fontFamily: 'DM Mono' }}>{count}</strong> {col.label.toLowerCase()}
             </div>
           );
@@ -159,7 +166,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
                 scrollSnapAlign: isMobile ? 'start' : 'none',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 4px', marginBottom: '10px' }}>
-                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: col.color }} />
+                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: col.color }} aria-hidden="true" />
                   <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>{col.label}</span>
                   <span style={{ marginLeft: 'auto', fontFamily: 'DM Mono', fontSize: '0.7rem', background: 'var(--surface2)', color: 'var(--muted)', padding: '2px 8px', borderRadius: '20px' }}>
                     {cards.length}
@@ -193,6 +200,9 @@ function Kanban({ searchQuery = '', orgId = null }) {
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
+                              role="button"
+                              tabIndex={0}
+                              aria-label={`Кандидат ${c.first_name} ${c.last_name}, вакансія ${c.vacancy_title}, статус ${getStatusLabel(c.status)}. Натисніть пробіл, щоб підняти.`}
                               style={{
                                 background: 'var(--surface)',
                                 border: `1px solid ${snapshot.isDragging ? 'var(--accent)' : 'var(--border)'}`,
@@ -212,13 +222,17 @@ function Kanban({ searchQuery = '', orgId = null }) {
                                 <span style={{ fontSize: '0.62rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
                                   {formatDate(c.created_at)}
                                 </span>
-                                <div style={{ marginLeft: 'auto', width: '24px', height: '24px', borderRadius: '6px', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)' }}>
+                                <div style={{ marginLeft: 'auto', width: '24px', height: '24px', borderRadius: '6px', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)' }} aria-hidden="true">
                                   {c.first_name?.[0]}{c.last_name?.[0]}
                                 </div>
                               </div>
                               {isMobile && (
                                 <div style={{ marginTop: '10px', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
+                                  <label htmlFor={`status-select-${c.id}`} style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono', display: 'block', marginBottom: '4px' }}>
+                                    Змінити статус
+                                  </label>
                                   <select
+                                    id={`status-select-${c.id}`}
                                     value={c.status}
                                     onChange={(e) => handleStatusChange(c.id, e.target.value)}
                                     style={{

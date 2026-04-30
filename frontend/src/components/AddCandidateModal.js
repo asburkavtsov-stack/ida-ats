@@ -66,7 +66,15 @@ function AddCandidateModal({ onClose, onAdded }) {
 
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontWeight: 700, fontSize: '1rem' }}>Новий кандидат</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
+          <button
+            onClick={onClose}
+            aria-label="Закрити модальне вікно"
+            type="button"
+            style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            <span aria-hidden="true">✕</span>
+          </button>
+
         </div>
 
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>

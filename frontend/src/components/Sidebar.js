@@ -76,7 +76,7 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
     <>
       {/* Лого */}
       <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ fontFamily: 'DM Sans', fontSize: '1.4rem', fontWeight: 700, color: 'var(--sidebar-active)', letterSpacing: '-0.5px' }}>
+        <div aria-label="IDA ATS System" role="img" style={{ fontFamily: 'DM Sans', color: 'var(--sidebar-active)', letterSpacing: '-0.5px' }}>
           IDA
         </div>
         <div style={{ fontFamily: 'DM Mono', fontSize: '0.62rem', color: 'rgba(200,176,182,0.4)', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '2px' }}>
@@ -101,7 +101,7 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
               fontSize: '0.85rem', fontWeight: 500, marginBottom: '2px', transition: 'all 0.15s',
             }}
           >
-            <span>{item.icon}</span>
+            <span aria-hidden="true">{item.icon}</span>
             <span style={{ flex: 1 }}>{item.label}</span>
             {item.badgeKey && counts[item.badgeKey] > 0 && (
               <span style={{

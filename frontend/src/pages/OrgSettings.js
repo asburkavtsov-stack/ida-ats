@@ -199,7 +199,7 @@ function OrgSettings() {
               fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'DM Sans',
             }}
           >
-            + Додати HR
+            <span aria-hidden="true">+</span> Додати HR
           </button>
         </div>
 
@@ -259,6 +259,8 @@ function OrgSettings() {
                 <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                   <button
                     onClick={() => handleEdit(u)}
+                    aria-label={`Редагувати ${u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username}`}
+                    type="button"
                     style={{
                       padding: isMobile ? '7px 10px' : '5px 10px', borderRadius: '6px',
                       border: '1px solid var(--border)', background: 'transparent',
@@ -266,10 +268,12 @@ function OrgSettings() {
                       cursor: 'pointer', fontFamily: 'DM Mono',
                     }}
                   >
-                    ✏️
+                    <span aria-hidden="true">✏️</span>
                   </button>
                   <button
                     onClick={() => handleDelete(u.id)}
+                    aria-label={`Видалити ${u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username}`}
+                    type="button"
                     style={{
                       padding: isMobile ? '7px 10px' : '5px 10px', borderRadius: '6px',
                       border: '1px solid #fee2e2', background: 'transparent',
@@ -277,7 +281,7 @@ function OrgSettings() {
                       cursor: 'pointer', fontFamily: 'DM Mono',
                     }}
                   >
-                    🗑
+                    <span aria-hidden="true">🗑</span>
                   </button>
                 </div>
               </div>

@@ -165,7 +165,7 @@ function Vacancies() {
               flexShrink: 0,
             }}
           >
-            ← Назад до вакансій
+            <span aria-hidden="true">←</span> Назад до вакансій
           </button>
           <div>
             <div style={{ fontSize: '1.3rem', fontWeight: 700, wordBreak: 'break-word' }}>{selectedVacancy.title}</div>
@@ -192,6 +192,8 @@ function Vacancies() {
                 setShowEditModal(true);
               }
             }}
+            aria-label={`Редагувати вакансію ${selectedVacancy?.title}`}
+            type="button"
             style={{
               padding: isMobile ? '10px 14px' : '8px 16px',
               borderRadius: '8px',
@@ -205,10 +207,12 @@ function Vacancies() {
               gap: '6px',
             }}
           >
-            ✏️ Редагувати
+            <span aria-hidden="true">✏️</span> Редагувати
           </button>
           <button
             onClick={(e) => handleToggleStatus(e, selectedVacancy)}
+            aria-label={selectedVacancy?.is_active ? `Закрити вакансію ${selectedVacancy?.title}` : `Відкрити вакансію ${selectedVacancy?.title}`}
+            type="button"
             style={{
               padding: isMobile ? '10px 14px' : '8px 16px',
               borderRadius: '8px',
@@ -223,10 +227,13 @@ function Vacancies() {
               gap: '6px',
             }}
           >
-            {selectedVacancy?.is_active ? '⏸ Закрити вакансію' : '▶ Відкрити вакансію'}
+            <span aria-hidden="true">{selectedVacancy?.is_active ? '⏸' : '▶'}</span>
+            {selectedVacancy?.is_active ? 'Закрити вакансію' : 'Відкрити вакансію'}
           </button>
           <button
             onClick={(e) => handleDelete(e, selectedVacancy)}
+            aria-label={`Видалити вакансію ${selectedVacancy?.title}`}
+            type="button"
             style={{
               padding: isMobile ? '10px 14px' : '8px 16px',
               borderRadius: '8px',
@@ -239,7 +246,7 @@ function Vacancies() {
               marginLeft: isMobile ? '0' : 'auto',
             }}
           >
-            🗑 Видалити
+            <span aria-hidden="true">🗑</span> Видалити
           </button>
         </div>
 
@@ -280,7 +287,7 @@ function Vacancies() {
 
           {vacancyCandidates.length === 0 ? (
             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>
-              <div style={{ fontSize: '1.5rem', marginBottom: '12px' }}>👤</div>
+              <div style={{ fontSize: '1.5rem', marginBottom: '12px' }} aria-hidden="true">👤</div>
               <div>Поки немає кандидатів на цю вакансію</div>
               <div style={{ fontSize: '0.78rem', marginTop: '8px' }}>Додайте кандидата з головного меню</div>
             </div>
@@ -374,7 +381,7 @@ function Vacancies() {
               fontFamily: 'DM Mono',
               fontWeight: 600
             }}>
-              ⚠ Ліміт досягнуто
+              <span aria-hidden="true">⚠</span> Ліміт досягнуто
             </span>
           )}
         </div>
@@ -395,7 +402,7 @@ function Vacancies() {
           }}
           title={isLimitReached ? `Ліміт ${vacancyLimit.max} вакансій досягнуто` : ''}
         >
-          {isLimitReached ? '⛔ Ліміт досягнуто' : '+ Нова вакансія'}
+          <span aria-hidden="true">{isLimitReached ? '⛔' : '+'}</span> {isLimitReached ? 'Ліміт досягнуто' : 'Нова вакансія'}
         </button>
       </div>
 
@@ -411,6 +418,10 @@ function Vacancies() {
             <div
               key={v.id}
               onClick={() => handleVacancyClick(v)}
+              role="button"
+              tabIndex={0}
+              aria-label={`Вакансія ${v.title}, ${v.department}, ${v.is_active ? 'Активна' : 'Закрита'}`}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleVacancyClick(v); }}}
               style={{
                 background: 'var(--surface)',
                 border: '1px solid var(--border)',
@@ -443,6 +454,8 @@ function Vacancies() {
               >
                 <button
                   onClick={(e) => handleEdit(e, v)}
+                  aria-label={`Редагувати вакансію ${v.title}`}
+                  type="button"
                   style={{
                     padding: isMobile ? '8px 12px' : '6px 10px',
                     borderRadius: '6px',
@@ -453,12 +466,13 @@ function Vacancies() {
                     zIndex: 10,
                     position: 'relative',
                   }}
-                  type="button"
                 >
-                  ✏️
+                  <span aria-hidden="true">✏️</span>
                 </button>
                 <button
                   onClick={(e) => handleDelete(e, v)}
+                  aria-label={`Видалити вакансію ${v.title}`}
+                  type="button"
                   style={{
                     padding: isMobile ? '8px 12px' : '6px 10px',
                     borderRadius: '6px',
@@ -470,9 +484,8 @@ function Vacancies() {
                     zIndex: 10,
                     position: 'relative',
                   }}
-                  type="button"
                 >
-                  🗑
+                  <span aria-hidden="true">🗑</span>
                 </button>
               </div>
 
@@ -613,7 +626,14 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
       <div style={modal} onClick={e => e.stopPropagation()}>
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontWeight: 700, fontSize: '1rem' }}>Редагувати вакансію</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
+          <button
+            onClick={onClose}
+            aria-label="Закрити модальне вікно"
+            type="button"
+            style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--muted)' }}
+          >
+            <span aria-hidden="true">✕</span>
+          </button>
         </div>
 
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>

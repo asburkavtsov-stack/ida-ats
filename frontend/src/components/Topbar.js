@@ -50,7 +50,7 @@ function Topbar({ currentPage, onAddCandidate, onSearch }) {
         width: isMobile ? '140px' : '260px',
         transition: 'width 0.2s',
       }}>
-        <span style={{ color: 'var(--muted)', fontSize: isMobile ? '0.8rem' : '0.9rem' }}>🔍</span>
+        <span aria-hidden="true" style={{ color: 'var(--muted)' }}>🔍</span>
         <input
           value={query}
           onChange={handleSearch}
@@ -62,12 +62,13 @@ function Topbar({ currentPage, onAddCandidate, onSearch }) {
           }}
         />
         {query && (
-          <span
-            onClick={() => { setQuery(''); onSearch(''); }}
-            style={{ cursor: 'pointer', color: 'var(--muted)', fontSize: '0.8rem' }}
-          >
-            ✕
-          </span>
+        <button
+          onClick={() => { setQuery(''); onSearch(''); }}
+          aria-label="Очистити пошук"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '0.8rem' }}
+        >
+          <span aria-hidden="true">✕</span>
+        </button>
         )}
       </div>
 

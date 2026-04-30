@@ -339,9 +339,16 @@ function UsersModal({ org, onClose, isMobile }) {
               }}
               style={{ padding: isMobile ? '8px 14px' : '6px 14px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'DM Sans', fontWeight: 600 }}
             >
-              + Додати
+              <span aria-hidden="true">+</span> Додати
             </button>
-            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+            <button
+              onClick={onClose}
+              aria-label="Закрити вікно користувачів"
+              type="button"
+              style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: '1.2rem', cursor: 'pointer' }}
+            >
+              <span aria-hidden="true">✕</span>
+            </button>
           </div>
         </div>
 
@@ -421,11 +428,21 @@ function UsersModal({ org, onClose, isMobile }) {
                 </div>
                 <div style={{ fontSize: '0.72rem', fontFamily: 'DM Mono', color: 'var(--muted)', marginRight: '8px', flexShrink: 0 }}>{u.role}</div>
                 <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                  <button onClick={() => handleEdit(u)} style={{ padding: isMobile ? '6px 10px' : '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
-                    ✏️
+                  <button
+                    onClick={() => handleEdit(u)}
+                    aria-label={`Редагувати користувача ${u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username}`}
+                    type="button"
+                    style={{ padding: isMobile ? '6px 10px' : '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
+                  >
+                    <span aria-hidden="true">✏️</span>
                   </button>
-                  <button onClick={() => handleDelete(u.id)} style={{ padding: isMobile ? '6px 10px' : '4px 10px', borderRadius: '6px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
-                    🗑
+                  <button
+                    onClick={() => handleDelete(u.id)}
+                    aria-label={`Видалити користувача ${u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username}`}
+                    type="button"
+                    style={{ padding: isMobile ? '6px 10px' : '4px 10px', borderRadius: '6px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
+                  >
+                    <span aria-hidden="true">🗑</span>
                   </button>
                 </div>
               </div>
@@ -524,7 +541,7 @@ function Admin({ onViewOrg }) {
           background: 'var(--accent)', color: '#fff', fontWeight: 600,
           fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'DM Sans',
         }}>
-          + Нова організація
+          <span aria-hidden="true">+</span> Нова організація
         </button>
       </div>
 
@@ -581,17 +598,37 @@ function Admin({ onViewOrg }) {
                 flexWrap: 'wrap',
                 width: isMobile ? '100%' : 'auto',
               }}>
-                <button onClick={() => handleViewOrg(org.id)} style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
-                  🖥 ATS
+                <button
+                  onClick={() => handleViewOrg(org.id)}
+                  aria-label={`Переглянути ATS організації ${org.name}`}
+                  type="button"
+                  style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
+                >
+                  <span aria-hidden="true">🖥</span> ATS
                 </button>
-                <button onClick={() => setUsersOrg(org)} style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
-                  👥 Юзери
+                <button
+                  onClick={() => setUsersOrg(org)}
+                  aria-label={`Користувачі організації ${org.name}`}
+                  type="button"
+                  style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
+                >
+                  <span aria-hidden="true">👥</span> Юзери
                 </button>
-                <button onClick={() => { setEditOrg(org); setShowOrgModal(true); }} style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
-                  ✏️ Змінити
+                <button
+                  onClick={() => { setEditOrg(org); setShowOrgModal(true); }}
+                  aria-label={`Редагувати організацію ${org.name}`}
+                  type="button"
+                  style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
+                >
+                  <span aria-hidden="true">✏️</span> Змінити
                 </button>
-                <button onClick={() => setConfirmDelete(org)} style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
-                  🗑 Видалити
+                <button
+                  onClick={() => setConfirmDelete(org)}
+                  aria-label={`Видалити організацію ${org.name}`}
+                  type="button"
+                  style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
+                >
+                  <span aria-hidden="true">🗑</span> Видалити
                 </button>
               </div>
             </div>

@@ -105,7 +105,7 @@ function Users() {
           background: 'var(--accent)', color: '#fff', fontWeight: 600,
           fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'DM Sans',
         }}>
-          + Додати юзера
+          <span aria-hidden="true">+</span> Додати юзера
         </button>
       </div>
 
@@ -142,11 +142,21 @@ function Users() {
                 <div style={{ marginTop: '2px' }}>{roleLabels[u.role] || u.role || '—'}</div>
               </div>
               <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                <button onClick={() => handleEdit(u)} style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
-                  ✏️ Змінити
+                <button
+                  onClick={() => handleEdit(u)}
+                  aria-label={`Редагувати користувача ${u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username}`}
+                  type="button"
+                  style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
+                >
+                  <span aria-hidden="true">✏️</span> Змінити
                 </button>
-                <button onClick={() => handleDelete(u.id)} style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
-                  🗑
+                <button
+                  onClick={() => handleDelete(u.id)}
+                  aria-label={`Видалити користувача ${u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username}`}
+                  type="button"
+                  style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
+                >
+                  <span aria-hidden="true">🗑</span>
                 </button>
               </div>
             </div>

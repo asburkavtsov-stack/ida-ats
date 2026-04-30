@@ -102,6 +102,11 @@ function Candidates({ searchQuery = '' }) {
           <div
             key={f.key}
             onClick={() => setFilter(f.key)}
+            role="button"
+            tabIndex={0}
+            aria-label={`Фільтр: ${f.label}`}
+            aria-pressed={filter === f.key}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFilter(f.key); }}}
             style={{
               padding: isMobile ? '8px 14px' : '6px 14px', borderRadius: '20px', fontSize: '0.78rem',
               fontWeight: 500, cursor: 'pointer',
@@ -123,6 +128,8 @@ function Candidates({ searchQuery = '' }) {
           <button
             onClick={handleExportCSV}
             disabled={exporting || totalCount === 0}
+            aria-label={exporting ? 'Експорт CSV триває' : 'Експортувати список кандидатів у CSV'}
+            type="button"
             style={{
               padding: isMobile ? '8px 14px' : '6px 14px',
               borderRadius: '8px',
@@ -138,7 +145,7 @@ function Candidates({ searchQuery = '' }) {
               transition: 'opacity 0.15s',
             }}
           >
-            {exporting ? '⏳ Експорт...' : '⬇ Експорт CSV'}
+            <span aria-hidden="true">{exporting ? '⏳' : '⬇'}</span> {exporting ? 'Експорт...' : 'Експорт CSV'}
           </button>
         </div>
       </div>
@@ -160,6 +167,10 @@ function Candidates({ searchQuery = '' }) {
               candidates.map((c, i) => (
                 <div
                   key={c.id || i}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Кандидат ${c.first_name} ${c.last_name}, вакансія ${c.vacancy_title || '—'}, статус ${getStatusLabel(c.status)}, додано ${formatDate(c.created_at)}`}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); /* handle click */ }}}
                   style={{
                     padding: '14px 16px',
                     borderBottom: '1px solid var(--border)',
@@ -271,6 +282,8 @@ function Candidates({ searchQuery = '' }) {
           <button
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage === 1}
+            aria-label="Попередня сторінка"
+            type="button"
             style={{
               padding: isMobile ? '9px 16px' : '7px 14px', borderRadius: '8px',
               border: '1px solid var(--border)', background: 'var(--surface)',
@@ -279,7 +292,7 @@ function Candidates({ searchQuery = '' }) {
               fontFamily: 'DM Mono', opacity: currentPage === 1 ? 0.5 : 1,
             }}
           >
-            ← Назад
+            <span aria-hidden="true">←</span> Назад
           </button>
 
           {Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -291,13 +304,16 @@ function Candidates({ searchQuery = '' }) {
             }, [])
             .map((p, idx) =>
               p === '...' ? (
-                <span key={`dots-${idx}`} style={{ padding: '0 4px', color: 'var(--muted)', fontFamily: 'DM Mono', fontSize: '0.78rem' }}>
+                <span key={`dots-${idx}`} style={{ padding: '0 4px', color: 'var(--muted)', fontFamily: 'DM Mono', fontSize: '0.78rem' }} aria-hidden="true">
                   ...
                 </span>
               ) : (
                 <button
                   key={p}
                   onClick={() => handlePageChange(p)}
+                  aria-label={`Сторінка ${p}${currentPage === p ? ', поточна' : ''}`}
+                  aria-current={currentPage === p ? 'page' : undefined}
+                  type="button"
                   style={{
                     width: isMobile ? '42px' : '36px', height: isMobile ? '42px' : '36px', borderRadius: '8px',
                     border: `1px solid ${currentPage === p ? 'var(--accent)' : 'var(--border)'}`,
@@ -316,6 +332,8 @@ function Candidates({ searchQuery = '' }) {
           <button
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
+            aria-label="Наступна сторінка"
+            type="button"
             style={{
               padding: isMobile ? '9px 16px' : '7px 14px', borderRadius: '8px',
               border: '1px solid var(--border)', background: 'var(--surface)',
@@ -324,7 +342,7 @@ function Candidates({ searchQuery = '' }) {
               fontFamily: 'DM Mono', opacity: currentPage === totalPages ? 0.5 : 1,
             }}
           >
-            Вперед →
+            Вперед <span aria-hidden="true">→</span>
           </button>
         </div>
       )}
