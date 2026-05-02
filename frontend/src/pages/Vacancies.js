@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import AddVacancyModal from '../components/AddVacancyModal';
 import Loader from '../components/Loader';
+import CandidateCardModal from '../components/CandidateCardModal';
 
 function Vacancies() {
   const [vacancies, setVacancies] = useState([]);
@@ -15,6 +16,7 @@ function Vacancies() {
   const [updateKey, setUpdateKey] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const [vacancyLimit, setVacancyLimit] = useState({ current: 0, max: 10 });
+  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -294,13 +296,24 @@ function Vacancies() {
           ) : (
             <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
               {vacancyCandidates.map((c, i) => (
-                <div key={i} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: isMobile ? '10px 16px' : '12px 20px',
-                  borderBottom: '1px solid var(--border)',
-                }}>
+                <div
+                  key={i}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedCandidateId(c.id)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCandidateId(c.id); }}}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: isMobile ? '10px 16px' : '12px 20px',
+                    borderBottom: '1px solid var(--border)',
+                    cursor: 'pointer',
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
                   <div style={{
                     width: isMobile ? '32px' : '36px',
                     height: isMobile ? '32px' : '36px',
@@ -358,6 +371,24 @@ function Vacancies() {
               setEditModalVacancy(null);
             }}
             onUpdated={() => setUpdateKey(k => k + 1)}
+          />
+        )}
+
+        {selectedCandidateId && (
+          <CandidateCardModal
+            candidateId={selectedCandidateId}
+            onClose={() => setSelectedCandidateId(null)}
+            onStatusChange={(id, status) => {
+              setCandidates(prev => prev.map(c =>
+                c.id === id ? { ...c, status } : c
+              ));
+              setUpdateKey(k => k + 1);
+            }}
+            onDelete={(id) => {
+              setCandidates(prev => prev.filter(c => c.id !== id));
+              setSelectedCandidateId(null);
+              setUpdateKey(k => k + 1);
+            }}
           />
         )}
       </div>

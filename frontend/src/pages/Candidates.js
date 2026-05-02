@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import Loader from '../components/Loader';
+import CandidateCardModal from '../components/CandidateCardModal';
 import { STATUS_FILTERS, getStatusLabel, getStatusBg, getStatusText } from '../constants/statusColors';
 
 const formatDate = (dateString) => {
@@ -19,6 +20,7 @@ function Candidates({ searchQuery = '' }) {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
+  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const PAGE_SIZE = 20;
 
   useEffect(() => {
@@ -170,7 +172,8 @@ function Candidates({ searchQuery = '' }) {
                   role="button"
                   tabIndex={0}
                   aria-label={`Кандидат ${c.first_name} ${c.last_name}, вакансія ${c.vacancy_title || '—'}, статус ${getStatusLabel(c.status)}, додано ${formatDate(c.created_at)}`}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); /* handle click */ }}}
+                  onClick={() => setSelectedCandidateId(c.id)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCandidateId(c.id); }}}
                   style={{
                     padding: '14px 16px',
                     borderBottom: '1px solid var(--border)',
@@ -239,6 +242,7 @@ function Candidates({ searchQuery = '' }) {
                 <tr
                   key={c.id || i}
                   style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: 'background 0.1s' }}
+                  onClick={() => setSelectedCandidateId(c.id)}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
@@ -345,6 +349,23 @@ function Candidates({ searchQuery = '' }) {
             Вперед <span aria-hidden="true">→</span>
           </button>
         </div>
+      )}
+
+      {selectedCandidateId && (
+        <CandidateCardModal
+          candidateId={selectedCandidateId}
+          onClose={() => setSelectedCandidateId(null)}
+          onStatusChange={(id, status) => {
+            setCandidates(prev => prev.map(c =>
+              c.id === id ? { ...c, status } : c
+            ));
+          }}
+          onDelete={(id) => {
+            setCandidates(prev => prev.filter(c => c.id !== id));
+            setSelectedCandidateId(null);
+            setTotalCount(prev => prev - 1);
+          }}
+        />
       )}
     </div>
   );

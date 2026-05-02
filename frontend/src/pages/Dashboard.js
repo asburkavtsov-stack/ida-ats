@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import CandidateCardModal from '../components/CandidateCardModal';
 
 const formatDate = (dateString) => {
   if (!dateString) return '';
@@ -12,6 +13,7 @@ function Dashboard() {
   const [stats, setStats] = useState({ total: 0, active_vacancies: 0, offers: 0, new: 0 });
   const [activity, setActivity] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
+  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -79,11 +81,21 @@ function Dashboard() {
           </div>
         )}
         {activity.map((c, i) => (
-          <div key={i} style={{
+          <div
+            key={i}
+            role="button"
+            tabIndex={0}
+            onClick={() => setSelectedCandidateId(c.id)}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCandidateId(c.id); }}}
+            style={{
             display: 'flex', alignItems: 'flex-start', gap: '12px',
             padding: isMobile ? '10px 16px' : '12px 20px',
             borderBottom: '1px solid var(--border)',
-          }}>
+            cursor: 'pointer',
+            transition: 'background 0.1s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusColors[c.status] || 'var(--muted)', marginTop: '5px', flexShrink: 0 }} />
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: '0.8rem', wordBreak: 'break-word' }}>
@@ -96,6 +108,22 @@ function Dashboard() {
           </div>
         ))}
       </div>
+
+      {selectedCandidateId && (
+        <CandidateCardModal
+          candidateId={selectedCandidateId}
+          onClose={() => setSelectedCandidateId(null)}
+          onStatusChange={(id, status) => {
+            setActivity(prev => prev.map(c =>
+              c.id === id ? { ...c, status } : c
+            ));
+          }}
+          onDelete={(id) => {
+            setActivity(prev => prev.filter(c => c.id !== id));
+            setSelectedCandidateId(null);
+          }}
+        />
+      )}
     </div>
   );
 }

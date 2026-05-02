@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import Loader from '../components/Loader';
+import CandidateCardModal from '../components/CandidateCardModal';
 import { KANBAN_COLUMNS, getStatusLabel, getStatusBg, getStatusText } from '../constants/statusColors';
 
 const formatDate = (dateString) => {
@@ -17,6 +18,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
   const [vacancies, setVacancies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const [selectedCandidateId, setSelectedCandidateId] = useState(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -203,6 +205,13 @@ function Kanban({ searchQuery = '', orgId = null }) {
                               role="button"
                               tabIndex={0}
                               aria-label={`Кандидат ${c.first_name} ${c.last_name}, вакансія ${c.vacancy_title}, статус ${getStatusLabel(c.status)}. Натисніть пробіл, щоб підняти.`}
+                              onClick={() => !snapshot.isDragging && setSelectedCandidateId(c.id)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  setSelectedCandidateId(c.id);
+                                }
+                              }}
                               style={{
                                 background: 'var(--surface)',
                                 border: `1px solid ${snapshot.isDragging ? 'var(--accent)' : 'var(--border)'}`,
@@ -262,6 +271,22 @@ function Kanban({ searchQuery = '', orgId = null }) {
           })}
         </div>
       </DragDropContext>
+
+      {selectedCandidateId && (
+        <CandidateCardModal
+          candidateId={selectedCandidateId}
+          onClose={() => setSelectedCandidateId(null)}
+          onStatusChange={(id, status) => {
+            setCandidates(prev => prev.map(c =>
+              c.id === id ? { ...c, status } : c
+            ));
+          }}
+          onDelete={(id) => {
+            setCandidates(prev => prev.filter(c => c.id !== id));
+            setSelectedCandidateId(null);
+          }}
+        />
+      )}
     </div>
   );
 }
