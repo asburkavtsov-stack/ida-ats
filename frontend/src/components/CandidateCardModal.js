@@ -16,12 +16,21 @@ const formatDateShort = (dateString) => {
   return `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}`;
 };
 
+const statusLabels = {
+  new: 'Новий', screening: 'Скринінг', interview: 'Співбесіда', offer: 'Оффер', rejected: 'Відмова'
+};
+
+const statusColors = {
+  new: '#7a1a2e', screening: '#b03050', interview: '#8a3a5a', offer: '#e8a0b0', rejected: '#aaaaaa'
+};
+
 function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) {
   const [candidate, setCandidate] = useState(null);
   const [vacancy, setVacancy] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  const [activeTab, setActiveTab] = useState('info');
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
@@ -151,6 +160,8 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
     ? `${candidate.first_name?.[0] || ''}${candidate.last_name?.[0] || ''}`.toUpperCase()
     : '';
 
+  const history = candidate?.status_history || [];
+
   return (
     <div
       style={{
@@ -269,6 +280,45 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
             </button>
           </div>
         </div>
+
+        {/* Tabs */}
+        {!loading && !editMode && (
+          <div style={{
+            display: 'flex',
+            borderBottom: '1px solid var(--border)',
+            padding: '0 24px',
+            gap: '4px',
+            overflowX: 'auto',
+          }}>
+            {[
+              { key: 'info', label: 'Інформація' },
+              { key: 'history', label: `Історія ${history.length > 0 ? `(${history.length})` : ''}` },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                aria-label={tab.label}
+                aria-pressed={activeTab === tab.key}
+                type="button"
+                style={{
+                  padding: '12px 16px',
+                  border: 'none',
+                  borderBottom: `2px solid ${activeTab === tab.key ? 'var(--accent)' : 'transparent'}`,
+                  background: 'transparent',
+                  color: activeTab === tab.key ? 'var(--text)' : 'var(--muted)',
+                  fontSize: '0.82rem',
+                  fontWeight: activeTab === tab.key ? 600 : 400,
+                  cursor: 'pointer',
+                  fontFamily: 'DM Sans',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Content */}
         <div style={{ padding: isMobile ? '16px 20px' : '20px 24px', flex: 1 }}>
@@ -400,8 +450,8 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                 </button>
               </div>
             </div>
-          ) : (
-            /* Info View */
+          ) : activeTab === 'info' ? (
+            /* Info Tab */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {/* Status Badge */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -612,6 +662,113 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                   ))}
                 </div>
               </div>
+            </div>
+          ) : (
+            /* History Tab */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                fontFamily: 'DM Mono',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                color: 'var(--muted)',
+                marginBottom: '4px',
+              }}>
+                Історія змін статусів
+              </div>
+
+              {history.length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '32px',
+                  color: 'var(--muted)',
+                  fontSize: '0.85rem',
+                  border: '1px dashed var(--border)',
+                  borderRadius: '10px',
+                }}>
+                  Історія порожня
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                  {history.map((item, index) => (
+                    <div
+                      key={item.id || index}
+                      style={{
+                        display: 'flex',
+                        gap: '14px',
+                        padding: '14px 0',
+                        borderBottom: index < history.length - 1 ? '1px solid var(--border)' : 'none',
+                      }}
+                    >
+                      {/* Timeline dot & line */}
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        flexShrink: 0,
+                      }}>
+                        <div style={{
+                          width: '12px',
+                          height: '12px',
+                          borderRadius: '50%',
+                          background: statusColors[item.new_status] || 'var(--muted)',
+                          border: '2px solid var(--surface)',
+                          boxShadow: `0 0 0 2px ${statusColors[item.new_status] || 'var(--muted)'}`,
+                        }} />
+                        {index < history.length - 1 && (
+                          <div style={{
+                            width: '2px',
+                            flex: 1,
+                            background: 'var(--border)',
+                            marginTop: '4px',
+                            minHeight: '20px',
+                          }} />
+                        )}
+                      </div>
+
+                      <div style={{ flex: 1, minWidth: 0, paddingBottom: '4px' }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          flexWrap: 'wrap',
+                          marginBottom: '4px',
+                        }}>
+                          <span style={{
+                            fontSize: '0.78rem',
+                            fontFamily: 'DM Mono',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            background: getStatusBg(item.new_status),
+                            color: getStatusText(item.new_status),
+                            fontWeight: 500,
+                          }}>
+                            {statusLabels[item.new_status] || item.new_status}
+                          </span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+                            {formatDate(item.changed_at)}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>
+                          {item.old_status ? (
+                            <>
+                              {statusLabels[item.old_status] || item.old_status}
+                              <span style={{ color: 'var(--muted)', margin: '0 6px' }}>→</span>
+                              {statusLabels[item.new_status] || item.new_status}
+                            </>
+                          ) : (
+                            'Додано в систему'
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '2px' }}>
+                          {item.changed_by_name || 'Система'}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
