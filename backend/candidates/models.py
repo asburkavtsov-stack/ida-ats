@@ -64,3 +64,20 @@ class Candidate(models.Model):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
+
+
+class StatusHistory(models.Model):
+    candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE, related_name='status_history')
+    old_status = models.CharField(max_length=20, choices=Candidate.STATUS_CHOICES)
+    new_status = models.CharField(max_length=20, choices=Candidate.STATUS_CHOICES)
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'candidate_status_history'
+        ordering = ['-changed_at']
+        verbose_name = 'Історія статусу'
+        verbose_name_plural = 'Історія статусів'
+
+    def __str__(self):
+        return f"{self.candidate} — {self.old_status} → {self.new_status}"
