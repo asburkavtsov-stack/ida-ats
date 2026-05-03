@@ -21,7 +21,6 @@ function Candidates({ searchQuery = '' }) {
   const [totalCount, setTotalCount] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const [mineFilter, setMineFilter] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState(null);
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const PAGE_SIZE = 20;
 
@@ -32,9 +31,7 @@ function Candidates({ searchQuery = '' }) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  useEffect(() => {
-    axios.get('/api/me/').then(res => setCurrentUserId(res.data.id)).catch(() => {});
-  }, []);
+
 
   const fetchCandidates = useCallback((page = 1) => {
     setLoading(true);
@@ -59,11 +56,11 @@ function Candidates({ searchQuery = '' }) {
       })
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
-  }, [filter, searchQuery]);
+  }, [filter, searchQuery, mineFilter]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, searchQuery]);
+  }, [filter, searchQuery, mineFilter]);
 
   useEffect(() => {
     fetchCandidates(currentPage);
