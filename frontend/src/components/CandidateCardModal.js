@@ -60,6 +60,8 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
         setUsers(usersData);
         const cand = candRes.data;
         setCandidate(cand);
+        // DEBUG: remove after verifying history works
+        console.log('[CandidateCardModal] status_history:', cand.status_history);
         // BUG FIX #2: stringify vacancy ID so <select> value comparison works correctly
         setEditForm({
           first_name: cand.first_name || '',
@@ -202,6 +204,19 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
     : '';
 
   const history = candidate?.status_history || [];
+
+  // Fallback: look up HR name from users array if backend doesn't serialize it inline
+  const assignedUser = candidate?.assigned_to != null
+    ? users.find(u => Number(u.id) === Number(candidate.assigned_to)) || null
+    : null;
+  const assignedName = candidate?.assigned_to_name
+    || (assignedUser ? (assignedUser.first_name && assignedUser.last_name
+        ? `${assignedUser.first_name} ${assignedUser.last_name}`
+        : assignedUser.username) : null);
+  const assignedInitial = assignedName?.[0]
+    || candidate?.assigned_to_username?.[0]
+    || assignedUser?.username?.[0]
+    || '?';
 
   return (
     <div
@@ -708,10 +723,10 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                         fontWeight: 700,
                         flexShrink: 0,
                       }}>
-                        {candidate.assigned_to_name?.[0] || candidate.assigned_to_username?.[0] || '?'}
+                        {candidate.assigned_to_name?.[0] || candidate.assigned_to_username?.[0] || assignedInitial.toUpperCase()}
                       </div>
                       <div style={{ flex: 1, fontSize: '0.85rem' }}>
-                        {candidate.assigned_to_name || candidate.assigned_to_username || 'HR'}
+                        {assignedName || candidate.assigned_to_username || 'HR'}
                       </div>
                       <button
                         onClick={() => handleAssign(null)}
