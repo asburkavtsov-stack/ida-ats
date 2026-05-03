@@ -60,12 +60,13 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
         setUsers(usersData);
         const cand = candRes.data;
         setCandidate(cand);
+        // BUG FIX #2: stringify vacancy ID so <select> value comparison works correctly
         setEditForm({
           first_name: cand.first_name || '',
           last_name: cand.last_name || '',
           email: cand.email || '',
           phone: cand.phone || '',
-          vacancy: cand.vacancy || '',
+          vacancy: cand.vacancy != null ? String(cand.vacancy) : '',
           status: cand.status || 'new',
           notes: cand.notes || '',
         });
@@ -86,11 +87,14 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
     if (!candidate || newStatus === candidate.status) return;
 
     setSaving(true);
+    // BUG FIX #6: clear previous error on new action
+    setError('');
     axios.patch(`/api/candidates/${candidateId}/update_status/`, { status: newStatus })
       .then(res => {
         const updated = res.data;
         setCandidate(updated);
-        setEditForm(prev => ({ ...prev, status: newStatus }));
+        // BUG FIX #7: keep editForm.status in sync with actual candidate status
+        setEditForm(prev => ({ ...prev, status: updated.status }));
         if (onStatusChange) onStatusChange(candidateId, newStatus);
       })
       .catch(err => {
@@ -102,10 +106,26 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
 
   const handleSaveEdit = () => {
     setSaving(true);
-    axios.patch(`/api/candidates/${candidateId}/`, editForm)
+    setError('');
+    // BUG FIX #2: send vacancy as number or null, not string
+    const payload = {
+      ...editForm,
+      vacancy: editForm.vacancy !== '' ? Number(editForm.vacancy) : null,
+    };
+    axios.patch(`/api/candidates/${candidateId}/`, payload)
       .then(res => {
         const updated = res.data;
         setCandidate(updated);
+        // BUG FIX #7: re-sync editForm from server response
+        setEditForm({
+          first_name: updated.first_name || '',
+          last_name: updated.last_name || '',
+          email: updated.email || '',
+          phone: updated.phone || '',
+          vacancy: updated.vacancy != null ? String(updated.vacancy) : '',
+          status: updated.status || 'new',
+          notes: updated.notes || '',
+        });
         setEditMode(false);
 
         const matched = vacancies.find(v => v.id === updated.vacancy);
@@ -120,6 +140,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
 
   const handleDelete = () => {
     setSaving(true);
+    setError('');
     axios.delete(`/api/candidates/${candidateId}/`)
       .then(() => {
         if (onDelete) onDelete(candidateId);
@@ -132,9 +153,12 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
       });
   };
 
+  // BUG FIX #1 & #6: handleAssign — explicit null handling + error reset
   const handleAssign = (userId) => {
     setSaving(true);
-    axios.patch(`/api/candidates/${candidateId}/assign/`, { assigned_to: userId })
+    setError('');
+    // userId may be null (unassign) — send explicitly
+    axios.patch(`/api/candidates/${candidateId}/assign/`, { assigned_to: userId ?? null })
       .then(res => {
         setCandidate(res.data);
       })
@@ -309,7 +333,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
           }}>
             {[
               { key: 'info', label: 'Інформація' },
-              { key: 'history', label: `Історія ${history.length > 0 ? `(${history.length})` : ''}` },
+              { key: 'history', label: `Історія${history.length > 0 ? ` (${history.length})` : ''}` },
             ].map(tab => (
               <button
                 key={tab.key}
@@ -357,16 +381,19 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={labelStyle}>Ім'я</label>
+                  {/* BUG FIX #5: added aria-label / htmlFor on all inputs */}
+                  <label htmlFor="edit-first-name" style={labelStyle}>Ім'я</label>
                   <input
+                    id="edit-first-name"
                     style={inputStyle}
                     value={editForm.first_name}
                     onChange={e => setEditForm(f => ({ ...f, first_name: e.target.value }))}
                   />
                 </div>
                 <div>
-                  <label style={labelStyle}>Прізвище</label>
+                  <label htmlFor="edit-last-name" style={labelStyle}>Прізвище</label>
                   <input
+                    id="edit-last-name"
                     style={inputStyle}
                     value={editForm.last_name}
                     onChange={e => setEditForm(f => ({ ...f, last_name: e.target.value }))}
@@ -375,8 +402,9 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
               </div>
 
               <div>
-                <label style={labelStyle}>Email</label>
+                <label htmlFor="edit-email" style={labelStyle}>Email</label>
                 <input
+                  id="edit-email"
                   style={inputStyle}
                   type="email"
                   value={editForm.email}
@@ -385,8 +413,9 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
               </div>
 
               <div>
-                <label style={labelStyle}>Телефон</label>
+                <label htmlFor="edit-phone" style={labelStyle}>Телефон</label>
                 <input
+                  id="edit-phone"
                   style={inputStyle}
                   value={editForm.phone}
                   onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
@@ -395,22 +424,25 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
               </div>
 
               <div>
-                <label style={labelStyle}>Вакансія</label>
+                <label htmlFor="edit-vacancy" style={labelStyle}>Вакансія</label>
+                {/* BUG FIX #2: value is String, options use String(v.id) — consistent comparison */}
                 <select
+                  id="edit-vacancy"
                   style={inputStyle}
                   value={editForm.vacancy}
                   onChange={e => setEditForm(f => ({ ...f, vacancy: e.target.value }))}
                 >
                   <option value="">— Без вакансії —</option>
                   {vacancies.map(v => (
-                    <option key={v.id} value={v.id}>{v.title}</option>
+                    <option key={v.id} value={String(v.id)}>{v.title}</option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label style={labelStyle}>Статус</label>
+                <label htmlFor="edit-status" style={labelStyle}>Статус</label>
                 <select
+                  id="edit-status"
                   style={inputStyle}
                   value={editForm.status}
                   onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
@@ -422,8 +454,9 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
               </div>
 
               <div>
-                <label style={labelStyle}>Нотатки</label>
+                <label htmlFor="edit-notes" style={labelStyle}>Нотатки</label>
                 <textarea
+                  id="edit-notes"
                   style={{ ...inputStyle, minHeight: '100px', resize: 'vertical' }}
                   value={editForm.notes}
                   onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
@@ -652,7 +685,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                   Призначений HR
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {candidate.assigned_to ? (
+                  {candidate.assigned_to != null ? (
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -692,8 +725,9 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                           background: 'transparent',
                           color: 'var(--muted)',
                           fontSize: '0.72rem',
-                          cursor: 'pointer',
+                          cursor: saving ? 'not-allowed' : 'pointer',
                           fontFamily: 'DM Mono',
+                          opacity: saving ? 0.6 : 1,
                         }}
                       >
                         ✕ Скинути
@@ -706,7 +740,8 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                   )}
 
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {users.filter(u => u.id !== candidate.assigned_to).map(u => (
+                    {/* BUG FIX #3: use Number() for type-safe comparison */}
+                    {users.filter(u => Number(u.id) !== Number(candidate.assigned_to)).map(u => (
                       <button
                         key={u.id}
                         onClick={() => handleAssign(u.id)}
@@ -822,7 +857,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
                   {history.map((item, index) => (
                     <div
-                      key={item.id || index}
+                      key={item.id != null ? item.id : `history-${index}`}
                       style={{
                         display: 'flex',
                         gap: '14px',
