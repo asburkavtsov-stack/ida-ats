@@ -27,3 +27,14 @@ export const getStatusLabel = (status) => STATUS_CONFIG[status]?.label || status
 export const getStatusBg = (status) => STATUS_CONFIG[status]?.bg || '#f5f5f5';
 export const getStatusText = (status) => STATUS_CONFIG[status]?.text || '#757575';
 export const getStatusColor = (status) => STATUS_CONFIG[status]?.color || '#757575';
+
+export const HR_AVATAR_COLORS = [
+  '#7a1a2e', '#b03050', '#8a3a5a', '#e8a0b0',
+  '#c94f2a', '#16a34a', '#2563eb', '#7c3aed',
+  '#db2777', '#0891b2', '#ca8a04', '#4f46e5',
+];
+
+export const getHrAvatarColor = (userId) => {
+  if (!userId) return '#71717a';
+  return HR_AVATAR_COLORS[userId % HR_AVATAR_COLORS.length];
+};

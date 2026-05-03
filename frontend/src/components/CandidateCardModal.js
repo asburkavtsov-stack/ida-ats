@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { KANBAN_COLUMNS, getStatusLabel, getStatusBg, getStatusText } from '../constants/statusColors';
+import { KANBAN_COLUMNS, getStatusLabel, getStatusBg, getStatusText, getHrAvatarColor } from '../constants/statusColors';
 
 const formatDate = (dateString) => {
   if (!dateString) return '—';
@@ -36,6 +36,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
   const [saving, setSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [vacancies, setVacancies] = useState([]);
+  const [users, setUsers] = useState([]);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -52,8 +53,11 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
     Promise.all([
       axios.get(`/api/candidates/${candidateId}/`),
       axios.get('/api/vacancies/'),
+      axios.get('/api/users/'),
     ])
-      .then(([candRes, vacsRes]) => {
+      .then(([candRes, vacsRes, usersRes]) => {
+        const usersData = usersRes.data.results ?? usersRes.data;
+        setUsers(usersData);
         const cand = candRes.data;
         setCandidate(cand);
         setEditForm({
@@ -126,6 +130,19 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
         setError('Не вдалося видалити кандидата');
         setSaving(false);
       });
+  };
+
+  const handleAssign = (userId) => {
+    setSaving(true);
+    axios.patch(`/api/candidates/${candidateId}/assign/`, { assigned_to: userId })
+      .then(res => {
+        setCandidate(res.data);
+      })
+      .catch(err => {
+        console.error('Помилка призначення:', err);
+        setError('Не вдалося призначити HR');
+      })
+      .finally(() => setSaving(false));
   };
 
   const handleBackdropClick = (e) => {
@@ -620,6 +637,118 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                   </div>
                 </div>
               )}
+
+              {/* Assigned HR */}
+              <div>
+                <div style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  fontFamily: 'DM Mono',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  color: 'var(--muted)',
+                  marginBottom: '12px',
+                }}>
+                  Призначений HR
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {candidate.assigned_to ? (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '10px 14px',
+                      background: 'var(--bg)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                    }}>
+                      <div style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        background: getHrAvatarColor(candidate.assigned_to),
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#fff',
+                        fontSize: '0.7rem',
+                        fontWeight: 700,
+                        flexShrink: 0,
+                      }}>
+                        {candidate.assigned_to_name?.[0] || candidate.assigned_to_username?.[0] || '?'}
+                      </div>
+                      <div style={{ flex: 1, fontSize: '0.85rem' }}>
+                        {candidate.assigned_to_name || candidate.assigned_to_username || 'HR'}
+                      </div>
+                      <button
+                        onClick={() => handleAssign(null)}
+                        disabled={saving}
+                        aria-label="Скинути призначення"
+                        type="button"
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          border: '1px solid var(--border)',
+                          background: 'transparent',
+                          color: 'var(--muted)',
+                          fontSize: '0.72rem',
+                          cursor: 'pointer',
+                          fontFamily: 'DM Mono',
+                        }}
+                      >
+                        ✕ Скинути
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.82rem', color: 'var(--muted)', padding: '8px 0' }}>
+                      Не призначено
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {users.filter(u => u.id !== candidate.assigned_to).map(u => (
+                      <button
+                        key={u.id}
+                        onClick={() => handleAssign(u.id)}
+                        disabled={saving}
+                        aria-label={`Призначити ${u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username}`}
+                        type="button"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 12px',
+                          borderRadius: '20px',
+                          border: '1px solid var(--border)',
+                          background: 'var(--surface)',
+                          color: 'var(--text)',
+                          fontSize: '0.75rem',
+                          cursor: saving ? 'not-allowed' : 'pointer',
+                          fontFamily: 'DM Sans',
+                          opacity: saving ? 0.6 : 1,
+                        }}
+                      >
+                        <div style={{
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '50%',
+                          background: getHrAvatarColor(u.id),
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#fff',
+                          fontSize: '0.6rem',
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}>
+                          {(u.first_name?.[0] || u.username?.[0] || '?').toUpperCase()}
+                        </div>
+                        {u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : u.username}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
               {/* Quick Status Change */}
               <div>

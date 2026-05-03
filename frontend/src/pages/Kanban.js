@@ -3,7 +3,7 @@ import axios from 'axios';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import Loader from '../components/Loader';
 import CandidateCardModal from '../components/CandidateCardModal';
-import { KANBAN_COLUMNS, getStatusLabel, getStatusBg, getStatusText } from '../constants/statusColors';
+import { KANBAN_COLUMNS, getStatusLabel, getStatusBg, getStatusText, getHrAvatarColor } from '../constants/statusColors';
 
 const formatDate = (dateString) => {
   if (!dateString) return '';
@@ -14,10 +14,12 @@ const formatDate = (dateString) => {
 
 function Kanban({ searchQuery = '', orgId = null }) {
   const [filter, setFilter] = useState('all');
+  const [mineFilter, setMineFilter] = useState(false);
   const [candidates, setCandidates] = useState([]);
   const [vacancies, setVacancies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
 
   useEffect(() => {
@@ -25,6 +27,10 @@ function Kanban({ searchQuery = '', orgId = null }) {
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  useEffect(() => {
+    axios.get('/api/me/').then(res => setCurrentUserId(res.data.id)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -83,7 +89,8 @@ function Kanban({ searchQuery = '', orgId = null }) {
     const matchesSearch = searchQuery === '' ||
       `${c.first_name} ${c.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (c.vacancy_title && c.vacancy_title.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesFilter && matchesSearch;
+    const matchesMine = !mineFilter || c.assigned_to === currentUserId;
+    return matchesFilter && matchesSearch && matchesMine;
   });
 
   const vacancyFilters = [
@@ -131,6 +138,28 @@ function Kanban({ searchQuery = '', orgId = null }) {
             <span aria-hidden="true">✕</span> Скинути
           </button>
         )}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={() => setMineFilter(!mineFilter)}
+            aria-label={mineFilter ? 'Показати всіх кандидатів' : 'Показати тільки моїх кандидатів'}
+            aria-pressed={mineFilter}
+            type="button"
+            style={{
+              padding: isMobile ? '8px 14px' : '6px 12px',
+              borderRadius: '20px',
+              border: `1px solid ${mineFilter ? 'var(--accent)' : 'var(--border)'}`,
+              background: mineFilter ? 'var(--accent)' : 'var(--surface)',
+              color: mineFilter ? '#fff' : 'var(--muted)',
+              fontSize: '0.78rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+              fontFamily: 'DM Sans',
+              transition: 'all 0.15s',
+            }}
+          >
+            <span aria-hidden="true">👤</span> {mineFilter ? 'Мої кандидати' : 'Всі кандидати'}
+          </button>
+        </div>
       </div>
 
       {/* Summary */}
@@ -231,9 +260,32 @@ function Kanban({ searchQuery = '', orgId = null }) {
                                 <span style={{ fontSize: '0.62rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
                                   {formatDate(c.created_at)}
                                 </span>
-                                <div style={{ marginLeft: 'auto', width: '24px', height: '24px', borderRadius: '6px', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)' }} aria-hidden="true">
-                                  {c.first_name?.[0]}{c.last_name?.[0]}
-                                </div>
+                                {c.assigned_to ? (
+                                  <div
+                                    style={{
+                                      marginLeft: 'auto',
+                                      width: '24px',
+                                      height: '24px',
+                                      borderRadius: '50%',
+                                      background: getHrAvatarColor(c.assigned_to),
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: '0.6rem',
+                                      fontWeight: 700,
+                                      color: '#fff',
+                                      flexShrink: 0,
+                                    }}
+                                    title={c.assigned_to_name || c.assigned_to_username || 'HR'}
+                                    aria-label={`Призначено: ${c.assigned_to_name || c.assigned_to_username || 'HR'}`}
+                                  >
+                                    {(c.assigned_to_name?.[0] || c.assigned_to_username?.[0] || '?').toUpperCase()}
+                                  </div>
+                                ) : (
+                                  <div style={{ marginLeft: 'auto', width: '24px', height: '24px', borderRadius: '6px', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)' }} aria-hidden="true">
+                                    {c.first_name?.[0]}{c.last_name?.[0]}
+                                  </div>
+                                )}
                               </div>
                               {isMobile && (
                                 <div style={{ marginTop: '10px', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import Loader from '../components/Loader';
 import CandidateCardModal from '../components/CandidateCardModal';
-import { STATUS_FILTERS, getStatusLabel, getStatusBg, getStatusText } from '../constants/statusColors';
+import { STATUS_FILTERS, getStatusLabel, getStatusBg, getStatusText, getHrAvatarColor } from '../constants/statusColors';
 
 const formatDate = (dateString) => {
   if (!dateString) return '—';
@@ -20,6 +20,8 @@ function Candidates({ searchQuery = '' }) {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
+  const [mineFilter, setMineFilter] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const PAGE_SIZE = 20;
 
@@ -30,6 +32,10 @@ function Candidates({ searchQuery = '' }) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  useEffect(() => {
+    axios.get('/api/me/').then(res => setCurrentUserId(res.data.id)).catch(() => {});
+  }, []);
+
   const fetchCandidates = useCallback((page = 1) => {
     setLoading(true);
     const params = new URLSearchParams();
@@ -37,6 +43,7 @@ function Candidates({ searchQuery = '' }) {
     params.set('page_size', PAGE_SIZE);
     if (filter !== 'all') params.set('status', filter);
     if (searchQuery) params.set('search', searchQuery);
+    if (mineFilter) params.set('mine', 'true');
 
     axios.get(`/api/candidates/?${params.toString()}`)
       .then(res => {
@@ -60,7 +67,7 @@ function Candidates({ searchQuery = '' }) {
 
   useEffect(() => {
     fetchCandidates(currentPage);
-  }, [fetchCandidates, currentPage]);
+  }, [fetchCandidates, currentPage, mineFilter]);
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -100,6 +107,28 @@ function Candidates({ searchQuery = '' }) {
     <div style={{ padding: isMobile ? '8px' : '0' }}>
       {/* Фільтри */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <button
+          onClick={() => setMineFilter(!mineFilter)}
+          aria-label={mineFilter ? 'Показати всіх' : 'Показати тільки моїх'}
+          aria-pressed={mineFilter}
+          type="button"
+          style={{
+            padding: isMobile ? '8px 14px' : '6px 14px',
+            borderRadius: '20px',
+            border: `1px solid ${mineFilter ? 'var(--accent)' : 'var(--border)'}`,
+            background: mineFilter ? 'var(--accent)' : 'var(--surface)',
+            color: mineFilter ? '#fff' : 'var(--muted)',
+            fontSize: '0.78rem',
+            fontWeight: 500,
+            cursor: 'pointer',
+            fontFamily: 'DM Sans',
+            transition: 'all 0.15s',
+            marginRight: '8px',
+          }}
+        >
+          <span aria-hidden="true">👤</span> {mineFilter ? 'Мої' : 'Всі'}
+        </button>
+
         {STATUS_FILTERS.map(f => (
           <div
             key={f.key}
@@ -205,8 +234,29 @@ function Candidates({ searchQuery = '' }) {
                     <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
                       {c.vacancy_title || '—'}
                     </div>
-                    <div style={{ fontFamily: 'DM Mono', fontSize: '0.7rem', color: 'var(--muted)' }}>
-                      {formatDate(c.created_at)}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {c.assigned_to && (
+                        <div
+                          style={{
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '50%',
+                            background: getHrAvatarColor(c.assigned_to),
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.55rem',
+                            fontWeight: 700,
+                            color: '#fff',
+                          }}
+                          title={c.assigned_to_name || c.assigned_to_username || 'HR'}
+                        >
+                          {(c.assigned_to_name?.[0] || c.assigned_to_username?.[0] || '?').toUpperCase()}
+                        </div>
+                      )}
+                      <div style={{ fontFamily: 'DM Mono', fontSize: '0.7rem', color: 'var(--muted)' }}>
+                        {formatDate(c.created_at)}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -267,8 +317,32 @@ function Candidates({ searchQuery = '' }) {
                       {getStatusLabel(c.status)}
                     </span>
                   </td>
-                  <td style={{ padding: '13px 16px', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)' }}>
-                    {formatDate(c.created_at)}
+                  <td style={{ padding: '13px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {c.assigned_to && (
+                        <div
+                          style={{
+                            width: '22px',
+                            height: '22px',
+                            borderRadius: '50%',
+                            background: getHrAvatarColor(c.assigned_to),
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.6rem',
+                            fontWeight: 700,
+                            color: '#fff',
+                            flexShrink: 0,
+                          }}
+                          title={c.assigned_to_name || c.assigned_to_username || 'HR'}
+                        >
+                          {(c.assigned_to_name?.[0] || c.assigned_to_username?.[0] || '?').toUpperCase()}
+                        </div>
+                      )}
+                      <span style={{ fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)' }}>
+                        {formatDate(c.created_at)}
+                      </span>
+                    </div>
                   </td>
                 </tr>
               ))}
