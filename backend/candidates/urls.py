@@ -13,6 +13,7 @@ router.register(r'users', UserListView, basename='users')
 
 urlpatterns = [
     path('candidates/export/', CandidateExportCSVView.as_view(), name='candidates-export'),
+    path('candidates/<int:pk>/assign/', CandidateViewSet.as_view({'patch': 'assign'}), name='candidate-assign'),
     path('', include(router.urls)),
     path('me/', current_user),
     path('users-detail/<int:pk>/', UserListView.as_view({

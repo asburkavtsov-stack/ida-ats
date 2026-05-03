@@ -57,6 +57,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
 
 class CandidateViewSet(viewsets.ModelViewSet):
+    queryset = Candidate.objects.all()
     serializer_class = CandidateSerializer
     pagination_class = StandardPagination
 
@@ -104,6 +105,25 @@ class CandidateViewSet(viewsets.ModelViewSet):
             candidate.save()
             return Response(CandidateSerializer(candidate).data)
         return Response({'error': 'Status required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['patch'])
+    def assign(self, request, pk=None):
+        candidate = self.get_object()
+        user_id = request.data.get('assigned_to')
+
+        if user_id is None:
+            candidate.assigned_to = None
+            candidate.save()
+            return Response(CandidateSerializer(candidate).data)
+
+        try:
+            user = User.objects.get(id=user_id)
+            candidate.assigned_to = user
+            candidate.save()
+            return Response(CandidateSerializer(candidate).data)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
 
 
 class CandidateExportCSVView(APIView):
