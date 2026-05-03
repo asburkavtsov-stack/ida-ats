@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.db import models
 import csv
 from django.http import HttpResponse
-from .models import Candidate, Vacancy, UserProfile, Organization
+from .models import Candidate, Vacancy, UserProfile, Organization, StatusHistory
 from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer
 from .pagination import StandardPagination
 
@@ -101,8 +101,15 @@ class CandidateViewSet(viewsets.ModelViewSet):
         candidate = self.get_object()
         new_status = request.data.get('status')
         if new_status:
+            old_status = candidate.status
             candidate.status = new_status
             candidate.save()
+            StatusHistory.objects.create(
+                candidate=candidate,
+                old_status=old_status,
+                new_status=new_status,
+                changed_by=request.user,
+            )
             return Response(CandidateSerializer(candidate).data)
         return Response({'error': 'Status required'}, status=status.HTTP_400_BAD_REQUEST)
 
