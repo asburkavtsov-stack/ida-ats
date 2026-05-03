@@ -7,7 +7,7 @@ from django.contrib.auth.models import User
 from django.db import models
 import csv
 from django.http import HttpResponse
-from .models import Candidate, Vacancy, UserProfile, Organization, StatusHistory
+from .models import Candidate, Vacancy, UserProfile, Organization
 from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer
 from .pagination import StandardPagination
 
@@ -48,14 +48,7 @@ class VacancyViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         org = get_user_org(self.request.user)
-        candidate = serializer.save(organization=org)
-        # Log initial status
-        StatusHistory.objects.create(
-            candidate=candidate,
-            old_status='new',
-            new_status=candidate.status,
-            changed_by=self.request.user
-        )
+        serializer.save(organization=org)
 
 
 class OrganizationViewSet(viewsets.ModelViewSet):
@@ -84,40 +77,31 @@ class CandidateViewSet(viewsets.ModelViewSet):
 
         vacancy = self.request.query_params.get('vacancy')
         status_filter = self.request.query_params.get('status')
+        assigned_to = self.request.query_params.get('assigned_to')
+        mine = self.request.query_params.get('mine')
 
         if vacancy:
             queryset = queryset.filter(vacancy_id=vacancy)
         if status_filter:
             queryset = queryset.filter(status=status_filter)
+        if assigned_to:
+            queryset = queryset.filter(assigned_to_id=assigned_to)
+        if mine == 'true':
+            queryset = queryset.filter(assigned_to=self.request.user)
 
-        return queryset.order_by('-created_at')
+        return queryset.select_related('assigned_to').order_by('-created_at')
 
     def perform_create(self, serializer):
         org = get_user_org(self.request.user)
-        candidate = serializer.save(organization=org)
-        # Log initial status
-        StatusHistory.objects.create(
-            candidate=candidate,
-            old_status='new',
-            new_status=candidate.status,
-            changed_by=self.request.user
-        )
+        serializer.save(organization=org)
 
     @action(detail=True, methods=['patch'])
     def update_status(self, request, pk=None):
         candidate = self.get_object()
         new_status = request.data.get('status')
         if new_status:
-            old_status = candidate.status
             candidate.status = new_status
             candidate.save()
-            # Log status change
-            StatusHistory.objects.create(
-                candidate=candidate,
-                old_status=old_status,
-                new_status=new_status,
-                changed_by=request.user
-            )
             return Response(CandidateSerializer(candidate).data)
         return Response({'error': 'Status required'}, status=status.HTTP_400_BAD_REQUEST)
 
