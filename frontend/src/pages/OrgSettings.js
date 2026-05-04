@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 const inputStyle = (isMobile) => ({
@@ -9,7 +9,7 @@ const inputStyle = (isMobile) => ({
 });
 
 const emptyCreateForm = {
-  first_name: '', last_name: '', username: '', email: '', password: '', role: 'hr',
+  first_name: '', last_name: '', username: '', email: '', password: '',
 };
 
 function OrgSettings() {
@@ -32,6 +32,8 @@ function OrgSettings() {
   const [saving, setSaving] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
+  const isLimitReached = org && users.length >= org.max_hr;
+
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
     checkMobile();
@@ -49,7 +51,7 @@ function OrgSettings() {
     });
   }, []);
 
-  const fetchUsers = React.useCallback(() => {
+  const fetchUsers = useCallback(() => {
     if (!org) return;
     setLoadingUsers(true);
     axios.get(`/api/users/?organization=${org.id}`)
@@ -79,9 +81,20 @@ function OrgSettings() {
 
   const handleCreate = () => {
     if (!createForm.username || !createForm.password) {
-      setCreateError('Username і пароль обов\'язкові');
+      setCreateError("Username і пароль обов'язкові");
       return;
     }
+
+    if (createForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(createForm.email)) {
+      setCreateError('Невірний формат email');
+      return;
+    }
+
+    if (isLimitReached) {
+      setCreateError(`Ліміт HR-менеджерів досягнуто (${org.max_hr}). Збільшіть ліміт у налаштуваннях організації.`);
+      return;
+    }
+
     setCreating(true);
     setCreateError('');
     axios.post('/api/users/', { ...createForm, organization: org.id, role: 'hr' })
@@ -90,7 +103,10 @@ function OrgSettings() {
         setShowCreate(false);
         setCreateForm(emptyCreateForm);
       })
-      .catch(err => setCreateError(err.response?.data?.error || 'Помилка'))
+      .catch(err => {
+        const errorMsg = err.response?.data?.error || 'Помилка створення HR-менеджера';
+        setCreateError(errorMsg);
+      })
       .finally(() => setCreating(false));
   };
 
@@ -106,9 +122,12 @@ function OrgSettings() {
 
   const handleSaveEdit = () => {
     setSaving(true);
-    axios.patch(`/api/users/${editUser.id}/`, editForm)
+    // не надсилаємо порожній пароль на бекенд
+    const payload = { ...editForm };
+    if (!payload.password) delete payload.password;
+    axios.patch(`/api/users/${editUser.id}/`, payload)
       .then(() => { fetchUsers(); setEditUser(null); })
-      .catch(() => {})
+      .catch(() => setCreateError('Помилка збереження змін'))
       .finally(() => setSaving(false));
   };
 
@@ -116,7 +135,7 @@ function OrgSettings() {
     if (!window.confirm('Видалити HR-менеджера?')) return;
     axios.delete(`/api/users/${userId}/`)
       .then(() => fetchUsers())
-      .catch(() => {});
+      .catch(() => setCreateError('Помилка видалення HR-менеджера'));
   };
 
   return (
@@ -161,6 +180,8 @@ function OrgSettings() {
         <button
           onClick={handleSaveOrg}
           disabled={savingOrg}
+          aria-label="Зберегти назву організації"
+          type="button"
           style={{
             width: isMobile ? '100%' : 'auto',
             padding: isMobile ? '12px 20px' : '9px 20px', borderRadius: '8px', border: 'none',
@@ -185,23 +206,45 @@ function OrgSettings() {
             HR-команда
             <span style={{
               marginLeft: '10px', fontFamily: 'DM Mono', fontSize: '0.7rem',
-              background: 'var(--surface2)', color: 'var(--muted)',
+              background: isLimitReached ? '#fee2e2' : 'var(--surface2)',
+              color: isLimitReached ? '#dc2626' : 'var(--muted)',
               padding: '2px 8px', borderRadius: '20px',
             }}>
-              {users.length}
+              {users.length} / {org?.max_hr || '—'}
             </span>
           </div>
           <button
             onClick={() => setShowCreate(true)}
+            disabled={isLimitReached}
+            aria-label="Додати нового HR-менеджера"
+            type="button"
             style={{
               padding: isMobile ? '9px 16px' : '7px 16px', borderRadius: '8px', border: 'none',
-              background: 'var(--accent)', color: '#fff', fontWeight: 600,
-              fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'DM Sans',
+              background: isLimitReached ? '#e5e7eb' : 'var(--accent)',
+              color: isLimitReached ? '#9ca3af' : '#fff',
+              fontWeight: 600,
+              fontSize: '0.78rem',
+              cursor: isLimitReached ? 'not-allowed' : 'pointer',
+              fontFamily: 'DM Sans',
             }}
           >
             <span aria-hidden="true">+</span> Додати HR
           </button>
         </div>
+
+        {isLimitReached && (
+          <div style={{
+            color: '#dc2626',
+            fontSize: '0.78rem',
+            marginBottom: '14px',
+            padding: '10px 14px',
+            background: '#fee2e2',
+            borderRadius: '8px',
+            fontFamily: 'DM Mono',
+          }}>
+            ⚠ Ліміт HR-менеджерів досягнуто ({org.max_hr}). Щоб додати нового HR, збільшіть ліміт у налаштуваннях організації.
+          </div>
+        )}
 
         {loadingUsers ? (
           <div style={{ color: 'var(--muted)', fontSize: '0.82rem', fontFamily: 'DM Mono' }}>
@@ -339,13 +382,17 @@ function OrgSettings() {
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button
                 onClick={() => { setShowCreate(false); setCreateError(''); setCreateForm(emptyCreateForm); }}
+                aria-label="Скасувати створення HR"
+                type="button"
                 style={{ padding: isMobile ? '10px 16px' : '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans' }}
               >
                 Скасувати
               </button>
               <button
                 onClick={handleCreate}
-                disabled={creating}
+                disabled={creating || isLimitReached}
+                aria-label="Створити HR-менеджера"
+                type="button"
                 style={{ padding: isMobile ? '10px 18px' : '8px 18px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}
               >
                 {creating ? 'Створення...' : 'Створити'}
@@ -388,13 +435,15 @@ function OrgSettings() {
                 <input value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} style={inputStyle(isMobile)} />
               </div>
               <div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Новий пароль (необов\'язково)</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginBottom: '4px', fontFamily: 'DM Mono' }}>Новий пароль (необов'язково)</div>
                 <input type="password" value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} style={inputStyle(isMobile)} />
               </div>
             </div>
             <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button
                 onClick={() => setEditUser(null)}
+                aria-label="Скасувати редагування"
+                type="button"
                 style={{ padding: isMobile ? '10px 16px' : '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans' }}
               >
                 Скасувати
@@ -402,6 +451,8 @@ function OrgSettings() {
               <button
                 onClick={handleSaveEdit}
                 disabled={saving}
+                aria-label="Зберегти зміни"
+                type="button"
                 style={{ padding: isMobile ? '10px 18px' : '8px 18px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}
               >
                 {saving ? 'Збереження...' : 'Зберегти'}
