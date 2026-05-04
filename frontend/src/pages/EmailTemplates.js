@@ -40,7 +40,7 @@ const previewData = {
   '{{phone}}': '+380 99 123 45 67',
   '{{status}}': 'Новий',
   '{{hr_name}}': 'HR Manager',
-  '{{organization}}': 'WinWin Travel',
+  '{{organization}}': 'Organization',
   '{{date}}': new Date().toLocaleDateString('uk-UA')
 };
 

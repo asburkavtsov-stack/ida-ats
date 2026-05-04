@@ -140,7 +140,7 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
         <div style={{ display: 'grid', gap: '14px' }}>
           <div>
             <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Назва</div>
-            <input name="name" value={form.name} onChange={handleChange} placeholder="WinWin Travel" style={inputStyle(isMobile)} />
+            <input name="name" value={form.name} onChange={handleChange} placeholder="Organization" style={inputStyle(isMobile)} />
           </div>
           <div>
             <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Slug</div>
