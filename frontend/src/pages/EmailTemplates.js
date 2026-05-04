@@ -92,18 +92,23 @@ function EmailTemplates() {
     setErrorMsg('');
     axios.get('/api/email-templates/')
       .then(res => {
-        const data = res.data;
-        setTemplates(data);
-        setForms(buildDefaultForms(data));
+        const data = res.data.results ?? res.data ?? [];
+        setTemplates(Array.isArray(data) ? data : []);
+        setForms(buildDefaultForms(Array.isArray(data) ? data : []));
       })
       .catch(err => {
         console.error('Помилка завантаження шаблонів:', err);
-        // При 500 помилці використовуємо дефолтні значення
+        // При 500 або іншій помилці — використовуємо дефолтні значення
         setTemplates([]);
         setForms(buildDefaultForms([]));
-        const msg = err.response?.status === 500
-          ? 'Помилка сервера. Використовуються шаблони за замовчуванням.'
-          : err.response?.data?.detail || 'Помилка завантаження шаблонів';
+        let msg;
+        if (err.response?.status === 500) {
+          msg = 'Помилка сервера (500). Використовуються шаблони за замовчуванням. Перевірте налаштування бекенду.';
+        } else if (err.response?.status === 401 || err.response?.status === 403) {
+          msg = 'Сесія закінчилась. Оновіть сторінку та увійдіть знову.';
+        } else {
+          msg = err.response?.data?.detail || 'Помилка завантаження шаблонів. Використовуються значення за замовчуванням.';
+        }
         setErrorMsg(msg);
       })
       .finally(() => setLoading(false));
@@ -114,7 +119,7 @@ function EmailTemplates() {
   }, [fetchTemplates]);
 
   const handleCopyPlaceholder = (key) => {
-    navigator.clipboard.writeText(key).catch(() => {});
+    navigator.clipboard?.writeText(key).catch(() => {});
     setCopiedPlaceholder(key);
     setTimeout(() => setCopiedPlaceholder(null), 1500);
   };
@@ -143,9 +148,16 @@ function EmailTemplates() {
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
       console.error('Помилка збереження:', err);
-      const msg = err.response?.status === 500
-        ? 'Помилка сервера. Спробуйте пізніше.'
-        : err.response?.data?.error || err.response?.data?.detail || 'Помилка збереження';
+      let msg;
+      if (err.response?.status === 500) {
+        msg = 'Помилка сервера (500). Не вдалося зберегти шаблон. Спробуйте пізніше.';
+      } else if (err.response?.status === 400) {
+        msg = err.response?.data?.error || err.response?.data?.detail || 'Помилка валідації даних.';
+      } else if (err.response?.status === 403) {
+        msg = 'Немає прав для збереження шаблону.';
+      } else {
+        msg = err.response?.data?.error || err.response?.data?.detail || 'Помилка збереження шаблону.';
+      }
       setErrorMsg(msg);
     } finally {
       setSaving(false);
@@ -166,7 +178,13 @@ function EmailTemplates() {
     return (
       <div style={{ padding: isMobile ? '16px' : '28px', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '16px', height: '16px', border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <div style={{
+            width: '16px', height: '16px',
+            border: '2px solid var(--border)',
+            borderTopColor: 'var(--accent)',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite'
+          }} />
           Завантаження шаблонів...
         </div>
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
@@ -176,6 +194,7 @@ function EmailTemplates() {
 
   return (
     <div style={{ padding: isMobile ? '16px' : '28px', maxWidth: '900px', margin: '0 auto' }}>
+      {/* Header */}
       <div style={{ marginBottom: '32px' }}>
         <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.3px' }}>
           Шаблони листів
@@ -194,7 +213,7 @@ function EmailTemplates() {
           display: 'flex', alignItems: 'center', gap: '8px',
           animation: 'slideIn 0.3s ease',
         }}>
-          <span style={{ fontSize: '1rem' }}>✓</span> {successMsg}
+          <span style={{ fontSize: '1rem' }} aria-hidden="true">✓</span> {successMsg}
         </div>
       )}
       {errorMsg && (
@@ -205,16 +224,16 @@ function EmailTemplates() {
           display: 'flex', alignItems: 'center', gap: '8px',
           animation: 'slideIn 0.3s ease',
         }}>
-          <span style={{ fontSize: '1rem' }}>⚠</span> {errorMsg}
+          <span style={{ fontSize: '1rem' }} aria-hidden="true">⚠</span> {errorMsg}
         </div>
       )}
 
       {/* Tabs */}
       <div style={{
-        display: 'flex', gap: '2px', marginBottom: '28px',
-        borderBottom: '1px solid var(--border)', flexWrap: 'wrap',
+        display: 'flex', gap: '2px', marginBottom: '0',
         background: 'var(--surface)', borderRadius: '12px 12px 0 0',
         padding: '4px 4px 0', border: '1px solid var(--border)', borderBottom: 'none',
+        flexWrap: 'wrap',
       }}>
         {Object.entries(TEMPLATE_TYPES).map(([key, { label }]) => (
           <button
@@ -245,10 +264,10 @@ function EmailTemplates() {
         ))}
       </div>
 
+      {/* Main Content */}
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
         borderRadius: '0 12px 12px 12px', padding: isMobile ? '20px' : '28px',
-        marginTop: '-28px',
       }}>
         {/* Placeholders */}
         <div style={{
@@ -260,7 +279,8 @@ function EmailTemplates() {
             textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--muted)',
             marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px',
           }}>
-            <span style={{ fontSize: '0.9rem' }}>🔖</span> Доступні плейсхолдери
+            <span aria-hidden="true" style={{ fontSize: '0.9rem' }}>🔖</span>
+            Доступні плейсхолдери
             <span style={{ fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 400, textTransform: 'none', letterSpacing: '0' }}>
               (натисніть, щоб скопіювати)
             </span>
@@ -299,6 +319,7 @@ function EmailTemplates() {
           </div>
         </div>
 
+        {/* Editor + Preview Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '24px' }}>
           {/* Editor */}
           <div>
@@ -385,7 +406,7 @@ function EmailTemplates() {
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
-                ↺ Скинути
+                <span aria-hidden="true">↺</span> Скинути
               </button>
               <button
                 onClick={() => handleSave(activeTab)}
@@ -409,7 +430,8 @@ function EmailTemplates() {
                   gap: '6px',
                 }}
               >
-                {saving ? '⏳ Збереження...' : '💾 Зберегти шаблон'}
+                <span aria-hidden="true">{saving ? '⏳' : '💾'}</span>
+                {saving ? 'Збереження...' : 'Зберегти шаблон'}
               </button>
             </div>
           </div>
@@ -430,7 +452,7 @@ function EmailTemplates() {
               color: 'var(--muted)', marginBottom: '16px',
               display: 'flex', alignItems: 'center', gap: '8px',
             }}>
-              <span style={{ fontSize: '0.9rem' }}>👁</span> Попередній перегляд
+              <span aria-hidden="true" style={{ fontSize: '0.9rem' }}>👁</span> Попередній перегляд
             </div>
 
             <div style={{
