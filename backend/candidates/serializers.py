@@ -63,8 +63,9 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
 
 class EmailTemplateSerializer(serializers.ModelSerializer):
     template_type_display = serializers.CharField(source='get_template_type_display', read_only=True)
+    organization_name = serializers.CharField(source='organization.name', read_only=True)
 
     class Meta:
         model = EmailTemplate
-        fields = ['id', 'organization', 'template_type', 'template_type_display', 'subject', 'body', 'is_active', 'created_at', 'updated_at']
-        read_only_fields = ['organization', 'created_at', 'updated_at']
+        fields = ['id', 'organization', 'organization_name', 'template_type', 'template_type_display', 'subject', 'body', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['organization', 'organization_name', 'created_at', 'updated_at']

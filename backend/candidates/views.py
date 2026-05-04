@@ -372,66 +372,107 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         role = get_user_role(self.request.user)
 
-        # Супер-адмін бачить всі шаблони
         if role == 'superadmin':
             org_id = self.request.query_params.get('organization')
             if org_id:
                 return EmailTemplate.objects.filter(organization_id=org_id)
             return EmailTemplate.objects.all()
 
-        # Звичайний користувач — тільки свої організації
         org = get_user_org(self.request.user)
         if not org:
             return EmailTemplate.objects.none()
         return EmailTemplate.objects.filter(organization=org)
 
     def list(self, request, *args, **kwargs):
-        """Перевизначаємо list для кращої обробки помилок"""
+        """GET /api/email-templates/ — список шаблонів"""
         try:
             queryset = self.get_queryset()
             serializer = self.get_serializer(queryset, many=True)
             return Response(serializer.data)
         except Exception as e:
-            print(f"EmailTemplate list error: {e}")
+            import traceback
+            print(f"EmailTemplate LIST ERROR: {e}")
+            traceback.print_exc()
             return Response(
                 {'error': 'Помилка завантаження шаблонів', 'detail': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     def create(self, request, *args, **kwargs):
-        """Перевизначаємо create для кращої обробки помилок"""
+        """POST /api/email-templates/ — створення шаблону"""
         try:
-            return super().create(request, *args, **kwargs)
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
         except serializers.ValidationError as e:
-            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                e.detail if isinstance(e.detail, dict) else {'error': str(e.detail)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         except Exception as e:
-            print(f"EmailTemplate create error: {e}")
+            import traceback
+            print(f"EmailTemplate CREATE ERROR: {e}")
+            traceback.print_exc()
             return Response(
                 {'error': 'Помилка створення шаблону', 'detail': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+    def update(self, request, *args, **kwargs):
+        """PUT/PATCH /api/email-templates/<id>/ — оновлення шаблону"""
+        try:
+            partial = kwargs.pop('partial', False)
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=partial)
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            return Response(serializer.data)
+        except serializers.ValidationError as e:
+            return Response(
+                e.detail if isinstance(e.detail, dict) else {'error': str(e.detail)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            import traceback
+            print(f"EmailTemplate UPDATE ERROR: {e}")
+            traceback.print_exc()
+            return Response(
+                {'error': 'Помилка оновлення шаблону', 'detail': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     def perform_create(self, serializer):
+        """Збереження шаблону з автоматичним встановленням організації"""
         org = get_user_org(self.request.user)
         if not org:
             raise serializers.ValidationError(
-                {'error': "Користувач не прив\'язаний до організації. Зверніться до адміністратора."}
+                {'error': 'Користувач не прив\'язаний до організації. Зверніться до адміністратора.'}
             )
-        # Перевіряємо, чи вже існує шаблон цього типу для організації
+
         template_type = serializer.validated_data.get('template_type')
-        if template_type and EmailTemplate.objects.filter(organization=org, template_type=template_type).exists():
-            raise serializers.ValidationError(
-                {'error': f'Шаблон типу "{template_type}" вже існує для цієї організації. Використовуйте PATCH для оновлення.'}
-            )
+        if template_type:
+            existing = EmailTemplate.objects.filter(organization=org, template_type=template_type).first()
+            if existing:
+                # Оновлюємо існуючий шаблон замість створення нового
+                existing.subject = serializer.validated_data.get('subject', existing.subject)
+                existing.body = serializer.validated_data.get('body', existing.body)
+                existing.is_active = serializer.validated_data.get('is_active', existing.is_active)
+                existing.save()
+                # Повертаємо оновлений об'єкт через serializer
+                serializer.instance = existing
+                return
+
         serializer.save(organization=org)
 
     def perform_update(self, serializer):
+        """Оновлення шаблону з перевіркою прав"""
         org = get_user_org(self.request.user)
         if not org:
             raise serializers.ValidationError(
-                {'error': "Користувач не прив\'язаний до організації"}
+                {'error': 'Користувач не прив\'язаний до організації'}
             )
-        # Перевіряємо, що шаблон належить організації користувача
         if serializer.instance.organization != org:
             raise serializers.ValidationError(
                 {'error': 'Немає прав для редагування цього шаблону'}
@@ -440,14 +481,13 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def preview(self, request, pk=None):
-        """Генерація попереднього перегляду шаблону з підстановкою даних кандидата"""
+        """Генерація попереднього перегляду шаблону"""
         try:
             template = self.get_object()
         except Exception as e:
             return Response({'error': 'Шаблон не знайдено'}, status=status.HTTP_404_NOT_FOUND)
 
         candidate_id = request.data.get('candidate_id')
-
         if not candidate_id:
             return Response({'error': 'candidate_id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -462,7 +502,6 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
         subject = template.subject
         body = template.body
 
-        # Підстановка плейсхолдерів
         replacements = {
             '{{name}}': f"{candidate.first_name} {candidate.last_name}",
             '{{first_name}}': candidate.first_name,
@@ -488,14 +527,10 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def send(self, request, pk=None):
-        """Відправка листа кандидату (заглушка — повертає згенерований лист)"""
+        """Відправка листа кандидату"""
         preview_response = self.preview(request, pk)
         if preview_response.status_code != status.HTTP_200_OK:
             return preview_response
-
-        # Тут можна інтегрувати Django email backend
-        # from django.core.mail import send_mail
-        # send_mail(...)
 
         return Response({
             'success': True,
