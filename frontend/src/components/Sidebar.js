@@ -17,6 +17,7 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
     { key: 'vacancies',    icon: '◫', label: 'Вакансії',      badgeKey: 'vacancies' },
     { key: 'analytics',   icon: '◎', label: 'Аналітика',     badgeKey: null },
     { key: 'org_settings', icon: '🏢', label: 'Організація',  badgeKey: null },
+    { key: 'email_templates', icon: '✉', label: 'Шаблони листів', badgeKey: null },
     { key: 'profile',      icon: '◉', label: 'Профіль',       badgeKey: null },
   ] : [
     { key: 'dashboard',  icon: '◈', label: 'Дашборд',    badgeKey: null },
