@@ -16,6 +16,7 @@ import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import AddCandidateModal from './components/AddCandidateModal';
+import EmailTemplates from './pages/EmailTemplates';
 
 axios.defaults.baseURL = API_URL;
 
@@ -77,6 +78,7 @@ function App() {
       case 'candidates':   return <Candidates key={refreshKey} searchQuery={debouncedSearch} />;
       case 'vacancies':    return <Vacancies />;
       case 'analytics':    return <Analytics />;
+      case 'email_templates': return <EmailTemplates />;
       case 'org_settings': return <OrgSettings />;
       case 'profile':      return <Profile />;
       default:             return <Dashboard />;

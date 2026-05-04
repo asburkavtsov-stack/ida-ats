@@ -37,6 +37,14 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [vacancies, setVacancies] = useState([]);
   const [users, setUsers] = useState([]);
+  
+  // Email templates states
+  const [emailTemplates, setEmailTemplates] = useState([]);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [previewEmail, setPreviewEmail] = useState(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailError, setEmailError] = useState('');
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -47,6 +55,15 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
 
   useEffect(() => {
     if (!candidateId) return;
+    
+    // Завантаження email-шаблонів
+    axios.get('/api/email-templates/')
+      .then(res => setEmailTemplates(res.data.filter(t => t.is_active)))
+      .catch(err => {
+        console.error('Помилка завантаження шаблонів:', err);
+        setEmailError('Не вдалося завантажити шаблони листів');
+      });
+      
     setLoading(true);
     setError('');
 
@@ -60,9 +77,6 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
         setUsers(usersData);
         const cand = candRes.data;
         setCandidate(cand);
-        // DEBUG: remove after verifying history works
-        console.log('[CandidateCardModal] status_history:', cand.status_history);
-        // BUG FIX #2: stringify vacancy ID so <select> value comparison works correctly
         setEditForm({
           first_name: cand.first_name || '',
           last_name: cand.last_name || '',
@@ -89,13 +103,11 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
     if (!candidate || newStatus === candidate.status) return;
 
     setSaving(true);
-    // BUG FIX #6: clear previous error on new action
     setError('');
     axios.patch(`/api/candidates/${candidateId}/update_status/`, { status: newStatus })
       .then(res => {
         const updated = res.data;
         setCandidate(updated);
-        // BUG FIX #7: keep editForm.status in sync with actual candidate status
         setEditForm(prev => ({ ...prev, status: updated.status }));
         if (onStatusChange) onStatusChange(candidateId, newStatus);
       })
@@ -109,7 +121,6 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
   const handleSaveEdit = () => {
     setSaving(true);
     setError('');
-    // BUG FIX #2: send vacancy as number or null, not string
     const payload = {
       ...editForm,
       vacancy: editForm.vacancy !== '' ? Number(editForm.vacancy) : null,
@@ -118,7 +129,6 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
       .then(res => {
         const updated = res.data;
         setCandidate(updated);
-        // BUG FIX #7: re-sync editForm from server response
         setEditForm({
           first_name: updated.first_name || '',
           last_name: updated.last_name || '',
@@ -129,7 +139,6 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
           notes: updated.notes || '',
         });
         setEditMode(false);
-
         const matched = vacancies.find(v => v.id === updated.vacancy);
         setVacancy(matched || null);
       })
@@ -155,20 +164,64 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
       });
   };
 
-  // BUG FIX #1 & #6: handleAssign — explicit null handling + error reset
   const handleAssign = (userId) => {
     setSaving(true);
     setError('');
-    // userId may be null (unassign) — send explicitly
     axios.patch(`/api/candidates/${candidateId}/assign/`, { assigned_to: userId ?? null })
-      .then(res => {
-        setCandidate(res.data);
-      })
+      .then(res => setCandidate(res.data))
       .catch(err => {
         console.error('Помилка призначення:', err);
         setError('Не вдалося призначити HR');
       })
       .finally(() => setSaving(false));
+  };
+
+  // Email template functions
+  const handlePreviewEmail = async (templateId) => {
+    setSendingEmail(true);
+    setEmailError('');
+    try {
+      const res = await axios.post(`/api/email-templates/${templateId}/preview/`, {
+        candidate_id: candidateId,
+      });
+      setPreviewEmail(res.data);
+      setSelectedTemplate(templateId);
+      setShowEmailModal(true);
+    } catch (err) {
+      console.error('Помилка генерації листа:', err);
+      const msg = err.response?.data?.error || 'Не вдалося згенерувати лист';
+      setEmailError(msg);
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!selectedTemplate) return;
+    setSendingEmail(true);
+    setEmailError('');
+    try {
+      await axios.post(`/api/email-templates/${selectedTemplate}/send/`, {
+        candidate_id: candidateId,
+      });
+      setShowEmailModal(false);
+      setPreviewEmail(null);
+      setSelectedTemplate(null);
+      alert('Лист успішно відправлено!');
+    } catch (err) {
+      console.error('Помилка відправки:', err);
+      const msg = err.response?.data?.error || 'Не вдалося відправити лист';
+      setEmailError(msg);
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  const handleCloseEmailModal = () => {
+    setShowEmailModal(false);
+    setPreviewEmail(null);
+    setSelectedTemplate(null);
+    setEmailError('');
   };
 
   const handleBackdropClick = (e) => {
@@ -205,7 +258,6 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
 
   const history = candidate?.status_history || [];
 
-  // Fallback: look up HR name from users array if backend doesn't serialize it inline
   const assignedUser = candidate?.assigned_to != null
     ? users.find(u => Number(u.id) === Number(candidate.assigned_to)) || null
     : null;
@@ -396,7 +448,6 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
                 <div>
-                  {/* BUG FIX #5: added aria-label / htmlFor on all inputs */}
                   <label htmlFor="edit-first-name" style={labelStyle}>Ім'я</label>
                   <input
                     id="edit-first-name"
@@ -440,7 +491,6 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
 
               <div>
                 <label htmlFor="edit-vacancy" style={labelStyle}>Вакансія</label>
-                {/* BUG FIX #2: value is String, options use String(v.id) — consistent comparison */}
                 <select
                   id="edit-vacancy"
                   style={inputStyle}
@@ -482,6 +532,8 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
               <div style={{ display: 'flex', gap: '10px', marginTop: '8px', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => setEditMode(false)}
+                  aria-label="Скасувати редагування"
+                  type="button"
                   style={{
                     padding: isMobile ? '10px 16px' : '8px 16px',
                     borderRadius: '8px',
@@ -498,6 +550,8 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                 <button
                   onClick={handleSaveEdit}
                   disabled={saving}
+                  aria-label="Зберегти зміни"
+                  type="button"
                   style={{
                     padding: isMobile ? '10px 18px' : '8px 18px',
                     borderRadius: '8px',
@@ -755,7 +809,6 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                   )}
 
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {/* BUG FIX #3: use Number() for type-safe comparison */}
                     {users.filter(u => Number(u.id) !== Number(candidate.assigned_to)).map(u => (
                       <button
                         key={u.id}
@@ -797,6 +850,65 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                       </button>
                     ))}
                   </div>
+                </div>
+              </div>
+
+              {/* Email Templates Section */}
+              <div>
+                <div style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  fontFamily: 'DM Mono',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  color: 'var(--muted)',
+                  marginBottom: '12px',
+                }}>
+                  Шаблони листів
+                </div>
+                {emailError && (
+                  <div style={{ color: '#dc2626', fontSize: '0.78rem', marginBottom: '8px', fontFamily: 'DM Mono' }}>
+                    ⚠ {emailError}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {emailTemplates.length === 0 ? (
+                    <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>
+                      Шаблони не налаштовані. Створіть їх у розділі "Шаблони листів".
+                    </div>
+                  ) : (
+                    emailTemplates.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => handlePreviewEmail(t.id)}
+                        disabled={sendingEmail}
+                        aria-label={`Відправити ${t.template_type_display} для ${candidate.first_name} ${candidate.last_name}`}
+                        type="button"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '8px 14px',
+                          borderRadius: '20px',
+                          border: '1px solid var(--border)',
+                          background: 'var(--surface)',
+                          color: 'var(--text)',
+                          fontSize: '0.78rem',
+                          cursor: sendingEmail ? 'not-allowed' : 'pointer',
+                          fontFamily: 'DM Sans',
+                          opacity: sendingEmail ? 0.6 : 1,
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <span aria-hidden="true">
+                          {t.template_type === 'interview' ? '📅' :
+                           t.template_type === 'offer' ? '🎉' :
+                           t.template_type === 'rejection' ? '😔' : '✉️'}
+                        </span>
+                        {t.template_type_display}
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -880,7 +992,6 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                         borderBottom: index < history.length - 1 ? '1px solid var(--border)' : 'none',
                       }}
                     >
-                      {/* Timeline dot & line */}
                       <div style={{
                         display: 'flex',
                         flexDirection: 'column',
@@ -989,6 +1100,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <a
                 href={`mailto:${candidate.email}`}
+                aria-label={`Написати листа на ${candidate.email}`}
                 style={{
                   padding: isMobile ? '9px 14px' : '7px 14px',
                   borderRadius: '8px',
@@ -1009,6 +1121,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
               {candidate.phone && (
                 <a
                   href={`tel:${candidate.phone}`}
+                  aria-label={`Подзвонити на ${candidate.phone}`}
                   style={{
                     padding: isMobile ? '9px 14px' : '7px 14px',
                     borderRadius: '8px',
@@ -1031,6 +1144,128 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
           </div>
         )}
       </div>
+
+      {/* Email Preview Modal */}
+      {showEmailModal && previewEmail && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+            padding: '16px',
+          }}
+          onClick={handleCloseEmailModal}
+        >
+          <div
+            style={{
+              background: 'var(--surface)',
+              borderRadius: '16px',
+              padding: isMobile ? '20px' : '28px',
+              width: '100%',
+              maxWidth: '520px',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              border: '1px solid var(--border)',
+            }}
+            onClick={e => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="email-preview-title"
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div id="email-preview-title" style={{ fontSize: '1.1rem', fontWeight: 700 }}>
+                Попередній перегляд листа
+              </div>
+              <button
+                onClick={handleCloseEmailModal}
+                aria-label="Закрити попередній перегляд"
+                type="button"
+                style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: '1.2rem', cursor: 'pointer' }}
+              >
+                <span aria-hidden="true">✕</span>
+              </button>
+            </div>
+
+            {emailError && (
+              <div style={{ color: '#dc2626', fontSize: '0.85rem', marginBottom: '14px', padding: '10px', background: '#fee2e2', borderRadius: '8px', fontFamily: 'DM Mono' }}>
+                ⚠ {emailError}
+              </div>
+            )}
+
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginBottom: '6px' }}>
+                Кому: {previewEmail.candidate_email}
+              </div>
+              <div style={{
+                padding: '12px 14px',
+                background: 'var(--bg)',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                marginBottom: '12px',
+              }}>
+                Тема: {previewEmail.subject}
+              </div>
+              <div style={{
+                padding: '14px',
+                background: 'var(--bg)',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                fontSize: '0.85rem',
+                lineHeight: 1.7,
+                whiteSpace: 'pre-wrap',
+                maxHeight: '300px',
+                overflowY: 'auto',
+              }}>
+                {previewEmail.body}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button
+                onClick={handleCloseEmailModal}
+                aria-label="Скасувати відправку"
+                type="button"
+                style={{
+                  padding: isMobile ? '10px 16px' : '8px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: 'var(--text)',
+                  cursor: 'pointer',
+                  fontFamily: 'DM Sans',
+                }}
+              >
+                Скасувати
+              </button>
+              <button
+                onClick={handleSendEmail}
+                disabled={sendingEmail}
+                aria-label="Відправити лист"
+                type="button"
+                style={{
+                  padding: isMobile ? '10px 18px' : '8px 18px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'var(--accent)',
+                  color: '#fff',
+                  fontWeight: 600,
+                  cursor: sendingEmail ? 'not-allowed' : 'pointer',
+                  fontFamily: 'DM Sans',
+                  opacity: sendingEmail ? 0.7 : 1,
+                }}
+              >
+                {sendingEmail ? 'Відправка...' : '📤 Відправити лист'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation */}
       {showDeleteConfirm && (
@@ -1069,6 +1304,8 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
+                aria-label="Скасувати видалення"
+                type="button"
                 style={{
                   padding: isMobile ? '10px 16px' : '8px 16px',
                   borderRadius: '8px',
@@ -1084,6 +1321,8 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
               <button
                 onClick={handleDelete}
                 disabled={saving}
+                aria-label="Підтвердити видалення"
+                type="button"
                 style={{
                   padding: isMobile ? '10px 18px' : '8px 18px',
                   borderRadius: '8px',
