@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, serializers
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -370,6 +370,16 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        role = get_user_role(self.request.user)
+
+        # Супер-адмін бачить всі шаблони
+        if role == 'superadmin':
+            org_id = self.request.query_params.get('organization')
+            if org_id:
+                return EmailTemplate.objects.filter(organization_id=org_id)
+            return EmailTemplate.objects.all()
+
+        # Звичайний користувач — тільки свої організації
         org = get_user_org(self.request.user)
         if not org:
             return EmailTemplate.objects.none()
@@ -377,7 +387,18 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         org = get_user_org(self.request.user)
+        if not org:
+            raise serializers.ValidationError({'error': 'Користувач не прив\'язаний до організації'})
         serializer.save(organization=org)
+
+    def perform_update(self, serializer):
+        org = get_user_org(self.request.user)
+        if not org:
+            raise serializers.ValidationError({'error': 'Користувач не прив\'язаний до організації'})
+        # Перевіряємо, що шаблон належить організації користувача
+        if serializer.instance.organization != org:
+            raise serializers.ValidationError({'error': 'Немає прав для редагування цього шаблону'})
+        serializer.save()
 
     @action(detail=True, methods=['post'])
     def preview(self, request, pk=None):
