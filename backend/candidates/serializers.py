@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Candidate, Vacancy, Organization, StatusHistory
+from .models import Candidate, Vacancy, Organization, StatusHistory, EmailTemplate
 
 
 class VacancySerializer(serializers.ModelSerializer):
@@ -59,3 +59,12 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = '__all__'
+
+
+class EmailTemplateSerializer(serializers.ModelSerializer):
+    template_type_display = serializers.CharField(source='get_template_type_display', read_only=True)
+
+    class Meta:
+        model = EmailTemplate
+        fields = ['id', 'organization', 'template_type', 'template_type_display', 'subject', 'body', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['organization', 'created_at', 'updated_at']

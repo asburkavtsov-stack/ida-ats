@@ -88,3 +88,26 @@ class StatusHistory(models.Model):
 
     def __str__(self):
         return f"{self.candidate} {self.old_status} → {self.new_status}"
+
+
+class EmailTemplate(models.Model):
+    TEMPLATE_TYPES = [
+        ('interview', 'Запрошення на інтерв\'ю'),
+        ('rejection', 'Відмова'),
+        ('offer', 'Оффер'),
+    ]
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='email_templates')
+    template_type = models.CharField(max_length=20, choices=TEMPLATE_TYPES)
+    subject = models.CharField(max_length=300, default='')
+    body = models.TextField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('organization', 'template_type')]
+        ordering = ['template_type']
+
+    def __str__(self):
+        return f"{self.organization.name} — {self.get_template_type_display()}"

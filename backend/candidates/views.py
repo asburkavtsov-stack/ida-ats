@@ -2,13 +2,13 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.views import APIView  # ← ДОДАТИ ЦЕ
+from rest_framework.views import APIView
 from django.contrib.auth.models import User
 from django.db import models
 import csv
 from django.http import HttpResponse
-from .models import Candidate, Vacancy, UserProfile, Organization, StatusHistory
-from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer
+from .models import Candidate, Vacancy, UserProfile, Organization, StatusHistory, EmailTemplate
+from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer, EmailTemplateSerializer
 from .pagination import StandardPagination
 
 
@@ -132,7 +132,6 @@ class CandidateViewSet(viewsets.ModelViewSet):
             return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
 
-
 class CandidateExportCSVView(APIView):
     """Експорт кандидатів у CSV з урахуванням фільтрів та прав доступу"""
     permission_classes = [IsAuthenticated]
@@ -169,10 +168,9 @@ class CandidateExportCSVView(APIView):
 
         queryset = queryset.select_related('vacancy', 'organization').order_by('-created_at')
 
-        # Формуємо CSV
         response = HttpResponse(content_type='text/csv; charset=utf-8')
         response['Content-Disposition'] = 'attachment; filename="candidates.csv"'
-        response.write('\ufeff')  # BOM для Excel
+        response.write('\ufeff')
 
         writer = csv.writer(response)
         writer.writerow([
@@ -365,3 +363,79 @@ class UserListView(viewsets.ViewSet):
             return Response({'success': True})
         except User.DoesNotExist:
             return Response({'error': 'Юзер не знайдений'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class EmailTemplateViewSet(viewsets.ModelViewSet):
+    serializer_class = EmailTemplateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        org = get_user_org(self.request.user)
+        if not org:
+            return EmailTemplate.objects.none()
+        return EmailTemplate.objects.filter(organization=org)
+
+    def perform_create(self, serializer):
+        org = get_user_org(self.request.user)
+        serializer.save(organization=org)
+
+    @action(detail=True, methods=['post'])
+    def preview(self, request, pk=None):
+        """Генерація попереднього перегляду шаблону з підстановкою даних кандидата"""
+        template = self.get_object()
+        candidate_id = request.data.get('candidate_id')
+
+        if not candidate_id:
+            return Response({'error': 'candidate_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            candidate = Candidate.objects.get(id=candidate_id, organization=template.organization)
+        except Candidate.DoesNotExist:
+            return Response({'error': 'Кандидата не знайдено'}, status=status.HTTP_404_NOT_FOUND)
+
+        vacancy_title = candidate.vacancy.title if candidate.vacancy else '—'
+        hr_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
+
+        subject = template.subject
+        body = template.body
+
+        # Підстановка плейсхолдерів
+        replacements = {
+            '{{name}}': f"{candidate.first_name} {candidate.last_name}",
+            '{{first_name}}': candidate.first_name,
+            '{{last_name}}': candidate.last_name,
+            '{{vacancy}}': vacancy_title,
+            '{{email}}': candidate.email,
+            '{{phone}}': candidate.phone or '—',
+            '{{status}}': candidate.get_status_display(),
+            '{{hr_name}}': hr_name,
+            '{{organization}}': template.organization.name,
+            '{{date}}': candidate.created_at.strftime('%d.%m.%Y') if candidate.created_at else '—',
+        }
+
+        for placeholder, value in replacements.items():
+            subject = subject.replace(placeholder, value)
+            body = body.replace(placeholder, value)
+
+        return Response({
+            'subject': subject,
+            'body': body,
+            'candidate_email': candidate.email,
+        })
+
+    @action(detail=True, methods=['post'])
+    def send(self, request, pk=None):
+        """Відправка листа кандидату (заглушка — повертає згенерований лист)"""
+        preview_response = self.preview(request, pk)
+        if preview_response.status_code != status.HTTP_200_OK:
+            return preview_response
+
+        # Тут можна інтегрувати Django email backend
+        # from django.core.mail import send_mail
+        # send_mail(...)
+
+        return Response({
+            'success': True,
+            'message': 'Лист згенеровано (відправка через email backend буде реалізована окремо)',
+            **preview_response.data
+        })
