@@ -500,4 +500,5 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
         return Response({
             'success': True,
             'message': 'Лист згенеровано (відправка через email backend буде реалізована окремо)',
-            **preview_response.data})
+            **preview_response.data
+        })

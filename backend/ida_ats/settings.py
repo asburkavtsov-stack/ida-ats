@@ -23,7 +23,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # ПОВИНЕН БУТИ НАЙВИЩЕ!
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -94,15 +94,48 @@ MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', str(BASE_DIR / 'media')))
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CORS_ALLOW_ALL_ORIGINS = True
+# ═══════════════════════════════════════════════════════════════
+# CORS НАЛАШТУВАННЯ — ВИПРАВЛЕНО ДЛЯ RAILWAY + VERCEL
+# ═══════════════════════════════════════════════════════════════
+
+# НЕ використовуємо CORS_ALLOW_ALL_ORIGINS з credentials!
+# Замість цього явно вказуємо дозволені домени
+CORS_ALLOWED_ORIGINS = [
+    'https://ida-ats.vercel.app',
+    'https://web-production-007d9.up.railway.app',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+]
+
+# Додатково дозволяємо regex для railway.app субдоменів
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\\.railway\\.app$",
+    r"^https://.*\\.vercel\\.app$",
+]
+
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'accept',
+    'accept-encoding',
     'authorization',
     'content-type',
     'origin',
+    'user-agent',
+    'x-csrftoken',
     'x-requested-with',
 ]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# Кешування preflight запитів (оптимізація)
+CORS_PREFLIGHT_MAX_AGE = 86400
 
 CSRF_TRUSTED_ORIGINS = [
     'https://ida-ats.vercel.app',
