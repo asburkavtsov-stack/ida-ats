@@ -304,6 +304,23 @@ class UserListView(viewsets.ViewSet):
         if User.objects.filter(username=username).exists():
             return Response({'error': 'Username вже існує'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # ВАЛІДАЦІЯ ЛІМІТУ HR
+        if org_id and role == 'hr':
+            try:
+                org = Organization.objects.get(id=org_id)
+                current_hr_count = UserProfile.objects.filter(
+                    organization=org,
+                    role='hr'
+                ).count()
+                if current_hr_count >= org.max_hr:
+                    return Response(
+                        {
+                            'error': f'Ліміт HR-менеджерів досягнуто ({org.max_hr}). Збільшіть ліміт у налаштуваннях організації.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except Organization.DoesNotExist:
+                return Response({'error': 'Організацію не знайдено'}, status=status.HTTP_404_NOT_FOUND)
+
         user = User.objects.create_user(
             username=username, password=password,
             first_name=first_name, last_name=last_name, email=email
