@@ -385,25 +385,67 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
             return EmailTemplate.objects.none()
         return EmailTemplate.objects.filter(organization=org)
 
+    def list(self, request, *args, **kwargs):
+        """Перевизначаємо list для кращої обробки помилок"""
+        try:
+            queryset = self.get_queryset()
+            serializer = self.get_serializer(queryset, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            print(f"EmailTemplate list error: {e}")
+            return Response(
+                {'error': 'Помилка завантаження шаблонів', 'detail': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def create(self, request, *args, **kwargs):
+        """Перевизначаємо create для кращої обробки помилок"""
+        try:
+            return super().create(request, *args, **kwargs)
+        except serializers.ValidationError as e:
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print(f"EmailTemplate create error: {e}")
+            return Response(
+                {'error': 'Помилка створення шаблону', 'detail': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     def perform_create(self, serializer):
         org = get_user_org(self.request.user)
         if not org:
-            raise serializers.ValidationError({'error': 'Користувач не прив\'язаний до організації'})
+            raise serializers.ValidationError(
+                {'error': "Користувач не прив\'язаний до організації. Зверніться до адміністратора."}
+            )
+        # Перевіряємо, чи вже існує шаблон цього типу для організації
+        template_type = serializer.validated_data.get('template_type')
+        if template_type and EmailTemplate.objects.filter(organization=org, template_type=template_type).exists():
+            raise serializers.ValidationError(
+                {'error': f'Шаблон типу "{template_type}" вже існує для цієї організації. Використовуйте PATCH для оновлення.'}
+            )
         serializer.save(organization=org)
 
     def perform_update(self, serializer):
         org = get_user_org(self.request.user)
         if not org:
-            raise serializers.ValidationError({'error': 'Користувач не прив\'язаний до організації'})
+            raise serializers.ValidationError(
+                {'error': "Користувач не прив\'язаний до організації"}
+            )
         # Перевіряємо, що шаблон належить організації користувача
         if serializer.instance.organization != org:
-            raise serializers.ValidationError({'error': 'Немає прав для редагування цього шаблону'})
+            raise serializers.ValidationError(
+                {'error': 'Немає прав для редагування цього шаблону'}
+            )
         serializer.save()
 
     @action(detail=True, methods=['post'])
     def preview(self, request, pk=None):
         """Генерація попереднього перегляду шаблону з підстановкою даних кандидата"""
-        template = self.get_object()
+        try:
+            template = self.get_object()
+        except Exception as e:
+            return Response({'error': 'Шаблон не знайдено'}, status=status.HTTP_404_NOT_FOUND)
+
         candidate_id = request.data.get('candidate_id')
 
         if not candidate_id:
@@ -430,7 +472,7 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
             '{{phone}}': candidate.phone or '—',
             '{{status}}': candidate.get_status_display(),
             '{{hr_name}}': hr_name,
-            '{{organization}}': template.organization.name,
+            '{{organization}}': template.organization.name if template.organization else '—',
             '{{date}}': candidate.created_at.strftime('%d.%m.%Y') if candidate.created_at else '—',
         }
 
@@ -458,5 +500,8 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
         return Response({
             'success': True,
             'message': 'Лист згенеровано (відправка через email backend буде реалізована окремо)',
+            **preview_response.data
+        })
+ реалізована окремо)',
             **preview_response.data
         })
