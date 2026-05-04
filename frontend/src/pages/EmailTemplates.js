@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 const TEMPLATE_TYPES = {
@@ -62,11 +62,7 @@ function EmailTemplates() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  useEffect(() => {
-    fetchTemplates();
-  }, []);
-
-  const fetchTemplates = () => {
+  const fetchTemplates = useCallback(() => {
     setLoading(true);
     axios.get('/api/email-templates/')
       .then(res => {
@@ -90,7 +86,11 @@ function EmailTemplates() {
       })
       .catch(() => setErrorMsg('Помилка завантаження шаблонів'))
       .finally(() => setLoading(false));
-  };
+  }, [forms]); // Додаємо forms в залежності, якщо він використовується всередині
+
+  useEffect(() => {
+    fetchTemplates();
+  }, [fetchTemplates]); // Тепер fetchTemplates стабільна завдяки useCallback
 
   const handleSave = async (type) => {
     setSaving(true);
