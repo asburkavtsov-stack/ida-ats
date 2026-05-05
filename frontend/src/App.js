@@ -18,8 +18,6 @@ import Topbar from './components/Topbar';
 import AddCandidateModal from './components/AddCandidateModal';
 import EmailTemplates from './pages/EmailTemplates';
 
-axios.defaults.baseURL = API_URL;
-
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [showModal, setShowModal] = useState(false);
@@ -87,7 +85,6 @@ function App() {
 
   if (!isAuth) return <Login onLogin={handleLogin} />;
 
-  // Superadmin
   if (userRole === 'superadmin') {
     return (
       <div className="app-layout">
@@ -118,7 +115,6 @@ function App() {
     );
   }
 
-  // Admin — з Topbar тільки для основних сторінок, без модалки
   if (userRole === 'admin') {
     const showTopbar = ['dashboard', 'kanban', 'candidates', 'vacancies', 'analytics'].includes(currentPage);
     return (
@@ -143,7 +139,6 @@ function App() {
     );
   }
 
-  // HR
   return (
     <div className="app-layout">
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} onLogout={handleLogout} userRole={userRole} />
