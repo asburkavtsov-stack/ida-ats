@@ -9,13 +9,22 @@ from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
 import csv
 import os
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail, Email, ReplyTo
+import socket
+import smtplib
 from django.http import HttpResponse
 from .models import Candidate, Vacancy, UserProfile, Organization, StatusHistory, EmailTemplate, SentEmail
 from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer, EmailTemplateSerializer, \
     SentEmailSerializer
 from .pagination import StandardPagination
+
+# Спроба імпортувати SendGrid (опціонально)
+try:
+    from sendgrid import SendGridAPIClient
+    from sendgrid.helpers.mail import Mail, Email, ReplyTo, Personalization
+
+    SENDGRID_AVAILABLE = True
+except ImportError:
+    SENDGRID_AVAILABLE = False
 
 
 def get_user_org(user):
@@ -503,6 +512,7 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
 
         vacancy_title = candidate.vacancy.title if candidate.vacancy else '—'
         hr_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
+        hr_email = request.user.email
 
         subject = template.subject
         body = template.body
@@ -516,6 +526,7 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
             '{{phone}}': candidate.phone or '—',
             '{{status}}': candidate.get_status_display(),
             '{{hr_name}}': hr_name,
+            '{{hr_email}}': hr_email,
             '{{organization}}': template.organization.name if template.organization else '—',
             '{{date}}': candidate.created_at.strftime('%d.%m.%Y') if candidate.created_at else '—',
         }
@@ -528,6 +539,194 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
             'subject': subject,
             'body': body,
             'candidate_email': candidate.email,
+            'from_email': hr_email,
+        })
+
+    def _send_via_smtp(self, request, template, candidate, hr_email, subject, body):
+        """Відправка через SMTP з Reply-To на HR"""
+        recipient_email = candidate.email
+
+        sent_email = SentEmail.objects.create(
+            candidate=candidate,
+            template=template,
+            recipient_email=recipient_email,
+            subject=subject,
+            body=body,
+            sent_by=request.user,
+            status='pending'
+        )
+
+        try:
+            # Використовуємо DEFAULT_FROM_EMAIL як відправника,
+            # але додаємо Reply-To на email HR
+            from_email = settings.DEFAULT_FROM_EMAIL
+
+            email = EmailMultiAlternatives(
+                subject=subject,
+                body=body,
+                from_email=from_email,
+                to=[recipient_email],
+                reply_to=[hr_email],  # Відповідь піде HR
+                headers={
+                    'X-Sender-Name': f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username,
+                    'X-Sender-Email': hr_email,
+                }
+            )
+            email.attach_alternative(body, "text/html")
+
+            old_timeout = socket.getdefaulttimeout()
+            socket.setdefaulttimeout(10)
+
+            try:
+                email.send()
+            finally:
+                socket.setdefaulttimeout(old_timeout)
+
+            sent_email.status = 'sent'
+            sent_email.save()
+
+            return Response({
+                'success': True,
+                'message': f'Лист відправлено від {from_email} від імені {hr_email} на {recipient_email}',
+                'sent_email_id': sent_email.id,
+                'subject': subject,
+                'from_email': from_email,
+                'reply_to': hr_email,
+            })
+
+        except (smtplib.SMTPException, socket.timeout, OSError) as e:
+            error_msg = str(e)
+            sent_email.status = 'failed'
+            sent_email.error_message = f'SMTP: {error_msg[:500]}'
+            sent_email.save()
+            raise Exception(f'SMTP помилка: {error_msg}')
+
+    def _send_via_sendgrid(self, request, template, candidate, hr_email, subject, body):
+        """Відправка через SendGrid з відправкою від HR"""
+        if not SENDGRID_AVAILABLE:
+            raise Exception('SendGrid бібліотека не встановлена')
+
+        recipient_email = candidate.email
+        hr_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
+
+        sent_email = SentEmail.objects.create(
+            candidate=candidate,
+            template=template,
+            recipient_email=recipient_email,
+            subject=subject,
+            body=body,
+            sent_by=request.user,
+            status='pending'
+        )
+
+        try:
+            sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+
+            # В SendGrid можна відправляти від будь-якого email
+            from_email = Email(hr_email, name=hr_name)
+            to_email = Email(recipient_email)
+
+            message = Mail(
+                from_email=from_email,
+                to_emails=to_email,
+                subject=subject,
+                html_content=body
+            )
+
+            # Додаємо Reply-To (опціонально)
+            message.reply_to = ReplyTo(hr_email)
+
+            response = sg.send(message)
+
+            if response.status_code in [200, 202]:
+                sent_email.status = 'sent'
+                sent_email.save()
+
+                return Response({
+                    'success': True,
+                    'message': f'Лист відправлено від {hr_email} на {recipient_email} через SendGrid',
+                    'sent_email_id': sent_email.id,
+                    'subject': subject,
+                    'from_email': hr_email,
+                    'status_code': response.status_code,
+                })
+            else:
+                raise Exception(f'SendGrid відповів з кодом {response.status_code}')
+
+        except Exception as e:
+            sent_email.status = 'failed'
+            sent_email.error_message = str(e)[:500]
+            sent_email.save()
+            raise Exception(f'SendGrid помилка: {str(e)}')
+
+    def _send_via_console(self, request, template, candidate, hr_email, subject, body):
+        """Для розробки - виводимо в консоль"""
+        recipient_email = candidate.email
+        hr_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
+
+        sent_email = SentEmail.objects.create(
+            candidate=candidate,
+            template=template,
+            recipient_email=recipient_email,
+            subject=subject,
+            body=body,
+            sent_by=request.user,
+            status='sent'  # В консолі одразу позначаємо як відправлений
+        )
+
+        print(f"\n{'=' * 60}")
+        print(f"📧 ТЕСТОВИЙ ЛИСТ (режим консолі)")
+        print(f"{'=' * 60}")
+        print(f"Від: {hr_name} <{hr_email}>")
+        print(f"Кому: {candidate.first_name} {candidate.last_name} <{recipient_email}>")
+        print(f"Тема: {subject}")
+        print(f"{'-' * 60}")
+        print(f"Тіло листа:")
+        print(body)
+        print(f"{'=' * 60}\n")
+
+        return Response({
+            'success': True,
+            'message': f'Тестовий режим: лист не відправлено реально (використовується консольний бекенд)',
+            'test_mode': True,
+            'sent_email_id': sent_email.id,
+            'subject': subject,
+            'from_email': hr_email,
+        })
+
+    def _send_via_file(self, request, template, candidate, hr_email, subject, body):
+        """Для тестування - зберігаємо у файл"""
+        recipient_email = candidate.email
+        hr_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
+
+        sent_email = SentEmail.objects.create(
+            candidate=candidate,
+            template=template,
+            recipient_email=recipient_email,
+            subject=subject,
+            body=body,
+            sent_by=request.user,
+            status='sent'
+        )
+
+        # Використовуємо стандартний Django email бекенд (який налаштований на file)
+        from django.core.mail import send_mail
+        send_mail(
+            subject=subject,
+            message=body,
+            from_email=hr_email,
+            recipient_list=[recipient_email],
+            html_message=body,
+            fail_silently=False,
+        )
+
+        return Response({
+            'success': True,
+            'message': f'Лист збережено у файл (Email бекенд: {settings.EMAIL_BACKEND})',
+            'test_mode': True,
+            'sent_email_id': sent_email.id,
+            'subject': subject,
+            'from_email': hr_email,
         })
 
     @action(detail=True, methods=['post'])
@@ -535,44 +734,56 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
         """
         POST /api/email-templates/{id}/send/
         Body: {"candidate_id": 123}
-        Відправляє від імені поточного HR65432
+
+        Відправляє email від імені поточного HR.
+        Підтримує:
+        - SendGrid (рекомендовано) - реальна відправка від email HR
+        - SMTP - відправка від DEFAULT_FROM_EMAIL з Reply-To на HR
+        - Console - для розробки
+        - File - для тестування
         """
-        import socket
-        import smtplib
 
         try:
             template = self.get_object()
         except Exception:
-            return Response({'error': 'Шаблон не знайдено'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'success': False, 'error': 'Шаблон не знайдено'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         candidate_id = request.data.get('candidate_id')
         if not candidate_id:
-            return Response({'error': 'candidate_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'success': False, 'error': 'candidate_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             candidate = Candidate.objects.get(id=candidate_id, organization=template.organization)
         except Candidate.DoesNotExist:
-            return Response({'error': 'Кандидата не знайдено'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'success': False, 'error': 'Кандидата не знайдено'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         if not candidate.email:
-            return Response({'error': 'У кандидата не вказано email'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # ━━━ ВІДПРАВНИК: email поточного HR ━━━
-        hr_email = request.user.email
-        if not hr_email:
             return Response(
-                {'error': 'У вашому профілі не вказано email. Оновіть профіль перед відправкою.'},
+                {'success': False, 'error': 'У кандидата не вказано email'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Перевірка SMTP налаштувань
-        if not settings.EMAIL_HOST_USER:
+        # Отримуємо email HR
+        hr_email = request.user.email
+        if not hr_email:
             return Response(
-                {'error': 'SMTP не налаштовано. Зверніться до адміністратора.'},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
+                {
+                    'success': False,
+                    'error': 'У вашому профілі не вказано email. Оновіть профіль перед відправкою.'
+                },
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Генерація subject та body
+        # Генерація subject та body з підстановкою
         vacancy_title = candidate.vacancy.title if candidate.vacancy else '—'
         hr_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
 
@@ -588,6 +799,7 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
             '{{phone}}': candidate.phone or '—',
             '{{status}}': candidate.get_status_display(),
             '{{hr_name}}': hr_name,
+            '{{hr_email}}': hr_email,
             '{{organization}}': template.organization.name if template.organization else '—',
             '{{date}}': candidate.created_at.strftime('%d.%m.%Y') if candidate.created_at else '—',
         }
@@ -596,82 +808,45 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
             subject = subject.replace(placeholder, str(value) if value is not None else '')
             body = body.replace(placeholder, str(value) if value is not None else '')
 
-        # ━━━ ВІДПРАВКА ━━━
-        recipient_email = candidate.email
-        from_email = hr_email
+        # Додаємо інформацію про HR в кінець листа (якщо ще немає)
+        if '{{hr_signature}}' in body:
+            signature = f"""
+            <br><br>
+            --<br>
+            <strong>{hr_name}</strong><br>
+            HR менеджер<br>
+            Email: <a href="mailto:{hr_email}">{hr_email}</a>
+            """
+            body = body.replace('{{hr_signature}}', signature)
 
-        sent_email = None
+        # Визначаємо тип бекенду і відправляємо
+        backend_type = getattr(settings, 'EMAIL_BACKEND_TYPE', 'console')
+
         try:
-            sent_email = SentEmail.objects.create(
-                candidate=candidate,
-                template=template,
-                recipient_email=recipient_email,
-                subject=subject,
-                body=body,
-                sent_by=request.user,
-                status='pending'
-            )
-
-            # Відправка через Django EmailMultiAlternatives з таймаутом
-            email = EmailMultiAlternatives(
-                subject=subject,
-                body=body,
-                from_email=from_email,
-                to=[recipient_email],
-                reply_to=[hr_email],
-            )
-            email.attach_alternative(body, "text/html")
-
-            # Встановлюємо таймаут на рівні сокета
-            old_timeout = socket.getdefaulttimeout()
-            socket.setdefaulttimeout(5)  # 5 секунд замість 30
-
-            try:
-                email.send()
-            finally:
-                socket.setdefaulttimeout(old_timeout)
-
-            sent_email.status = 'sent'
-            sent_email.save()
-
-            return Response({
-                'success': True,
-                'message': f'Лист відправлено від {hr_email} на {recipient_email}',
-                'sent_email_id': sent_email.id,
-                'subject': subject,
-                'from_email': from_email,
-            })
-
-        except (smtplib.SMTPException, socket.timeout, OSError) as e:
-            error_msg = str(e)
-            if sent_email:
-                sent_email.status = 'failed'
-                sent_email.error_message = f'SMTP: {error_msg[:500]}'
-                sent_email.save()
-
-            return Response({
-                'success': False,
-                'error': f'Помилка SMTP: {error_msg}. Перевірте налаштування пошти.'
-            }, status=status.HTTP_502_BAD_GATEWAY)
+            if backend_type == 'sendgrid' and settings.SENDGRID_API_KEY:
+                return self._send_via_sendgrid(request, template, candidate, hr_email, subject, body)
+            elif backend_type == 'smtp':
+                return self._send_via_smtp(request, template, candidate, hr_email, subject, body)
+            elif backend_type == 'file':
+                return self._send_via_file(request, template, candidate, hr_email, subject, body)
+            else:  # console або інший
+                return self._send_via_console(request, template, candidate, hr_email, subject, body)
 
         except Exception as e:
             error_msg = str(e)
-            if sent_email:
-                sent_email.status = 'failed'
-                sent_email.error_message = error_msg[:500]
-                sent_email.save()
-
-            return Response({
-                'success': False,
-                'error': f'Помилка при відправці: {error_msg}'
-            }, status=status.HTTP_502_BAD_GATEWAY)
+            return Response(
+                {
+                    'success': False,
+                    'error': error_msg,
+                    'backend_type': backend_type,
+                    'suggestion': 'Перевірте налаштування email або змініть EMAIL_BACKEND_TYPE'
+                },
+                status=status.HTTP_502_BAD_GATEWAY
+            )
 
     @action(detail=False, methods=['get'])
     def history(self, request):
-        """
-        GET /api/email-templates/history/?candidate=123
-        Отримання історії відправлених листів
-        """
+        """GET /api/email-templates/history/?candidate=123"""
         role = get_user_role(request.user)
 
         if role == 'superadmin':
@@ -695,7 +870,6 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
         if template_type:
             queryset = queryset.filter(template__template_type=template_type)
 
-        # Пагінація
         page = self.paginate_queryset(queryset.select_related('candidate', 'template', 'sent_by'))
         if page is not None:
             serializer = SentEmailSerializer(page, many=True)
@@ -743,3 +917,24 @@ class SentEmailViewSet(viewsets.ReadOnlyModelViewSet):
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def test_email_config(request):
+    """Перевірка налаштувань email - корисний ендпоінт для діагностики"""
+    return Response({
+        'email_backend': settings.EMAIL_BACKEND,
+        'email_backend_type': getattr(settings, 'EMAIL_BACKEND_TYPE', 'not_set'),
+        'email_host': getattr(settings, 'EMAIL_HOST', None),
+        'email_host_user': bool(getattr(settings, 'EMAIL_HOST_USER', None)),
+        'has_sendgrid_api_key': bool(getattr(settings, 'SENDGRID_API_KEY', None)),
+        'sendgrid_available': SENDGRID_AVAILABLE,
+        'is_configured': bool(
+            getattr(settings, 'EMAIL_HOST_USER', None) or
+            getattr(settings, 'SENDGRID_API_KEY', None) or
+            getattr(settings, 'EMAIL_BACKEND_TYPE', '') in ['console', 'file']
+        ),
+        'default_from_email': getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+        'current_user_email': request.user.email,
+    })

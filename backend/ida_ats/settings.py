@@ -23,7 +23,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # ПОВИНЕН БУТИ НАЙВИЩЕ!
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -95,11 +95,9 @@ MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', str(BASE_DIR / 'media')))
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ═══════════════════════════════════════════════════════════════
-# CORS НАЛАШТУВАННЯ — ВИПРАВЛЕНО ДЛЯ RAILWAY + VERCEL
+# CORS НАЛАШТУВАННЯ
 # ═══════════════════════════════════════════════════════════════
 
-# НЕ використовуємо CORS_ALLOW_ALL_ORIGINS з credentials!
-# Замість цього явно вказуємо дозволені домени
 CORS_ALLOWED_ORIGINS = [
     'https://ida-ats.vercel.app',
     'https://web-production-007d9.up.railway.app',
@@ -107,7 +105,6 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:3000',
 ]
 
-# Додатково дозволяємо regex для railway.app субдоменів
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\\.railway\\.app$",
     r"^https://.*\\.vercel\\.app$",
@@ -134,7 +131,6 @@ CORS_ALLOW_METHODS = [
     'PUT',
 ]
 
-# Кешування preflight запитів (оптимізація)
 CORS_PREFLIGHT_MAX_AGE = 86400
 
 CSRF_TRUSTED_ORIGINS = [
@@ -157,20 +153,31 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 }
 
-# ═══════════════════════════════════════════════════════════════
-# EMAIL НАЛАШТУВАННЯ
-# ═══════════════════════════════════════════════════════════════
+EMAIL_BACKEND_TYPE = os.environ.get('EMAIL_BACKEND_TYPE', 'console')
 
-EMAIL_BACKEND = os.environ.get(
-    'EMAIL_BACKEND',
-    'django.core.mail.backends.smtp.EmailBackend'
-)
+SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '')
 
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False') == 'True'
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@example.com')
-EMAIL_TIMEOUT = 30
+if EMAIL_BACKEND_TYPE == 'sendgrid' and SENDGRID_API_KEY:
+    EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
+    SENDGRID_SANDBOX_MODE_IN_DEBUG = False
+    SENDGRID_ECHO_TO_STDOUT = DEBUG
+    SENDGRID_TRACK_EMAIL_OPENS = False
+    SENDGRID_TRACK_CLICKS = False
+elif EMAIL_BACKEND_TYPE == 'smtp':
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+    EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+    EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+    EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False') == 'True'
+    EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+    EMAIL_TIMEOUT = 30
+elif EMAIL_BACKEND_TYPE == 'file':
+    EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
+    EMAIL_FILE_PATH = os.environ.get('EMAIL_FILE_PATH', '/tmp/django_email_logs')
+elif EMAIL_BACKEND_TYPE == 'console':
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@example.com')
+EMAIL_SUBJECT_PREFIX = os.environ.get('EMAIL_SUBJECT_PREFIX', '[IDA ATS] ')
