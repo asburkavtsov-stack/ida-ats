@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Candidate, Vacancy, Organization, StatusHistory, EmailTemplate
+from .models import Candidate, Vacancy, Organization, StatusHistory, EmailTemplate, SentEmail
 
 
 class VacancySerializer(serializers.ModelSerializer):
@@ -69,3 +69,40 @@ class EmailTemplateSerializer(serializers.ModelSerializer):
         model = EmailTemplate
         fields = ['id', 'organization', 'organization_name', 'template_type', 'template_type_display', 'subject', 'body', 'is_active', 'created_at', 'updated_at']
         read_only_fields = ['organization', 'organization_name', 'created_at', 'updated_at']
+
+
+class SentEmailSerializer(serializers.ModelSerializer):
+    candidate_name = serializers.SerializerMethodField()
+    sent_by_name = serializers.SerializerMethodField()
+    template_type_display = serializers.SerializerMethodField()
+    template_type = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SentEmail
+        fields = [
+            'id', 'candidate', 'candidate_name', 'template', 'template_type', 'template_type_display',
+            'recipient_email', 'subject', 'body', 'sent_by', 'sent_by_name',
+            'sent_at', 'status', 'error_message'
+        ]
+        read_only_fields = ['id', 'sent_at', 'status', 'error_message']
+
+    def get_candidate_name(self, obj):
+        if obj.candidate:
+            return f"{obj.candidate.first_name} {obj.candidate.last_name}"
+        return None
+
+    def get_sent_by_name(self, obj):
+        if obj.sent_by:
+            full = f"{obj.sent_by.first_name} {obj.sent_by.last_name}".strip()
+            return full or obj.sent_by.username
+        return None
+
+    def get_template_type_display(self, obj):
+        if obj.template:
+            return obj.template.get_template_type_display()
+        return None
+
+    def get_template_type(self, obj):
+        if obj.template:
+            return obj.template.template_type
+        return None

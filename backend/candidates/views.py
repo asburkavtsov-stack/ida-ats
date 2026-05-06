@@ -5,10 +5,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth.models import User
 from django.db import models
+from django.core.mail import EmailMessage
+from django.conf import settings
 import csv
 from django.http import HttpResponse
-from .models import Candidate, Vacancy, UserProfile, Organization, StatusHistory, EmailTemplate
-from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer, EmailTemplateSerializer
+from .models import Candidate, Vacancy, UserProfile, Organization, StatusHistory, EmailTemplate, SentEmail
+from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer, EmailTemplateSerializer, SentEmailSerializer
 from .pagination import StandardPagination
 
 
@@ -481,10 +483,9 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def preview(self, request, pk=None):
-        """Генерація попереднього перегляду шаблону"""
         try:
             template = self.get_object()
-        except Exception as e:
+        except Exception:
             return Response({'error': 'Шаблон не знайдено'}, status=status.HTTP_404_NOT_FOUND)
 
         candidate_id = request.data.get('candidate_id')
@@ -504,10 +505,10 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
 
         replacements = {
             '{{name}}': f"{candidate.first_name} {candidate.last_name}",
-            '{{first_name}}': candidate.first_name,
-            '{{last_name}}': candidate.last_name,
+            '{{first_name}}': candidate.first_name or '',
+            '{{last_name}}': candidate.last_name or '',
             '{{vacancy}}': vacancy_title,
-            '{{email}}': candidate.email,
+            '{{email}}': candidate.email or '',
             '{{phone}}': candidate.phone or '—',
             '{{status}}': candidate.get_status_display(),
             '{{hr_name}}': hr_name,
@@ -516,8 +517,8 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
         }
 
         for placeholder, value in replacements.items():
-            subject = subject.replace(placeholder, value)
-            body = body.replace(placeholder, value)
+            subject = subject.replace(placeholder, str(value) if value else '')
+            body = body.replace(placeholder, str(value) if value else '')
 
         return Response({
             'subject': subject,
@@ -527,13 +528,192 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def send(self, request, pk=None):
-        """Відправка листа кандидату"""
-        preview_response = self.preview(request, pk)
-        if preview_response.status_code != status.HTTP_200_OK:
-            return preview_response
+        """
+        POST /api/email-templates/{id}/send/
+        Body: {
+            "candidate_id": 123,
+            "subject": "опціонально",
+            "body": "опціонально"
+        }
+        """
+        try:
+            template = self.get_object()
+        except Exception:
+            return Response({'error': 'Шаблон не знайдено'}, status=status.HTTP_404_NOT_FOUND)
 
-        return Response({
-            'success': True,
-            'message': 'Лист згенеровано (відправка через email backend буде реалізована окремо)',
-            **preview_response.data
-        })
+        candidate_id = request.data.get('candidate_id')
+        if not candidate_id:
+            return Response({'error': 'candidate_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Перевіряємо права доступу до кандидата
+        try:
+            candidate = Candidate.objects.get(id=candidate_id, organization=template.organization)
+        except Candidate.DoesNotExist:
+            return Response({'error': 'Кандидата не знайдено або немає доступу'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Генеруємо subject та body (з можливістю перевизначення)
+        custom_subject = request.data.get('subject')
+        custom_body = request.data.get('body')
+
+        vacancy_title = candidate.vacancy.title if candidate.vacancy else '—'
+        hr_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
+
+        if custom_subject:
+            subject = custom_subject
+        else:
+            subject = template.subject
+
+        if custom_body:
+            body = custom_body
+        else:
+            body = template.body
+
+        # Заміна плейсхолдерів
+        replacements = {
+            '{{name}}': f"{candidate.first_name} {candidate.last_name}",
+            '{{first_name}}': candidate.first_name or '',
+            '{{last_name}}': candidate.last_name or '',
+            '{{vacancy}}': vacancy_title,
+            '{{email}}': candidate.email or '',
+            '{{phone}}': candidate.phone or '—',
+            '{{status}}': candidate.get_status_display(),
+            '{{hr_name}}': hr_name,
+            '{{organization}}': template.organization.name if template.organization else '—',
+            '{{date}}': candidate.created_at.strftime('%d.%m.%Y') if candidate.created_at else '—',
+        }
+
+        for placeholder, value in replacements.items():
+            subject = subject.replace(placeholder, str(value) if value else '')
+            body = body.replace(placeholder, str(value) if value else '')
+
+        # ВІДПРАВКА EMAIL
+        recipient_email = candidate.email
+        from_email = settings.DEFAULT_FROM_EMAIL
+
+        sent_email = None
+        try:
+            # Створюємо запис про відправлення
+            sent_email = SentEmail(
+                candidate=candidate,
+                template=template,
+                recipient_email=recipient_email,
+                subject=subject,
+                body=body,
+                sent_by=request.user,
+                status='pending'
+            )
+            sent_email.save()
+
+            # Реальна відправка
+            email = EmailMessage(
+                subject=subject,
+                body=body,
+                from_email=from_email,
+                to=[recipient_email],
+            )
+            email.content_subtype = 'html'  # Якщо body містить HTML
+            email.send(fail_silently=False)
+
+            # Оновлюємо статус на успішний
+            sent_email.status = 'sent'
+            sent_email.save()
+
+            return Response({
+                'success': True,
+                'message': f'Лист успішно відправлено на {recipient_email}',
+                'sent_email_id': sent_email.id,
+                'subject': subject,
+                'body': body,
+                'candidate_email': recipient_email,
+            })
+
+        except Exception as e:
+            # Логуємо помилку
+            if sent_email:
+                sent_email.status = 'failed'
+                sent_email.error_message = str(e)
+                sent_email.save()
+            else:
+                # Якщо не вдалося навіть створити запис
+                return Response({
+                    'success': False,
+                    'error': f'Помилка при відправці: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def history(self, request):
+        """
+        GET /api/email-templates/history/?candidate=123
+        Отримання історії відправлених листів
+        """
+        role = get_user_role(request.user)
+
+        if role == 'superadmin':
+            org_id = request.query_params.get('organization')
+            if org_id:
+                queryset = SentEmail.objects.filter(candidate__organization_id=org_id)
+            else:
+                queryset = SentEmail.objects.all()
+        else:
+            org = get_user_org(request.user)
+            if not org:
+                queryset = SentEmail.objects.none()
+            else:
+                queryset = SentEmail.objects.filter(candidate__organization=org)
+
+        candidate_id = request.query_params.get('candidate')
+        if candidate_id:
+            queryset = queryset.filter(candidate_id=candidate_id)
+
+        template_type = request.query_params.get('template_type')
+        if template_type:
+            queryset = queryset.filter(template__template_type=template_type)
+
+        # Пагінація
+        page = self.paginate_queryset(queryset.select_related('candidate', 'template', 'sent_by'))
+        if page is not None:
+            serializer = SentEmailSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = SentEmailSerializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class SentEmailViewSet(viewsets.ReadOnlyModelViewSet):
+    """ViewSet для перегляду історії відправлених листів"""
+    serializer_class = SentEmailSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardPagination
+
+    def get_queryset(self):
+        role = get_user_role(self.request.user)
+
+        if role == 'superadmin':
+            org_id = self.request.query_params.get('organization')
+            if org_id:
+                return SentEmail.objects.filter(candidate__organization_id=org_id)
+            return SentEmail.objects.all()
+
+        org = get_user_org(self.request.user)
+        if not org:
+            return SentEmail.objects.none()
+        return SentEmail.objects.filter(candidate__organization=org)
+
+    def list(self, request, *args, **kwargs):
+        """GET /api/sent-emails/ - список всіх відправлених листів"""
+        candidate_id = request.query_params.get('candidate')
+        template_type = request.query_params.get('template_type')
+
+        queryset = self.get_queryset()
+        if candidate_id:
+            queryset = queryset.filter(candidate_id=candidate_id)
+        if template_type:
+            queryset = queryset.filter(template__template_type=template_type)
+
+        queryset = queryset.select_related('candidate', 'template', 'sent_by').order_by('-sent_at')
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
