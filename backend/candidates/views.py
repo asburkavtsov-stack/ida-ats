@@ -535,7 +535,7 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
         """
         POST /api/email-templates/{id}/send/
         Body: {"candidate_id": 123}
-        Відправляє від імені поточного HR
+        Відправляє від імені поточного HR65432
         """
         import socket
         import smtplib
