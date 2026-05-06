@@ -25,7 +25,6 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
     { key: 'candidates', icon: '◉', label: 'Кандидати',   badgeKey: 'candidates' },
     { key: 'vacancies',  icon: '◫', label: 'Вакансії',    badgeKey: 'vacancies' },
     { key: 'analytics',  icon: '◎', label: 'Аналітика',   badgeKey: null },
-    { key: 'email_templates', icon: '✉', label: 'Шаблони листів', badgeKey: null },
     { key: 'profile',    icon: '◉', label: 'Профіль',     badgeKey: null },
   ];
 

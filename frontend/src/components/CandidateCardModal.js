@@ -45,6 +45,10 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
   const [previewEmail, setPreviewEmail] = useState(null);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailError, setEmailError] = useState('');
+  
+  // Email history states
+  const [emailHistory, setEmailHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -98,6 +102,26 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
       })
       .finally(() => setLoading(false));
   }, [candidateId]);
+
+  // Завантаження історії листів при активації вкладки Emails
+  useEffect(() => {
+    if (activeTab === 'emails' && candidateId) {
+      fetchEmailHistory();
+    }
+  }, [activeTab, candidateId]);
+
+  const fetchEmailHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const res = await axios.get(`/api/sent-emails/?candidate=${candidateId}`);
+      setEmailHistory(res.data.results ?? res.data);
+    } catch (err) {
+      console.error('Помилка завантаження історії листів:', err);
+      setEmailError('Не вдалося завантажити історію листів');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   const handleStatusUpdate = (newStatus) => {
     if (!candidate || newStatus === candidate.status) return;
@@ -207,6 +231,8 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
       setShowEmailModal(false);
       setPreviewEmail(null);
       setSelectedTemplate(null);
+      // Оновлюємо історію після відправки
+      fetchEmailHistory();
       alert('Лист успішно відправлено!');
     } catch (err) {
       console.error('Помилка відправки:', err);
@@ -269,6 +295,25 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
     || candidate?.assigned_to_username?.[0]
     || assignedUser?.username?.[0]
     || '?';
+
+  // Функція для отримання іконки статусу відправки
+  const getEmailStatusIcon = (status) => {
+    switch (status) {
+      case 'sent': return '✓';
+      case 'failed': return '⚠';
+      case 'pending': return '⏳';
+      default: return '✉';
+    }
+  };
+
+  const getEmailStatusColor = (status) => {
+    switch (status) {
+      case 'sent': return '#16a34a';
+      case 'failed': return '#dc2626';
+      case 'pending': return '#eab308';
+      default: return 'var(--muted)';
+    }
+  };
 
   return (
     <div
@@ -401,6 +446,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
             {[
               { key: 'info', label: 'Інформація' },
               { key: 'history', label: `Історія${history.length > 0 ? ` (${history.length})` : ''}` },
+              { key: 'emails', label: `Листи${emailHistory.length > 0 ? ` (${emailHistory.length})` : ''}` },
             ].map(tab => (
               <button
                 key={tab.key}
@@ -954,7 +1000,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                 </div>
               </div>
             </div>
-          ) : (
+          ) : activeTab === 'history' ? (
             /* History Tab */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{
@@ -1060,11 +1106,166 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                 </div>
               )}
             </div>
+          ) : (
+            /* Emails Tab */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                fontFamily: 'DM Mono',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                color: 'var(--muted)',
+                marginBottom: '4px',
+              }}>
+                Історія відправлених листів
+              </div>
+
+              {loadingHistory ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '32px' }}>
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    border: '2px solid var(--border)',
+                    borderTop: '2px solid var(--accent)',
+                    animation: 'spin 0.8s linear infinite',
+                  }} />
+                </div>
+              ) : emailHistory.length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '32px',
+                  color: 'var(--muted)',
+                  fontSize: '0.85rem',
+                  border: '1px dashed var(--border)',
+                  borderRadius: '10px',
+                }}>
+                  <div style={{ fontSize: '1.5rem', marginBottom: '12px' }} aria-hidden="true">✉️</div>
+                  <div>Ще не було відправлено жодного листа</div>
+                  <div style={{ fontSize: '0.78rem', marginTop: '8px' }}>
+                    Використайте шаблони листів вище для відправки
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {emailHistory.map((email) => (
+                    <div
+                      key={email.id}
+                      style={{
+                        display: 'flex',
+                        gap: '12px',
+                        padding: '14px',
+                        background: 'var(--bg)',
+                        borderRadius: '10px',
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      <div style={{ flexShrink: 0 }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '8px',
+                          background: getEmailStatusColor(email.status),
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '1.1rem',
+                        }}>
+                          <span aria-hidden="true">{getEmailStatusIcon(email.status)}</span>
+                        </div>
+                      </div>
+                      
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: '8px',
+                          marginBottom: '6px',
+                        }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.85rem', wordBreak: 'break-word' }}>
+                            {email.subject}
+                          </div>
+                          <span style={{
+                            fontSize: '0.66rem',
+                            fontFamily: 'DM Mono',
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            background: email.status === 'sent' ? '#dcfce7' : email.status === 'failed' ? '#fee2e2' : '#fef3c7',
+                            color: email.status === 'sent' ? '#16a34a' : email.status === 'failed' ? '#dc2626' : '#eab308',
+                          }}>
+                            {email.status === 'sent' ? 'Відправлено' : email.status === 'failed' ? 'Помилка' : 'Відправляється'}
+                          </span>
+                        </div>
+                        
+                        <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginBottom: '4px' }}>
+                          Кому: {email.recipient_email}
+                        </div>
+                        
+                        <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+                          {email.template_type_display && (
+                            <span style={{ marginRight: '12px' }}>
+                              Тип: {email.template_type_display}
+                            </span>
+                          )}
+                          Відправлено: {formatDate(email.sent_at)}
+                        </div>
+                        
+                        {email.sent_by_name && (
+                          <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '2px' }}>
+                            Відправив: {email.sent_by_name}
+                          </div>
+                        )}
+                        
+                        {email.error_message && (
+                          <div style={{
+                            fontSize: '0.7rem',
+                            color: '#dc2626',
+                            fontFamily: 'DM Mono',
+                            marginTop: '6px',
+                            padding: '6px 8px',
+                            background: '#fee2e2',
+                            borderRadius: '6px',
+                          }}>
+                            Помилка: {email.error_message}
+                          </div>
+                        )}
+                        
+                        <details style={{ marginTop: '8px' }}>
+                          <summary style={{
+                            fontSize: '0.68rem',
+                            color: 'var(--muted)',
+                            cursor: 'pointer',
+                            fontFamily: 'DM Mono',
+                          }}>
+                            Показати текст листа
+                          </summary>
+                          <div style={{
+                            fontSize: '0.78rem',
+                            lineHeight: 1.6,
+                            marginTop: '8px',
+                            padding: '10px',
+                            background: 'var(--surface)',
+                            borderRadius: '6px',
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                          }}>
+                            {email.body}
+                          </div>
+                        </details>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
         {/* Footer Actions */}
-        {!loading && !editMode && (
+        {!loading && !editMode && activeTab !== 'emails' && (
           <div style={{
             padding: isMobile ? '14px 20px' : '16px 24px',
             borderTop: '1px solid var(--border)',

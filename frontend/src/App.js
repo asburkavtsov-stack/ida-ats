@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './styles/global.css';
-import API_URL from './api';
 
 import Dashboard from './pages/Dashboard';
 import Kanban from './pages/Kanban';
