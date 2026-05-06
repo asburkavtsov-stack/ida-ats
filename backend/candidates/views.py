@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth.models import User
 from django.db import models
-from django.core.mail import EmailMessage
+from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
 import csv
 from django.http import HttpResponse
@@ -530,11 +530,8 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
     def send(self, request, pk=None):
         """
         POST /api/email-templates/{id}/send/
-        Body: {
-            "candidate_id": 123,
-            "subject": "опціонально",
-            "body": "опціонально"
-        }
+        Body: {"candidate_id": 123}
+        Відправляє від імені поточного HR (request.user.email)
         """
         try:
             template = self.get_object()
@@ -545,30 +542,29 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
         if not candidate_id:
             return Response({'error': 'candidate_id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Перевіряємо права доступу до кандидата
         try:
             candidate = Candidate.objects.get(id=candidate_id, organization=template.organization)
         except Candidate.DoesNotExist:
-            return Response({'error': 'Кандидата не знайдено або немає доступу'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Кандидата не знайдено'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Генеруємо subject та body (з можливістю перевизначення)
-        custom_subject = request.data.get('subject')
-        custom_body = request.data.get('body')
+        if not candidate.email:
+            return Response({'error': 'У кандидата не вказано email'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # ━━━ ВІДПРАВНИК: email поточного HR ━━━
+        hr_email = request.user.email
+        if not hr_email:
+            return Response(
+                {'error': 'У вашому профілі не вказано email. Оновіть профіль перед відправкою.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Генерація subject та body
         vacancy_title = candidate.vacancy.title if candidate.vacancy else '—'
         hr_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
 
-        if custom_subject:
-            subject = custom_subject
-        else:
-            subject = template.subject
+        subject = template.subject or 'Без теми'
+        body = template.body or ''
 
-        if custom_body:
-            body = custom_body
-        else:
-            body = template.body
-
-        # Заміна плейсхолдерів
         replacements = {
             '{{name}}': f"{candidate.first_name} {candidate.last_name}",
             '{{first_name}}': candidate.first_name or '',
@@ -583,17 +579,17 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
         }
 
         for placeholder, value in replacements.items():
-            subject = subject.replace(placeholder, str(value) if value else '')
-            body = body.replace(placeholder, str(value) if value else '')
+            subject = subject.replace(placeholder, str(value) if value is not None else '')
+            body = body.replace(placeholder, str(value) if value is not None else '')
 
-        # ВІДПРАВКА EMAIL
+        # ━━━ ВІДПРАВКА ВІД ІМЕНІ HR ━━━
         recipient_email = candidate.email
-        from_email = settings.DEFAULT_FROM_EMAIL
+        from_email = hr_email  # ← відправник = email HR
+        reply_to = [hr_email]
 
         sent_email = None
         try:
-            # Створюємо запис про відправлення
-            sent_email = SentEmail(
+            sent_email = SentEmail.objects.create(
                 candidate=candidate,
                 template=template,
                 recipient_email=recipient_email,
@@ -602,43 +598,39 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
                 sent_by=request.user,
                 status='pending'
             )
-            sent_email.save()
 
-            # Реальна відправка
-            email = EmailMessage(
+            email = EmailMultiAlternatives(
                 subject=subject,
                 body=body,
-                from_email=from_email,
+                from_email=from_email,      # ← email HR
                 to=[recipient_email],
+                reply_to=reply_to,          # ← відповідати HR
             )
-            email.content_subtype = 'html'  # Якщо body містить HTML
+            email.attach_alternative(body, "text/html")
             email.send(fail_silently=False)
 
-            # Оновлюємо статус на успішний
             sent_email.status = 'sent'
             sent_email.save()
 
             return Response({
                 'success': True,
-                'message': f'Лист успішно відправлено на {recipient_email}',
+                'message': f'Лист відправлено від {hr_email} на {recipient_email}',
                 'sent_email_id': sent_email.id,
                 'subject': subject,
-                'body': body,
-                'candidate_email': recipient_email,
+                'from_email': from_email,
             })
 
         except Exception as e:
-            # Логуємо помилку
+            error_msg = str(e)
             if sent_email:
                 sent_email.status = 'failed'
-                sent_email.error_message = str(e)
+                sent_email.error_message = error_msg[:500]
                 sent_email.save()
-            else:
-                # Якщо не вдалося навіть створити запис
-                return Response({
-                    'success': False,
-                    'error': f'Помилка при відправці: {str(e)}'
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            return Response({
+                'success': False,
+                'error': f'Помилка при відправці: {error_msg}'
+            }, status=status.HTTP_502_BAD_GATEWAY)
 
     @action(detail=False, methods=['get'])
     def history(self, request):
