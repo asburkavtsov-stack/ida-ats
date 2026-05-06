@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { KANBAN_COLUMNS, getStatusLabel, getStatusBg, getStatusText, getHrAvatarColor } from '../constants/statusColors';
 
@@ -104,13 +104,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
   }, [candidateId]);
 
   // Завантаження історії листів при активації вкладки Emails
-  useEffect(() => {
-    if (activeTab === 'emails' && candidateId) {
-      fetchEmailHistory();
-    }
-  }, [activeTab, candidateId]);
-
-  const fetchEmailHistory = async () => {
+  const fetchEmailHistory = useCallback(async () => {
     setLoadingHistory(true);
     try {
       const res = await axios.get(`/api/sent-emails/?candidate=${candidateId}`);
@@ -121,7 +115,13 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
     } finally {
       setLoadingHistory(false);
     }
-  };
+  }, [candidateId]);
+
+  useEffect(() => {
+    if (activeTab === 'emails' && candidateId) {
+      fetchEmailHistory();
+    }
+  }, [activeTab, candidateId, fetchEmailHistory]);
 
   const handleStatusUpdate = (newStatus) => {
     if (!candidate || newStatus === candidate.status) return;
