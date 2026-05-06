@@ -535,8 +535,11 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
         """
         POST /api/email-templates/{id}/send/
         Body: {"candidate_id": 123}
-        Відправляє від імені поточного HR через SendGrid API
+        Відправляє від імені поточного HR
         """
+        import socket
+        import smtplib
+
         try:
             template = self.get_object()
         except Exception:
@@ -562,11 +565,10 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Перевірка SendGrid API ключа
-        sendgrid_api_key = os.environ.get('SENDGRID_API_KEY')
-        if not sendgrid_api_key:
+        # Перевірка SMTP налаштувань
+        if not settings.EMAIL_HOST_USER:
             return Response(
-                {'error': 'SendGrid API Key не налаштовано. Зверніться до адміністратора.'},
+                {'error': 'SMTP не налаштовано. Зверніться до адміністратора.'},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
 
@@ -594,7 +596,7 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
             subject = subject.replace(placeholder, str(value) if value is not None else '')
             body = body.replace(placeholder, str(value) if value is not None else '')
 
-        # ━━━ ВІДПРАВКА ЧЕРЕЗ SENDGRID API ━━━
+        # ━━━ ВІДПРАВКА ━━━
         recipient_email = candidate.email
         from_email = hr_email
 
@@ -610,31 +612,47 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
                 status='pending'
             )
 
-            sg = SendGridAPIClient(sendgrid_api_key)
-
-            message = Mail(
-                from_email=Email(from_email),
-                to_emails=recipient_email,
+            # Відправка через Django EmailMultiAlternatives з таймаутом
+            email = EmailMultiAlternatives(
                 subject=subject,
-                html_content=body.replace('\n', '<br>')
+                body=body,
+                from_email=from_email,
+                to=[recipient_email],
+                reply_to=[hr_email],
             )
-            message.reply_to = ReplyTo(hr_email, hr_name)
+            email.attach_alternative(body, "text/html")
 
-            response = sg.send(message)
+            # Встановлюємо таймаут на рівні сокета
+            old_timeout = socket.getdefaulttimeout()
+            socket.setdefaulttimeout(5)  # 5 секунд замість 30
 
-            if response.status_code in [200, 201, 202]:
-                sent_email.status = 'sent'
+            try:
+                email.send()
+            finally:
+                socket.setdefaulttimeout(old_timeout)
+
+            sent_email.status = 'sent'
+            sent_email.save()
+
+            return Response({
+                'success': True,
+                'message': f'Лист відправлено від {hr_email} на {recipient_email}',
+                'sent_email_id': sent_email.id,
+                'subject': subject,
+                'from_email': from_email,
+            })
+
+        except (smtplib.SMTPException, socket.timeout, OSError) as e:
+            error_msg = str(e)
+            if sent_email:
+                sent_email.status = 'failed'
+                sent_email.error_message = f'SMTP: {error_msg[:500]}'
                 sent_email.save()
 
-                return Response({
-                    'success': True,
-                    'message': f'Лист відправлено від {hr_email} на {recipient_email}',
-                    'sent_email_id': sent_email.id,
-                    'subject': subject,
-                    'from_email': from_email,
-                })
-            else:
-                raise Exception(f'SendGrid помилка: {response.status_code}')
+            return Response({
+                'success': False,
+                'error': f'Помилка SMTP: {error_msg}. Перевірте налаштування пошти.'
+            }, status=status.HTTP_502_BAD_GATEWAY)
 
         except Exception as e:
             error_msg = str(e)
