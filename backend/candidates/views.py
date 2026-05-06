@@ -8,9 +8,13 @@ from django.db import models
 from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
 import csv
+import os
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, Email, ReplyTo
 from django.http import HttpResponse
 from .models import Candidate, Vacancy, UserProfile, Organization, StatusHistory, EmailTemplate, SentEmail
-from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer, EmailTemplateSerializer, SentEmailSerializer
+from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer, EmailTemplateSerializer, \
+    SentEmailSerializer
 from .pagination import StandardPagination
 
 
@@ -531,7 +535,7 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
         """
         POST /api/email-templates/{id}/send/
         Body: {"candidate_id": 123}
-        Відправляє від імені поточного HR (request.user.email)
+        Відправляє від імені поточного HR через SendGrid API
         """
         try:
             template = self.get_object()
@@ -558,6 +562,14 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Перевірка SendGrid API ключа
+        sendgrid_api_key = os.environ.get('SENDGRID_API_KEY')
+        if not sendgrid_api_key:
+            return Response(
+                {'error': 'SendGrid API Key не налаштовано. Зверніться до адміністратора.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+
         # Генерація subject та body
         vacancy_title = candidate.vacancy.title if candidate.vacancy else '—'
         hr_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
@@ -582,10 +594,9 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
             subject = subject.replace(placeholder, str(value) if value is not None else '')
             body = body.replace(placeholder, str(value) if value is not None else '')
 
-        # ━━━ ВІДПРАВКА ВІД ІМЕНІ HR ━━━
+        # ━━━ ВІДПРАВКА ЧЕРЕЗ SENDGRID API ━━━
         recipient_email = candidate.email
-        from_email = hr_email  # ← відправник = email HR
-        reply_to = [hr_email]
+        from_email = hr_email
 
         sent_email = None
         try:
@@ -599,26 +610,31 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
                 status='pending'
             )
 
-            email = EmailMultiAlternatives(
+            sg = SendGridAPIClient(sendgrid_api_key)
+
+            message = Mail(
+                from_email=Email(from_email),
+                to_emails=recipient_email,
                 subject=subject,
-                body=body,
-                from_email=from_email,      # ← email HR
-                to=[recipient_email],
-                reply_to=reply_to,          # ← відповідати HR
+                html_content=body.replace('\n', '<br>')
             )
-            email.attach_alternative(body, "text/html")
-            email.send(fail_silently=False)
+            message.reply_to = ReplyTo(hr_email, hr_name)
 
-            sent_email.status = 'sent'
-            sent_email.save()
+            response = sg.send(message)
 
-            return Response({
-                'success': True,
-                'message': f'Лист відправлено від {hr_email} на {recipient_email}',
-                'sent_email_id': sent_email.id,
-                'subject': subject,
-                'from_email': from_email,
-            })
+            if response.status_code in [200, 201, 202]:
+                sent_email.status = 'sent'
+                sent_email.save()
+
+                return Response({
+                    'success': True,
+                    'message': f'Лист відправлено від {hr_email} на {recipient_email}',
+                    'sent_email_id': sent_email.id,
+                    'subject': subject,
+                    'from_email': from_email,
+                })
+            else:
+                raise Exception(f'SendGrid помилка: {response.status_code}')
 
         except Exception as e:
             error_msg = str(e)
