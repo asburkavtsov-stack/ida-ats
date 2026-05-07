@@ -334,7 +334,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
           background: 'var(--surface)',
           borderRadius: isMobile ? '16px 16px 0 0' : '16px',
           width: '100%',
-          maxWidth: '560px',
+          maxWidth: isMobile ? '560px' : '860px',
           maxHeight: isMobile ? '90vh' : '85vh',
           overflowY: 'auto',
           boxShadow: 'var(--shadow-lg)',
@@ -475,7 +475,15 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
         )}
 
         {/* Content */}
-        <div style={{ padding: isMobile ? '16px 20px' : '20px 24px', flex: 1 }}>
+        <div style={{
+          padding: isMobile ? '16px 20px' : '20px 24px',
+          flex: 1,
+          display: 'flex',
+          gap: isMobile ? '0' : '24px',
+          alignItems: 'flex-start',
+        }}>
+          {/* Main column */}
+          <div style={{ flex: 1, minWidth: 0 }}>
           {loading ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {[1, 2, 3, 4].map(i => (
@@ -1255,6 +1263,115 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                             {email.body}
                           </div>
                         </details>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          </div>{/* end main column */}
+
+          {/* Desktop History Sidebar */}
+          {!isMobile && !loading && !editMode && (
+            <div style={{
+              width: '260px',
+              flexShrink: 0,
+              borderLeft: '1px solid var(--border)',
+              paddingLeft: '24px',
+            }}>
+              <div style={{
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                fontFamily: 'DM Mono',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                color: 'var(--muted)',
+                marginBottom: '16px',
+              }}>
+                Історія статусів
+              </div>
+
+              {history.length === 0 ? (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '24px 12px',
+                  color: 'var(--muted)',
+                  fontSize: '0.8rem',
+                  border: '1px dashed var(--border)',
+                  borderRadius: '10px',
+                }}>
+                  Поки що порожня
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                  {history.map((item, index) => (
+                    <div
+                      key={item.id != null ? item.id : `hist-pc-${index}`}
+                      style={{
+                        display: 'flex',
+                        gap: '10px',
+                        padding: '10px 0',
+                        borderBottom: index < history.length - 1 ? '1px solid var(--border)' : 'none',
+                      }}
+                    >
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        flexShrink: 0,
+                      }}>
+                        <div style={{
+                          width: '10px',
+                          height: '10px',
+                          borderRadius: '50%',
+                          background: statusColors[item.new_status] || 'var(--muted)',
+                          border: '2px solid var(--surface)',
+                          boxShadow: `0 0 0 2px ${statusColors[item.new_status] || 'var(--muted)'}`,
+                          marginTop: '3px',
+                        }} />
+                        {index < history.length - 1 && (
+                          <div style={{
+                            width: '2px',
+                            flex: 1,
+                            background: 'var(--border)',
+                            marginTop: '4px',
+                            minHeight: '16px',
+                          }} />
+                        )}
+                      </div>
+
+                      <div style={{ flex: 1, minWidth: 0, paddingBottom: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '3px' }}>
+                          <span style={{
+                            fontSize: '0.72rem',
+                            fontFamily: 'DM Mono',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            background: getStatusBg(item.new_status),
+                            color: getStatusText(item.new_status),
+                            fontWeight: 500,
+                          }}>
+                            {statusLabels[item.new_status] || item.new_status}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 500, marginBottom: '2px' }}>
+                          {item.old_status ? (
+                            <>
+                              <span style={{ color: 'var(--muted)' }}>{statusLabels[item.old_status] || item.old_status}</span>
+                              <span style={{ color: 'var(--muted)', margin: '0 4px' }}>→</span>
+                              <span>{statusLabels[item.new_status] || item.new_status}</span>
+                            </>
+                          ) : (
+                            <span style={{ color: 'var(--muted)' }}>Додано в систему</span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+                          {formatDate(item.changed_at)}
+                        </div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+                          {item.changed_by_name || 'Система'}
+                        </div>
                       </div>
                     </div>
                   ))}
