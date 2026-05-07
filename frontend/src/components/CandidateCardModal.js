@@ -1275,10 +1275,14 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
           {/* Desktop History Sidebar */}
           {!isMobile && !loading && !editMode && (
             <div style={{
-              width: '260px',
+              width: '240px',
               flexShrink: 0,
               borderLeft: '1px solid var(--border)',
-              paddingLeft: '24px',
+              paddingLeft: '20px',
+              position: 'sticky',
+              top: '0',
+              maxHeight: 'calc(85vh - 140px)',
+              overflowY: 'auto',
             }}>
               <div style={{
                 fontSize: '0.72rem',
