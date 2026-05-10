@@ -216,7 +216,7 @@ function UsersModal({ org, onClose, isMobile }) {
     setLoading(true);
     try {
       const res = await axios.get(`/api/users/?organization=${org.id}`);
-      setUsers(res.data);
+      setUsers(res.data.results ?? res.data);
     } catch (err) {
       console.error('Помилка завантаження юзерів:', err);
       setError('Не вдалося завантажити користувачів');
@@ -504,7 +504,7 @@ function Admin({ onViewOrg }) {
     setLoading(true);
     try {
       const res = await axios.get('/api/organizations/');
-      setOrgs(res.data);
+      setOrgs(res.data.results ?? res.data);
     } catch (err) {
       console.error('Помилка завантаження організацій:', err);
     } finally {
