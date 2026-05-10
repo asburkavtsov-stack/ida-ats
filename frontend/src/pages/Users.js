@@ -41,8 +41,8 @@ function Users() {
       axios.get('/api/users/all/'),
       axios.get('/api/organizations/'),
     ]).then(([usersRes, orgsRes]) => {
-      setUsers(usersRes.data);
-      setOrgs(orgsRes.data);
+      setUsers(usersRes.data.results ?? usersRes.data);
+      setOrgs(orgsRes.data.results ?? orgsRes.data);
       setLoading(false);
     }).catch(() => setLoading(false));
   };
