@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import CandidateCardModal from '../components/CandidateCardModal';
+import { SOURCE_CONFIG, getSourceLabel, getSourceColor } from '../constants/statusColors';
 
 const formatDate = (dateString) => {
   if (!dateString) return '';
@@ -10,7 +11,7 @@ const formatDate = (dateString) => {
 };
 
 function Dashboard() {
-  const [stats, setStats] = useState({ total: 0, active_vacancies: 0, offers: 0, new: 0 });
+  const [stats, setStats] = useState({ total: 0, active_vacancies: 0, offers: 0, new: 0, by_source: [] });
   const [activity, setActivity] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
@@ -30,11 +31,20 @@ function Dashboard() {
       const candidates = candidatesRes.data.results ?? candidatesRes.data;
       const vacancies = vacanciesRes.data.results ?? vacanciesRes.data;
 
+      // Calculate source distribution
+      const bySource = Object.keys(SOURCE_CONFIG).map(key => ({
+        key,
+        label: SOURCE_CONFIG[key].label,
+        count: candidates.filter(c => c.source === key).length,
+        color: SOURCE_CONFIG[key].color,
+      })).filter(s => s.count > 0).sort((a, b) => b.count - a.count);
+
       setStats({
         total: candidatesRes.data.count ?? candidates.length,
         offers: candidates.filter(c => c.status === 'offer').length,
         new: candidates.filter(c => c.status === 'new').length,
         active_vacancies: vacancies.filter(v => v.is_active).length,
+        by_source: bySource,
       });
       setActivity([...candidates].slice(-4).reverse());
     });
@@ -49,6 +59,7 @@ function Dashboard() {
 
   return (
     <div style={{ padding: isMobile ? '8px' : '0' }}>
+      {/* ─── Main Stats ─────────────────────────────────────── */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
@@ -71,6 +82,40 @@ function Dashboard() {
         ))}
       </div>
 
+      {/* ─── Source Distribution ────────────────────────────── */}
+      {stats.by_source.length > 0 && (
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: '12px', padding: isMobile ? '14px 16px' : '16px 20px',
+          marginBottom: '24px',
+        }}>
+          <div style={{
+            fontSize: '0.72rem', fontWeight: 600, fontFamily: 'DM Mono',
+            textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--muted)',
+            marginBottom: '14px',
+          }}>
+            Розподіл за джерелами
+          </div>
+          <div style={{ display: 'flex', gap: isMobile ? '10px' : '16px', flexWrap: 'wrap' }}>
+            {stats.by_source.map(s => (
+              <div key={s.key} style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: isMobile ? '8px 12px' : '10px 14px',
+                background: 'var(--bg)', borderRadius: '8px',
+                border: '1px solid var(--border)',
+              }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: s.color, flexShrink: 0 }} />
+                <span style={{ fontSize: isMobile ? '0.75rem' : '0.82rem', fontFamily: 'DM Mono' }}>
+                  <strong style={{ color: 'var(--text)' }}>{s.count}</strong>
+                  <span style={{ color: 'var(--muted)', marginLeft: '4px' }}>{s.label}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Recent Candidates ──────────────────────────────── */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px' }}>
         <div style={{ padding: isMobile ? '14px 16px' : '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 600 }}>
           Останні кандидати
@@ -88,21 +133,30 @@ function Dashboard() {
             onClick={() => setSelectedCandidateId(c.id)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCandidateId(c.id); }}}
             style={{
-            display: 'flex', alignItems: 'flex-start', gap: '12px',
-            padding: isMobile ? '10px 16px' : '12px 20px',
-            borderBottom: '1px solid var(--border)',
-            cursor: 'pointer',
-            transition: 'background 0.1s',
-          }}
-          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              display: 'flex', alignItems: 'flex-start', gap: '12px',
+              padding: isMobile ? '10px 16px' : '12px 20px',
+              borderBottom: '1px solid var(--border)',
+              cursor: 'pointer',
+              transition: 'background 0.1s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusColors[c.status] || 'var(--muted)', marginTop: '5px', flexShrink: 0 }} />
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: '0.8rem', wordBreak: 'break-word' }}>
                 <strong>{c.first_name} {c.last_name}</strong> · {c.vacancy_title}
               </div>
-              <div style={{ fontFamily: 'DM Mono', fontSize: '0.65rem', color: 'var(--muted)', marginTop: '2px' }}>
-                {statusLabels[c.status]} · {formatDate(c.created_at)}
+              <div style={{ fontFamily: 'DM Mono', fontSize: '0.65rem', color: 'var(--muted)', marginTop: '2px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <span>{statusLabels[c.status]}</span>
+                <span>·</span>
+                <span>{formatDate(c.created_at)}</span>
+                {c.source && c.source !== 'other' && (
+                  <>
+                    <span>·</span>
+                    <span style={{ color: getSourceColor(c.source) }}>{getSourceLabel(c.source)}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>

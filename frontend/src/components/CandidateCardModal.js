@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { KANBAN_COLUMNS, getStatusLabel, getStatusBg, getStatusText, getHrAvatarColor } from '../constants/statusColors';
+import { SOURCE_CONFIG, getSourceLabel, getSourceBg, getSourceText } from '../constants/statusColors';
 
 const formatDate = (dateString) => {
   if (!dateString) return '—';
@@ -88,6 +89,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
           phone: cand.phone || '',
           vacancy: cand.vacancy != null ? String(cand.vacancy) : '',
           status: cand.status || 'new',
+          source: cand.source || 'other',
           notes: cand.notes || '',
         });
 
@@ -160,6 +162,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
           phone: updated.phone || '',
           vacancy: updated.vacancy != null ? String(updated.vacancy) : '',
           status: updated.status || 'new',
+          source: updated.source || 'other',
           notes: updated.notes || '',
         });
         setEditMode(false);
@@ -559,6 +562,20 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
               </div>
 
               <div>
+                <label htmlFor="edit-source" style={labelStyle}>Джерело</label>
+                <select
+                  id="edit-source"
+                  style={inputStyle}
+                  value={editForm.source}
+                  onChange={e => setEditForm(f => ({ ...f, source: e.target.value }))}
+                >
+                  {Object.entries(SOURCE_CONFIG).map(([key, { label }]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label htmlFor="edit-status" style={labelStyle}>Статус</label>
                 <select
                   id="edit-status"
@@ -626,7 +643,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
           ) : activeTab === 'info' ? (
             /* Info Tab */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* Status Badge */}
+              {/* Status & Source Badges */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 <span style={{
                   fontSize: '0.75rem',
@@ -638,6 +655,17 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                   fontWeight: 600,
                 }}>
                   {getStatusLabel(candidate.status)}
+                </span>
+                <span style={{
+                  fontSize: '0.75rem',
+                  fontFamily: 'DM Mono',
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  background: getSourceBg(candidate.source),
+                  color: getSourceText(candidate.source),
+                  fontWeight: 600,
+                }}>
+                  {getSourceLabel(candidate.source)}
                 </span>
                 <span style={{ fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
                   {formatDate(candidate.created_at)}
@@ -762,6 +790,46 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                         {vacancy.department}
                       </div>
                     )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Source Info */}
+              <div>
+                <div style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  fontFamily: 'DM Mono',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  color: 'var(--muted)',
+                  marginBottom: '12px',
+                }}>
+                  Джерело
+                </div>
+                <div style={{
+                  padding: '14px',
+                  background: 'var(--bg)',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                }}>
+                  <span aria-hidden="true" style={{ fontSize: '1.2rem' }}>
+                    {candidate.source === 'linkedin' ? '🔗' :
+                     candidate.source === 'dou' ? '💻' :
+                     candidate.source === 'recommendation' ? '👥' :
+                     candidate.source === 'csv' ? '📄' :
+                     candidate.source === 'direct' ? '📨' : '📌'}
+                  </span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                      {getSourceLabel(candidate.source)}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '2px' }}>
+                      Канал надходження кандидата
+                    </div>
                   </div>
                 </div>
               </div>

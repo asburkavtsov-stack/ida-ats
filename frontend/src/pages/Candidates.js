@@ -3,6 +3,7 @@ import axios from 'axios';
 import Loader from '../components/Loader';
 import CandidateCardModal from '../components/CandidateCardModal';
 import { STATUS_FILTERS, getStatusLabel, getStatusBg, getStatusText, getHrAvatarColor } from '../constants/statusColors';
+import { SOURCE_FILTERS, getSourceLabel, getSourceBg, getSourceText } from '../constants/statusColors';
 
 const formatDate = (dateString) => {
   if (!dateString) return '—';
@@ -13,6 +14,7 @@ const formatDate = (dateString) => {
 
 function Candidates({ searchQuery = '' }) {
   const [filter, setFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -39,6 +41,7 @@ function Candidates({ searchQuery = '' }) {
     params.set('page', page);
     params.set('page_size', PAGE_SIZE);
     if (filter !== 'all') params.set('status', filter);
+    if (sourceFilter !== 'all') params.set('source', sourceFilter);
     if (searchQuery) params.set('search', searchQuery);
     if (mineFilter) params.set('mine', 'true');
 
@@ -56,11 +59,11 @@ function Candidates({ searchQuery = '' }) {
       })
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
-  }, [filter, searchQuery, mineFilter]);
+  }, [filter, sourceFilter, searchQuery, mineFilter]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, searchQuery, mineFilter]);
+  }, [filter, sourceFilter, searchQuery, mineFilter]);
 
   useEffect(() => {
     fetchCandidates(currentPage);
@@ -76,6 +79,7 @@ function Candidates({ searchQuery = '' }) {
     try {
       const params = new URLSearchParams();
       if (filter !== 'all') params.set('status', filter);
+      if (sourceFilter !== 'all') params.set('source', sourceFilter);
       if (searchQuery) params.set('search', searchQuery);
 
       const response = await axios.get(`/api/candidates/export/?${params.toString()}`, {
@@ -147,6 +151,31 @@ function Candidates({ searchQuery = '' }) {
             {f.label}
           </div>
         ))}
+
+        <div style={{ width: '1px', height: '20px', background: 'var(--border)', margin: '0 4px' }} />
+
+        {SOURCE_FILTERS.map(f => (
+          <div
+            key={f.key}
+            onClick={() => setSourceFilter(f.key)}
+            role="button"
+            tabIndex={0}
+            aria-label={`Фільтр джерела: ${f.label}`}
+            aria-pressed={sourceFilter === f.key}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSourceFilter(f.key); }}}
+            style={{
+              padding: isMobile ? '8px 14px' : '6px 14px', borderRadius: '20px', fontSize: '0.78rem',
+              fontWeight: 500, cursor: 'pointer',
+              border: `1px solid ${sourceFilter === f.key ? 'var(--accent)' : 'var(--border)'}`,
+              background: sourceFilter === f.key ? 'var(--accent)' : 'var(--surface)',
+              color: sourceFilter === f.key ? '#fff' : 'var(--muted)',
+              transition: 'all 0.15s',
+            }}
+          >
+            {f.label}
+          </div>
+        ))}
+
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
           {totalCount > 0 && (
             <span style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
@@ -197,7 +226,7 @@ function Candidates({ searchQuery = '' }) {
                   key={c.id || i}
                   role="button"
                   tabIndex={0}
-                  aria-label={`Кандидат ${c.first_name} ${c.last_name}, вакансія ${c.vacancy_title || '—'}, статус ${getStatusLabel(c.status)}, додано ${formatDate(c.created_at)}`}
+                  aria-label={`Кандидат ${c.first_name} ${c.last_name}, вакансія ${c.vacancy_title || '—'}, статус ${getStatusLabel(c.status)}, джерело ${getSourceLabel(c.source)}, додано ${formatDate(c.created_at)}`}
                   onClick={() => setSelectedCandidateId(c.id)}
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCandidateId(c.id); }}}
                   style={{
@@ -218,14 +247,24 @@ function Candidates({ searchQuery = '' }) {
                         {c.email}
                       </div>
                     </div>
-                    <span style={{
-                      fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px',
-                      borderRadius: '4px', flexShrink: 0,
-                      background: getStatusBg(c.status),
-                      color: getStatusText(c.status),
-                    }}>
-                      {getStatusLabel(c.status)}
-                    </span>
+                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                      <span style={{
+                        fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px',
+                        borderRadius: '4px', flexShrink: 0,
+                        background: getStatusBg(c.status),
+                        color: getStatusText(c.status),
+                      }}>
+                        {getStatusLabel(c.status)}
+                      </span>
+                      <span style={{
+                        fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px',
+                        borderRadius: '4px', flexShrink: 0,
+                        background: getSourceBg(c.source),
+                        color: getSourceText(c.source),
+                      }}>
+                        {getSourceLabel(c.source)}
+                      </span>
+                    </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
@@ -265,7 +304,7 @@ function Candidates({ searchQuery = '' }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--bg)' }}>
-                {['Кандидат', 'Вакансія', 'Статус', 'Дата'].map(h => (
+                {['Кандидат', 'Вакансія', 'Статус', 'Джерело', 'Дата'].map(h => (
                   <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontSize: '0.72rem', fontFamily: 'DM Mono', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', borderBottom: '1px solid var(--border)' }}>
                     {h}
                   </th>
@@ -275,13 +314,13 @@ function Candidates({ searchQuery = '' }) {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4} style={{ padding: '40px', textAlign: 'center' }}>
+                  <td colSpan={5} style={{ padding: '40px', textAlign: 'center' }}>
                     <Loader />
                   </td>
                 </tr>
               ) : candidates.length === 0 ? (
                 <tr>
-                  <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.82rem', fontFamily: 'DM Mono' }}>
+                  <td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.82rem', fontFamily: 'DM Mono' }}>
                     Кандидатів не знайдено
                   </td>
                 </tr>
@@ -312,6 +351,16 @@ function Candidates({ searchQuery = '' }) {
                       color: getStatusText(c.status),
                     }}>
                       {getStatusLabel(c.status)}
+                    </span>
+                  </td>
+                  <td style={{ padding: '13px 16px' }}>
+                    <span style={{
+                      fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px',
+                      borderRadius: '4px',
+                      background: getSourceBg(c.source),
+                      color: getSourceText(c.source),
+                    }}>
+                      {getSourceLabel(c.source)}
                     </span>
                   </td>
                   <td style={{ padding: '13px 16px' }}>

@@ -3,7 +3,7 @@ import axios from 'axios';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import Loader from '../components/Loader';
 import CandidateCardModal from '../components/CandidateCardModal';
-import { KANBAN_COLUMNS, getStatusLabel, getStatusBg, getStatusText, getHrAvatarColor } from '../constants/statusColors';
+import { KANBAN_COLUMNS, SOURCE_FILTERS, getStatusLabel, getStatusBg, getStatusText, getHrAvatarColor, getSourceLabel, getSourceBg, getSourceText } from '../constants/statusColors';
 
 const formatDate = (dateString) => {
   if (!dateString) return '';
@@ -14,6 +14,7 @@ const formatDate = (dateString) => {
 
 function Kanban({ searchQuery = '', orgId = null }) {
   const [filter, setFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
   const [mineFilter, setMineFilter] = useState(false);
   const [candidates, setCandidates] = useState([]);
   const [vacancies, setVacancies] = useState([]);
@@ -50,7 +51,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
       .finally(() => setLoading(false));
   }, [orgId]);
 
-  useEffect(() => { setFilter('all'); }, [orgId]);
+  useEffect(() => { setFilter('all'); setSourceFilter('all'); }, [orgId]);
 
   const onDragEnd = (result) => {
     const { destination, source, draggableId } = result;
@@ -86,11 +87,14 @@ function Kanban({ searchQuery = '', orgId = null }) {
     const matchesFilter = filter === 'all'
       ? true
       : c.vacancy === parseInt(filter.replace('vac_', ''));
+    const matchesSource = sourceFilter === 'all'
+      ? true
+      : c.source === sourceFilter;
     const matchesSearch = searchQuery === '' ||
       `${c.first_name} ${c.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (c.vacancy_title && c.vacancy_title.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesMine = !mineFilter || c.assigned_to === currentUserId;
-    return matchesFilter && matchesSearch && matchesMine;
+    return matchesFilter && matchesSource && matchesSearch && matchesMine;
   });
 
   const vacancyFilters = [
@@ -102,8 +106,9 @@ function Kanban({ searchQuery = '', orgId = null }) {
 
   return (
     <div style={{ padding: isMobile ? '8px' : '0' }}>
-      {/* Фільтри */}
+      {/* ─── Filters ──────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+        {/* Vacancy filter */}
         <span style={{ fontFamily: 'DM Mono', fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
           Вакансія:
         </span>
@@ -138,6 +143,44 @@ function Kanban({ searchQuery = '', orgId = null }) {
             <span aria-hidden="true">✕</span> Скинути
           </button>
         )}
+
+        {/* Source filter */}
+        <span style={{ fontFamily: 'DM Mono', fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '1px', marginLeft: '12px' }}>
+          Джерело:
+        </span>
+        {SOURCE_FILTERS.map(f => (
+          <div
+            key={f.key}
+            onClick={() => setSourceFilter(f.key)}
+            role="button"
+            tabIndex={0}
+            aria-label={`Фільтр за джерелом: ${f.label}`}
+            aria-pressed={sourceFilter === f.key}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSourceFilter(f.key); }}}
+            style={{
+              padding: isMobile ? '8px 14px' : '6px 12px', borderRadius: '20px', fontSize: '0.78rem',
+              fontWeight: 500, cursor: 'pointer',
+              border: `1px solid ${sourceFilter === f.key ? 'var(--accent)' : 'var(--border)'}`,
+              background: sourceFilter === f.key ? 'var(--accent)' : 'var(--surface)',
+              color: sourceFilter === f.key ? '#fff' : 'var(--muted)',
+              transition: 'all 0.15s',
+            }}
+          >
+            {f.label}
+          </div>
+        ))}
+        {sourceFilter !== 'all' && (
+          <button
+            onClick={() => setSourceFilter('all')}
+            aria-label="Скинути фільтр джерел"
+            type="button"
+            style={{ padding: isMobile ? '6px 12px' : '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: '0.72rem', cursor: 'pointer', marginLeft: '8px' }}
+          >
+            <span aria-hidden="true">✕</span> Скинути
+          </button>
+        )}
+
+        {/* Mine filter */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             onClick={() => setMineFilter(!mineFilter)}
@@ -162,7 +205,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
         </div>
       </div>
 
-      {/* Summary */}
+      {/* ─── Summary ────────────────────────────────────────── */}
       <div style={{
         display: 'flex', gap: isMobile ? '12px' : '20px',
         padding: isMobile ? '10px 12px' : '10px 16px',
@@ -180,7 +223,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
         })}
       </div>
 
-      {/* Канбан */}
+      {/* ─── Kanban Board ───────────────────────────────────── */}
       <DragDropContext onDragEnd={onDragEnd}>
         <div style={{
           display: 'flex', gap: isMobile ? '8px' : '16px',
@@ -257,6 +300,11 @@ function Kanban({ searchQuery = '', orgId = null }) {
                                 <span style={{ fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px', borderRadius: '4px', background: getStatusBg(c.status), color: getStatusText(c.status) }}>
                                   {getStatusLabel(c.status)}
                                 </span>
+                                {c.source && c.source !== 'other' && (
+                                  <span style={{ fontSize: '0.62rem', fontFamily: 'DM Mono', padding: '2px 6px', borderRadius: '4px', background: getSourceBg(c.source), color: getSourceText(c.source) }}>
+                                    {getSourceLabel(c.source)}
+                                  </span>
+                                )}
                                 <span style={{ fontSize: '0.62rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
                                   {formatDate(c.created_at)}
                                 </span>

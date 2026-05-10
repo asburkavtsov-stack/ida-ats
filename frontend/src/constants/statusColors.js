@@ -28,6 +28,30 @@ export const getStatusBg = (status) => STATUS_CONFIG[status]?.bg || '#f5f5f5';
 export const getStatusText = (status) => STATUS_CONFIG[status]?.text || '#757575';
 export const getStatusColor = (status) => STATUS_CONFIG[status]?.color || '#757575';
 
+export const SOURCE_CONFIG = {
+  linkedin:       { label: 'LinkedIn',      color: '#0a66c2', bg: '#e8f0fe', text: '#0a66c2' },
+  dou:            { label: 'DOU',           color: '#f26822', bg: '#fff3e0', text: '#f26822' },
+  recommendation: { label: 'Рекомендація',  color: '#16a34a', bg: '#dcfce7', text: '#16a34a' },
+  csv:            { label: 'CSV',           color: '#7c3aed', bg: '#ede9fe', text: '#7c3aed' },
+  direct:         { label: 'Прямий відгук', color: '#db2777', bg: '#fce7f3', text: '#db2777' },
+  other:          { label: 'Інше',          color: '#757575', bg: '#f5f5f5', text: '#757575' },
+};
+
+export const SOURCE_FILTERS = [
+  { key: 'all',            label: 'Всі джерела' },
+  { key: 'linkedin',       label: 'LinkedIn' },
+  { key: 'dou',            label: 'DOU' },
+  { key: 'recommendation', label: 'Рекомендація' },
+  { key: 'csv',            label: 'CSV' },
+  { key: 'direct',         label: 'Прямий відгук' },
+  { key: 'other',          label: 'Інше' },
+];
+
+export const getSourceLabel = (source) => SOURCE_CONFIG[source]?.label || source || '—';
+export const getSourceBg = (source) => SOURCE_CONFIG[source]?.bg || '#f5f5f5';
+export const getSourceText = (source) => SOURCE_CONFIG[source]?.text || '#757575';
+export const getSourceColor = (source) => SOURCE_CONFIG[source]?.color || '#757575';
+
 export const HR_AVATAR_COLORS = [
   '#7a1a2e', '#b03050', '#8a3a5a', '#e8a0b0',
   '#c94f2a', '#16a34a', '#2563eb', '#7c3aed',
