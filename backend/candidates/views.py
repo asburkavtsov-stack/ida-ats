@@ -603,12 +603,22 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
         if isinstance(candidate, Response):
             return candidate  # early validation error
 
+        backend_type = getattr(settings, 'EMAIL_BACKEND_TYPE', 'smtp')
         try:
-            return self._send_via_gmail(request, template, candidate, hr_email, subject, body)
+            if backend_type == 'smtp':
+                return self._send_via_smtp(request, template, candidate, hr_email, subject, body)
+            elif backend_type == 'gmail':
+                return self._send_via_gmail(request, template, candidate, hr_email, subject, body)
+            else:
+                return self._send_via_console(request, template, candidate, hr_email, subject, body)
         except Exception as e:
             logger.exception("Email send error")
             return Response(
-                {'success': False, 'error': str(e)},
+                {
+                    'success': False,
+                    'error': str(e),
+                    'backend_type': backend_type,
+                },
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
