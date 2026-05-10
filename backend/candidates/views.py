@@ -32,12 +32,7 @@ try:
 except ImportError:
     ALLAUTH_AVAILABLE = False
 
-try:
-    from sendgrid import SendGridAPIClient
-    from sendgrid.helpers.mail import Email, Mail, ReplyTo
-    SENDGRID_AVAILABLE = True
-except ImportError:
-    SENDGRID_AVAILABLE = False
+
 
 logger = logging.getLogger(__name__)
 
@@ -608,31 +603,18 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
         if isinstance(candidate, Response):
             return candidate  # early validation error
 
-        backend_type = getattr(settings, 'EMAIL_BACKEND_TYPE', 'console')
         try:
-            if backend_type == 'sendgrid' and getattr(settings, 'SENDGRID_API_KEY', ''):
-                return self._send_via_sendgrid(request, template, candidate, hr_email, subject, body)
-            elif backend_type == 'smtp':
-                return self._send_via_smtp(request, template, candidate, hr_email, subject, body)
-            elif backend_type == 'file':
-                return self._send_via_file(request, template, candidate, hr_email, subject, body)
-            else:
-                return self._send_via_console(request, template, candidate, hr_email, subject, body)
+            return self._send_via_gmail(request, template, candidate, hr_email, subject, body)
         except Exception as e:
             logger.exception("Email send error")
             return Response(
-                {
-                    'success': False,
-                    'error': str(e),
-                    'backend_type': backend_type,
-                    'suggestion': 'Перевірте налаштування email або змініть EMAIL_BACKEND_TYPE',
-                },
+                {'success': False, 'error': str(e)},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
     @action(detail=True, methods=['post'])
     def send_via_gmail(self, request, pk=None):
-        """POST /api/email-templates/{id}/send_via_gmail/"""
+        """POST /api/email-templates/{id}/send_via_gmail/ (аліас для send)"""
         template = self.get_object()
         candidate, hr_email, subject, body = self._prepare_email(request, template)
         if isinstance(candidate, Response):
@@ -816,45 +798,44 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
             sent.save()
             raise Exception(f'SMTP помилка: {e}')
 
-    def _send_via_sendgrid(self, request, template, candidate, hr_email, subject, body):
-        if not SENDGRID_AVAILABLE:
-            raise Exception('SendGrid бібліотека не встановлена')
+    def _send_via_gmail(self, request, template, candidate, hr_email, subject, body):
+        """Відправка через Gmail API (основний метод)."""
+        if ALLAUTH_AVAILABLE:
+            from allauth.socialaccount.models import SocialAccount
+            has_google = SocialAccount.objects.filter(
+                user=request.user, provider='google',
+            ).exists()
+        else:
+            has_google = False
 
-        hr_name = (
-            f"{request.user.first_name} {request.user.last_name}".strip()
-            or request.user.username
-        )
-        from sendgrid.helpers.mail import To
+        if not has_google:
+            raise Exception(
+                'Google акаунт не підключено. '
+                'Увійдіть через /accounts/google/login/ щоб активувати відправку листів.'
+            )
 
         sent = self._create_sent_record(candidate, template, hr_email, subject, body, request)
         try:
-            sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
-            message = Mail(
-                from_email=Email(hr_email, hr_name),
-                to_emails=To(candidate.email),
+            result = GmailService.send_email(
+                user=request.user,
+                to_email=candidate.email,
                 subject=subject,
-                html_content=body,
+                body=body,
             )
-            message.reply_to = ReplyTo(hr_email)
-            response = sg.send(message)
-
-            if response.status_code not in (200, 202):
-                raise Exception(f'SendGrid відповів з кодом {response.status_code}')
-
             sent.status = 'sent'
             sent.save()
             return Response({
                 'success': True,
-                'message': f'Лист відправлено через SendGrid на {candidate.email}',
+                'message': f'Лист відправлено через Gmail на {candidate.email}',
                 'sent_email_id': sent.id,
-                'from_email': hr_email,
-                'status_code': response.status_code,
+                'from_email': result['from_email'],
+                'message_id': result['message_id'],
             })
         except Exception as e:
             sent.status = 'failed'
             sent.error_message = str(e)[:500]
             sent.save()
-            raise Exception(f'SendGrid помилка: {e}')
+            raise
 
     def _send_via_console(self, request, template, candidate, hr_email, subject, body):
         hr_name = (
@@ -950,13 +931,14 @@ def google_auth_status(request):
 @permission_classes([IsAuthenticated])
 def test_email_config(request):
     """Діагностика email-конфігурації."""
+    from allauth.socialaccount.models import SocialAccount
+    has_google = SocialAccount.objects.filter(
+        user=request.user, provider='google',
+    ).exists()
     return Response({
-        'email_backend': settings.EMAIL_BACKEND,
-        'email_backend_type': getattr(settings, 'EMAIL_BACKEND_TYPE', 'not_set'),
-        'email_host': getattr(settings, 'EMAIL_HOST', None),
-        'email_host_user_set': bool(getattr(settings, 'EMAIL_HOST_USER', None)),
-        'has_sendgrid_api_key': bool(getattr(settings, 'SENDGRID_API_KEY', None)),
-        'sendgrid_available': SENDGRID_AVAILABLE,
-        'default_from_email': getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+        'gmail_api': 'active',
+        'has_google_account': has_google,
+        'google_login_url': '/accounts/google/login/',
         'current_user_email': request.user.email,
+        'google_client_id_set': bool(getattr(settings, 'GOOGLE_CLOUD_CLIENT_ID', '')),
     })
