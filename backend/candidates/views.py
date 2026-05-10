@@ -824,12 +824,14 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
             f"{request.user.first_name} {request.user.last_name}".strip()
             or request.user.username
         )
+        from sendgrid.helpers.mail import To
+
         sent = self._create_sent_record(candidate, template, hr_email, subject, body, request)
         try:
             sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
             message = Mail(
-                from_email=Email(hr_email, name=hr_name),
-                to_emails=Email(candidate.email),
+                from_email=Email(hr_email, hr_name),
+                to_emails=To(candidate.email),
                 subject=subject,
                 html_content=body,
             )
