@@ -1,123 +1,123 @@
-# candidates/gmail_service.py
-from allauth.socialaccount.models import SocialToken, SocialAccount
+import base64
+import logging
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+from django.conf import settings
+from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from google.auth.transport.requests import Request
 from googleapiclient.errors import HttpError
-from django.conf import settings
-import base64
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-import logging
 
 logger = logging.getLogger(__name__)
 
 
 class GmailService:
-    """Сервіс для роботи з Gmail API через django-allauth"""
+    """Відправка email через Gmail API з використанням OAuth-токенів allauth."""
 
     @staticmethod
     def get_credentials(user):
-        """Отримати Google credentials для користувача"""
-        try:
-            social_account = SocialAccount.objects.filter(
-                user=user,
-                provider='google'
-            ).first()
+        """
+        Повертає актуальні Google Credentials для користувача.
+        Якщо токен прострочений — оновлює і зберігає в БД.
+        Повертає None якщо Google-акаунт не підключено.
+        """
+        # Імпортуємо тут щоб уникнути циклічних залежностей при старті
+        from allauth.socialaccount.models import SocialAccount, SocialToken
 
-            if not social_account:
-                return None
-
-            social_token = SocialToken.objects.filter(
-                account=social_account,
-                account__user=user
-            ).first()
-
-            if not social_token:
-                return None
-
-            creds = Credentials(
-                token=social_token.token,
-                refresh_token=social_token.token_secret,
-                token_uri="https://oauth2.googleapis.com/token",
-                client_id=settings.GOOGLE_CLOUD_CLIENT_ID,
-                client_secret=settings.GOOGLE_CLOUD_CLIENT_SECRET,
-            )
-
-            # Оновлюємо токен якщо потрібно
-            if creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-                # Зберігаємо оновлений токен
-                social_token.token = creds.token
-                social_token.save()
-
-            return creds
-
-        except Exception as e:
-            logger.error(f"Помилка отримання Google credentials: {e}")
+        social_account = SocialAccount.objects.filter(
+            user=user,
+            provider='google',
+        ).first()
+        if not social_account:
             return None
+
+        social_token = SocialToken.objects.filter(
+            account=social_account,
+        ).first()
+        if not social_token:
+            return None
+
+        # В allauth: token = access_token, token_secret = refresh_token
+        refresh_token = social_token.token_secret or None
+
+        creds = Credentials(
+            token=social_token.token,
+            refresh_token=refresh_token,
+            token_uri='https://oauth2.googleapis.com/token',
+            client_id=getattr(settings, 'GOOGLE_CLOUD_CLIENT_ID', ''),
+            client_secret=getattr(settings, 'GOOGLE_CLOUD_CLIENT_SECRET', ''),
+        )
+
+        # Оновлюємо якщо прострочений і є refresh_token
+        if creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+                social_token.token = creds.token
+                social_token.save(update_fields=['token'])
+                logger.info("Google access token оновлено для %s", user.email)
+            except Exception as e:
+                logger.error("Не вдалося оновити Google токен для %s: %s", user.email, e)
+                return None
+
+        return creds
 
     @staticmethod
     def send_email(user, to_email, subject, body, cc=None, bcc=None):
         """
-        Відправка email через Gmail API від імені користувача
-
-        Args:
-            user: Django User об'єкт (відправник)
-            to_email: email отримувача
-            subject: тема листа
-            body: тіло листа (HTML)
-            cc: список email для копії
-            bcc: список email для прихованої копії
+        Відправляє HTML email через Gmail API від імені user.
 
         Returns:
-            dict: результат з id повідомлення
+            dict: {'success': True, 'message_id': str, 'from_email': str}
+
+        Raises:
+            Exception з описом помилки
         """
+        creds = GmailService.get_credentials(user)
+        if not creds:
+            raise Exception(
+                'Не вдалося отримати Google credentials. '
+                'Будь ласка, увійдіть в Google акаунт через /accounts/google/login/'
+            )
+
         try:
-            creds = GmailService.get_credentials(user)
-            if not creds:
-                raise Exception("Не вдалося отримати Google credentials. " +
-                                "Будь ласка, увійдіть в Google акаунт через /accounts/google/login/")
+            service = build('gmail', 'v1', credentials=creds)
 
-            service = build("gmail", "v1", credentials=creds)
-
-            # Створюємо повідомлення
             message = MIMEMultipart('alternative')
-            message["to"] = to_email
-            message["subject"] = subject
-            message["From"] = user.email
-
+            message['To'] = to_email
+            message['Subject'] = subject
+            message['From'] = user.email
             if cc:
-                message["Cc"] = ", ".join(cc)
+                message['Cc'] = ', '.join(cc)
             if bcc:
-                message["Bcc"] = ", ".join(bcc)
+                message['Bcc'] = ', '.join(bcc)
 
-            # Додаємо HTML версію
-            html_part = MIMEText(body, "html", "utf-8")
-            message.attach(html_part)
+            message.attach(MIMEText(body, 'html', 'utf-8'))
 
-            # Кодуємо в base64
-            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-
-            # Відправляємо
-            send_result = service.users().messages().send(
-                userId="me",
-                body={"raw": raw_message}
+            raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+            result = service.users().messages().send(
+                userId='me',
+                body={'raw': raw},
             ).execute()
 
-            logger.info(f"Email відправлено через Gmail API: {send_result['id']}")
+            logger.info("Gmail API: лист відправлено, id=%s, від=%s", result['id'], user.email)
             return {
                 'success': True,
-                'message_id': send_result['id'],
-                'from_email': user.email
+                'message_id': result['id'],
+                'from_email': user.email,
             }
 
         except HttpError as e:
-            logger.error(f"Gmail API помилка: {e}")
+            logger.error("Gmail API HttpError для %s: %s", user.email, e)
             if e.resp.status == 401:
-                raise Exception("Термін дії Google сесії минув. Увійдіть знову.")
-            raise Exception(f"Помилка Gmail API: {e}")
+                raise Exception('Термін дії Google сесії минув. Увійдіть в Google знову.')
+            if e.resp.status == 403:
+                raise Exception(
+                    'Немає дозволу на відправку email. '
+                    'Перевірте що scope gmail.send додано в Google Cloud.'
+                )
+            raise Exception(f'Gmail API помилка ({e.resp.status}): {e}')
 
         except Exception as e:
-            logger.error(f"Помилка відправки email: {e}")
+            logger.error("Помилка відправки Gmail для %s: %s", user.email, e)
             raise
