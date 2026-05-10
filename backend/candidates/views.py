@@ -951,7 +951,7 @@ def test_email_config(request):
         'google_login_url': '/accounts/google/login/',
         'current_user_email': request.user.email,
         'google_client_id_set': bool(getattr(settings, 'GOOGLE_CLOUD_CLIENT_ID', '')),
-    })import csv
+    })
 import logging
 import smtplib
 import socket
