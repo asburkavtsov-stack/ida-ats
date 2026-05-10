@@ -1,9 +1,10 @@
+# candidates/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     CandidateViewSet, VacancyViewSet, OrganizationViewSet,
     UserListView, current_user, CandidateExportCSVView,
-    EmailTemplateViewSet, SentEmailViewSet
+    EmailTemplateViewSet, SentEmailViewSet, google_auth_status
 )
 
 router = DefaultRouter()
@@ -24,4 +25,5 @@ urlpatterns = [
         'patch': 'partial_update',
         'delete': 'destroy',
     })),
+    path('google-auth-status/', google_auth_status, name='google-auth-status'),
 ]

@@ -1,45 +1,124 @@
-from rest_framework import viewsets, status, serializers
+import csv
+import logging
+import smtplib
+import socket
+import traceback
+
+from django.conf import settings
+from django.contrib.auth.models import User
+from django.db import models
+from django.http import HttpResponse
+
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.contrib.auth.models import User
-from django.db import models
-from django.core.mail import EmailMultiAlternatives
-from django.conf import settings
-import csv
-import os
-import socket
-import smtplib
-from django.http import HttpResponse
-from .models import Candidate, Vacancy, UserProfile, Organization, StatusHistory, EmailTemplate, SentEmail
-from .serializers import CandidateSerializer, VacancySerializer, OrganizationSerializer, EmailTemplateSerializer, \
-    SentEmailSerializer
-from .pagination import StandardPagination
 
-# Спроба імпортувати SendGrid (опціонально)
+from .models import (
+    Candidate, EmailTemplate, Organization,
+    SentEmail, StatusHistory, UserProfile, Vacancy,
+)
+from .serializers import (
+    CandidateSerializer, EmailTemplateSerializer, OrganizationSerializer,
+    SentEmailSerializer, VacancySerializer,
+)
+from .pagination import StandardPagination
+from .gmail_service import GmailService
+
+try:
+    from allauth.socialaccount.models import SocialAccount
+    ALLAUTH_AVAILABLE = True
+except ImportError:
+    ALLAUTH_AVAILABLE = False
+
 try:
     from sendgrid import SendGridAPIClient
-    from sendgrid.helpers.mail import Mail, Email, ReplyTo, Personalization
-
+    from sendgrid.helpers.mail import Email, Mail, ReplyTo
     SENDGRID_AVAILABLE = True
 except ImportError:
     SENDGRID_AVAILABLE = False
 
+logger = logging.getLogger(__name__)
 
-def get_user_org(user):
+# ═══════════════════════════════════════════════════════════════
+# HELPERS
+# ═══════════════════════════════════════════════════════════════
+
+def get_user_profile(user):
     try:
-        return user.profile.organization
+        return user.profile
     except (UserProfile.DoesNotExist, AttributeError):
         return None
+
+
+def get_user_org(user):
+    profile = get_user_profile(user)
+    return profile.organization if profile else None
 
 
 def get_user_role(user):
-    try:
-        return user.profile.role
-    except (UserProfile.DoesNotExist, AttributeError):
-        return None
+    profile = get_user_profile(user)
+    return profile.role if profile else None
 
+
+def apply_template_replacements(subject: str, body: str, candidate, request) -> tuple[str, str]:
+    """Підставляє змінні в тему та тіло листа."""
+    hr_name = (
+        f"{request.user.first_name} {request.user.last_name}".strip()
+        or request.user.username
+    )
+    vacancy_title = candidate.vacancy.title if candidate.vacancy else '—'
+    org_name = (
+        candidate.organization.name
+        if hasattr(candidate, 'organization') and candidate.organization
+        else '—'
+    )
+
+    replacements = {
+        '{{name}}': f"{candidate.first_name} {candidate.last_name}".strip(),
+        '{{first_name}}': candidate.first_name or '',
+        '{{last_name}}': candidate.last_name or '',
+        '{{vacancy}}': vacancy_title,
+        '{{email}}': candidate.email or '',
+        '{{phone}}': candidate.phone or '—',
+        '{{status}}': candidate.get_status_display(),
+        '{{hr_name}}': hr_name,
+        '{{hr_email}}': request.user.email or '',
+        '{{organization}}': org_name,
+        '{{date}}': (
+            candidate.created_at.strftime('%d.%m.%Y') if candidate.created_at else '—'
+        ),
+    }
+
+    for placeholder, value in replacements.items():
+        subject = subject.replace(placeholder, str(value))
+        body = body.replace(placeholder, str(value))
+
+    # Підпис
+    if '{{hr_signature}}' in body:
+        signature = (
+            f'<br><br>--<br>'
+            f'<strong>{hr_name}</strong><br>'
+            f'HR менеджер<br>'
+            f'Email: <a href="mailto:{request.user.email}">{request.user.email}</a>'
+        )
+        body = body.replace('{{hr_signature}}', signature)
+
+    return subject, body
+
+
+STATUS_LABELS = {
+    'new': 'Новий',
+    'screening': 'Скринінг',
+    'interview': 'Співбесіда',
+    'offer': 'Оффер',
+    'rejected': 'Відмова',
+}
+
+# ═══════════════════════════════════════════════════════════════
+# VACANCIES
+# ═══════════════════════════════════════════════════════════════
 
 class VacancyViewSet(viewsets.ModelViewSet):
     serializer_class = VacancySerializer
@@ -49,84 +128,82 @@ class VacancyViewSet(viewsets.ModelViewSet):
         org_id = self.request.query_params.get('organization')
 
         if role == 'superadmin':
-            queryset = Vacancy.objects.all()
+            qs = Vacancy.objects.all()
             if org_id:
-                queryset = queryset.filter(organization_id=org_id)
+                qs = qs.filter(organization_id=org_id)
         else:
             org = get_user_org(self.request.user)
-            if org:
-                queryset = Vacancy.objects.filter(organization=org)
-            else:
-                queryset = Vacancy.objects.none()
+            qs = Vacancy.objects.filter(organization=org) if org else Vacancy.objects.none()
 
-        return queryset
+        return qs
 
     def perform_create(self, serializer):
-        org = get_user_org(self.request.user)
-        serializer.save(organization=org)
+        serializer.save(organization=get_user_org(self.request.user))
 
+
+# ═══════════════════════════════════════════════════════════════
+# ORGANIZATIONS
+# ═══════════════════════════════════════════════════════════════
 
 class OrganizationViewSet(viewsets.ModelViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer
 
 
+# ═══════════════════════════════════════════════════════════════
+# CANDIDATES
+# ═══════════════════════════════════════════════════════════════
+
 class CandidateViewSet(viewsets.ModelViewSet):
-    queryset = Candidate.objects.all()
     serializer_class = CandidateSerializer
     pagination_class = StandardPagination
 
     def get_queryset(self):
-        role = get_user_role(self.request.user)
-        org_id = self.request.query_params.get('organization')
+        user = self.request.user
+        role = get_user_role(user)
+        params = self.request.query_params
 
         if role == 'superadmin':
-            queryset = Candidate.objects.all()
-            if org_id:
-                queryset = queryset.filter(organization_id=org_id)
+            qs = Candidate.objects.all()
+            if params.get('organization'):
+                qs = qs.filter(organization_id=params['organization'])
         else:
-            org = get_user_org(self.request.user)
-            if org:
-                queryset = Candidate.objects.filter(organization=org)
-            else:
-                queryset = Candidate.objects.none()
+            org = get_user_org(user)
+            qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
 
-        vacancy = self.request.query_params.get('vacancy')
-        status_filter = self.request.query_params.get('status')
-        assigned_to = self.request.query_params.get('assigned_to')
-        mine = self.request.query_params.get('mine')
+        if params.get('vacancy'):
+            qs = qs.filter(vacancy_id=params['vacancy'])
+        if params.get('status'):
+            qs = qs.filter(status=params['status'])
+        if params.get('assigned_to'):
+            qs = qs.filter(assigned_to_id=params['assigned_to'])
+        if params.get('mine') == 'true':
+            qs = qs.filter(assigned_to=user)
 
-        if vacancy:
-            queryset = queryset.filter(vacancy_id=vacancy)
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
-        if assigned_to:
-            queryset = queryset.filter(assigned_to_id=assigned_to)
-        if mine == 'true':
-            queryset = queryset.filter(assigned_to=self.request.user)
-
-        return queryset.select_related('assigned_to').order_by('-created_at')
+        return qs.select_related('assigned_to', 'vacancy', 'organization').order_by('-created_at')
 
     def perform_create(self, serializer):
-        org = get_user_org(self.request.user)
-        serializer.save(organization=org)
+        serializer.save(organization=get_user_org(self.request.user))
 
     @action(detail=True, methods=['patch'])
     def update_status(self, request, pk=None):
         candidate = self.get_object()
         new_status = request.data.get('status')
-        if new_status:
-            old_status = candidate.status
-            candidate.status = new_status
-            candidate.save()
-            StatusHistory.objects.create(
-                candidate=candidate,
-                old_status=old_status,
-                new_status=new_status,
-                changed_by=request.user,
+        if not new_status:
+            return Response(
+                {'error': 'Status required'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-            return Response(CandidateSerializer(candidate).data)
-        return Response({'error': 'Status required'}, status=status.HTTP_400_BAD_REQUEST)
+        old_status = candidate.status
+        candidate.status = new_status
+        candidate.save()
+        StatusHistory.objects.create(
+            candidate=candidate,
+            old_status=old_status,
+            new_status=new_status,
+            changed_by=request.user,
+        )
+        return Response(CandidateSerializer(candidate).data)
 
     @action(detail=True, methods=['patch'])
     def assign(self, request, pk=None):
@@ -139,69 +216,60 @@ class CandidateViewSet(viewsets.ModelViewSet):
             return Response(CandidateSerializer(candidate).data)
 
         try:
-            user = User.objects.get(id=user_id)
-            candidate.assigned_to = user
+            candidate.assigned_to = User.objects.get(id=user_id)
             candidate.save()
             return Response(CandidateSerializer(candidate).data)
         except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
+
+# ═══════════════════════════════════════════════════════════════
+# CANDIDATES CSV EXPORT
+# ═══════════════════════════════════════════════════════════════
 
 class CandidateExportCSVView(APIView):
-    """Експорт кандидатів у CSV з урахуванням фільтрів та прав доступу"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         role = get_user_role(request.user)
-        org_id = request.query_params.get('organization')
+        params = request.query_params
 
         if role == 'superadmin':
-            queryset = Candidate.objects.all()
-            if org_id:
-                queryset = queryset.filter(organization_id=org_id)
+            qs = Candidate.objects.all()
+            if params.get('organization'):
+                qs = qs.filter(organization_id=params['organization'])
         else:
             org = get_user_org(request.user)
-            if org:
-                queryset = Candidate.objects.filter(organization=org)
-            else:
-                queryset = Candidate.objects.none()
+            qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
 
-        vacancy = request.query_params.get('vacancy')
-        status_filter = request.query_params.get('status')
-        search = request.query_params.get('search')
-
-        if vacancy:
-            queryset = queryset.filter(vacancy_id=vacancy)
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
-        if search:
-            queryset = queryset.filter(
-                models.Q(first_name__icontains=search) |
-                models.Q(last_name__icontains=search) |
-                models.Q(email__icontains=search)
+        if params.get('vacancy'):
+            qs = qs.filter(vacancy_id=params['vacancy'])
+        if params.get('status'):
+            qs = qs.filter(status=params['status'])
+        if params.get('search'):
+            search = params['search']
+            qs = qs.filter(
+                models.Q(first_name__icontains=search)
+                | models.Q(last_name__icontains=search)
+                | models.Q(email__icontains=search)
             )
 
-        queryset = queryset.select_related('vacancy', 'organization').order_by('-created_at')
+        qs = qs.select_related('vacancy', 'organization').order_by('-created_at')
 
         response = HttpResponse(content_type='text/csv; charset=utf-8')
         response['Content-Disposition'] = 'attachment; filename="candidates.csv"'
-        response.write('\ufeff')
+        response.write('\ufeff')  # BOM для Excel
 
         writer = csv.writer(response)
         writer.writerow([
-            'ID', 'Ім\'я', 'Прізвище', 'Email', 'Телефон',
-            'Вакансія', 'Організація', 'Статус', 'Нотатки', 'Дата створення'
+            'ID', "Ім'я", 'Прізвище', 'Email', 'Телефон',
+            'Вакансія', 'Організація', 'Статус', 'Нотатки', 'Дата створення',
         ])
 
-        status_labels = {
-            'new': 'Новий',
-            'screening': 'Скринінг',
-            'interview': 'Співбесіда',
-            'offer': 'Оффер',
-            'rejected': 'Відмова',
-        }
-
-        for c in queryset:
+        for c in qs:
             writer.writerow([
                 c.id,
                 c.first_name or '',
@@ -210,7 +278,7 @@ class CandidateExportCSVView(APIView):
                 c.phone or '',
                 c.vacancy.title if c.vacancy else '—',
                 c.organization.name if c.organization else '—',
-                status_labels.get(c.status, c.status),
+                STATUS_LABELS.get(c.status, c.status),
                 (c.notes or '').replace('\n', ' ').replace('\r', ''),
                 c.created_at.strftime('%d.%m.%Y %H:%M') if c.created_at else '—',
             ])
@@ -218,22 +286,16 @@ class CandidateExportCSVView(APIView):
         return response
 
 
+# ═══════════════════════════════════════════════════════════════
+# CURRENT USER
+# ═══════════════════════════════════════════════════════════════
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def current_user(request):
     user = request.user
-    try:
-        org = user.profile.organization
-        org_data = {
-            'id': org.id,
-            'name': org.name,
-            'max_vacancies': org.max_vacancies,
-            'max_hr': org.max_hr,
-        } if org else None
-        role = user.profile.role
-    except (UserProfile.DoesNotExist, AttributeError):
-        org_data = None
-        role = None
+    profile = get_user_profile(user)
+    org = profile.organization if profile else None
 
     return Response({
         'id': user.id,
@@ -241,10 +303,19 @@ def current_user(request):
         'first_name': user.first_name,
         'last_name': user.last_name,
         'email': user.email,
-        'organization': org_data,
-        'role': role,
+        'role': profile.role if profile else None,
+        'organization': {
+            'id': org.id,
+            'name': org.name,
+            'max_vacancies': org.max_vacancies,
+            'max_hr': org.max_hr,
+        } if org else None,
     })
 
+
+# ═══════════════════════════════════════════════════════════════
+# USERS
+# ═══════════════════════════════════════════════════════════════
 
 class UserListView(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
@@ -255,53 +326,53 @@ class UserListView(viewsets.ViewSet):
 
         if role == 'superadmin':
             if not org_id:
-                return Response({'error': 'organization parameter required'}, status=status.HTTP_400_BAD_REQUEST)
-            profiles = UserProfile.objects.filter(organization_id=org_id).select_related('user')
+                return Response(
+                    {'error': 'organization parameter required'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            profiles = UserProfile.objects.filter(
+                organization_id=org_id,
+            ).select_related('user')
         else:
             user_org = get_user_org(request.user)
             if not user_org:
                 return Response([], status=status.HTTP_200_OK)
-            profiles = UserProfile.objects.filter(organization=user_org).select_related('user')
+            profiles = UserProfile.objects.filter(
+                organization=user_org,
+            ).select_related('user')
 
-        data = [{
-            'id': p.user.id,
-            'username': p.user.username,
-            'first_name': p.user.first_name,
-            'last_name': p.user.last_name,
-            'email': p.user.email,
-            'role': p.role,
-            'profile_id': p.id,
-        } for p in profiles]
-        return Response(data)
+        return Response([
+            {
+                'id': p.user.id,
+                'username': p.user.username,
+                'first_name': p.user.first_name,
+                'last_name': p.user.last_name,
+                'email': p.user.email,
+                'role': p.role,
+                'profile_id': p.id,
+            }
+            for p in profiles
+        ])
 
     @action(detail=False, methods=['get'])
     def all(self, request):
-        role = get_user_role(request.user)
-        if role != 'superadmin':
+        if get_user_role(request.user) != 'superadmin':
             return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
 
         users = User.objects.all().select_related('profile__organization')
         data = []
         for u in users:
-            try:
-                profile = u.profile
-                org = profile.organization
-                role_name = profile.role
-                org_id = org.id if org else None
-                org_name = org.name if org else None
-            except (UserProfile.DoesNotExist, AttributeError):
-                role_name = None
-                org_id = None
-                org_name = None
+            profile = get_user_profile(u)
+            org = profile.organization if profile else None
             data.append({
                 'id': u.id,
                 'username': u.username,
                 'first_name': u.first_name,
                 'last_name': u.last_name,
                 'email': u.email,
-                'role': role_name,
-                'organization_id': org_id,
-                'organization_name': org_name,
+                'role': profile.role if profile else None,
+                'organization_id': org.id if org else None,
+                'organization_name': org.name if org else None,
             })
         return Response(data)
 
@@ -314,31 +385,50 @@ class UserListView(viewsets.ViewSet):
         org_id = request.data.get('organization')
         role = request.data.get('role', 'hr')
 
-        if User.objects.filter(username=username).exists():
-            return Response({'error': 'Username вже існує'}, status=status.HTTP_400_BAD_REQUEST)
+        if not username or not password:
+            return Response(
+                {'error': "username та password обов'язкові"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        # ВАЛІДАЦІЯ ЛІМІТУ HR
+        if User.objects.filter(username=username).exists():
+            return Response(
+                {'error': 'Username вже існує'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Перевірка ліміту HR
         if org_id and role == 'hr':
             try:
                 org = Organization.objects.get(id=org_id)
-                current_hr_count = UserProfile.objects.filter(
-                    organization=org,
-                    role='hr'
-                ).count()
-                if current_hr_count >= org.max_hr:
-                    return Response(
-                        {
-                            'error': f'Ліміт HR-менеджерів досягнуто ({org.max_hr}). Збільшіть ліміт у налаштуваннях організації.'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
             except Organization.DoesNotExist:
-                return Response({'error': 'Організацію не знайдено'}, status=status.HTTP_404_NOT_FOUND)
+                return Response(
+                    {'error': 'Організацію не знайдено'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            current_hr_count = UserProfile.objects.filter(
+                organization=org, role='hr',
+            ).count()
+            if current_hr_count >= org.max_hr:
+                return Response(
+                    {
+                        'error': (
+                            f'Ліміт HR-менеджерів досягнуто ({org.max_hr}). '
+                            f'Збільшіть ліміт у налаштуваннях організації.'
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            org = Organization.objects.filter(id=org_id).first() if org_id else None
 
         user = User.objects.create_user(
-            username=username, password=password,
-            first_name=first_name, last_name=last_name, email=email
+            username=username,
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
         )
-        org = Organization.objects.get(id=org_id) if org_id else None
         UserProfile.objects.create(user=user, organization=org, role=role)
         return Response({'success': True}, status=status.HTTP_201_CREATED)
 
@@ -346,39 +436,52 @@ class UserListView(viewsets.ViewSet):
         try:
             user = User.objects.get(id=pk)
         except User.DoesNotExist:
-            return Response({'error': 'Юзер не знайдений'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'error': 'Юзер не знайдений'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         user.first_name = request.data.get('first_name', user.first_name)
         user.last_name = request.data.get('last_name', user.last_name)
         user.email = request.data.get('email', user.email)
         if request.data.get('password'):
-            user.set_password(request.data.get('password'))
+            user.set_password(request.data['password'])
         user.save()
 
-        try:
-            profile = user.profile
+        org_id = request.data.get('organization')
+        profile = get_user_profile(user)
+
+        if profile:
             profile.role = request.data.get('role', profile.role)
-            org_id = request.data.get('organization')
-            if org_id:
-                profile.organization = Organization.objects.get(id=org_id)
-            elif org_id == '':
+            if org_id == '' or org_id is None and 'organization' in request.data:
                 profile.organization = None
+            elif org_id:
+                profile.organization = Organization.objects.filter(id=org_id).first()
             profile.save()
-        except (UserProfile.DoesNotExist, AttributeError):
-            org_id = request.data.get('organization')
-            org = Organization.objects.get(id=org_id) if org_id else None
-            UserProfile.objects.create(user=user, organization=org, role=request.data.get('role', 'hr'))
+        else:
+            org = Organization.objects.filter(id=org_id).first() if org_id else None
+            UserProfile.objects.create(
+                user=user,
+                organization=org,
+                role=request.data.get('role', 'hr'),
+            )
 
         return Response({'success': True})
 
     def destroy(self, request, pk=None):
         try:
-            user = User.objects.get(id=pk)
-            user.delete()
+            User.objects.get(id=pk).delete()
             return Response({'success': True})
         except User.DoesNotExist:
-            return Response({'error': 'Юзер не знайдений'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'error': 'Юзер не знайдений'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
+
+# ═══════════════════════════════════════════════════════════════
+# EMAIL TEMPLATES
+# ═══════════════════════════════════════════════════════════════
 
 class EmailTemplateViewSet(viewsets.ModelViewSet):
     serializer_class = EmailTemplateSerializer
@@ -386,57 +489,41 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         role = get_user_role(self.request.user)
-
         if role == 'superadmin':
             org_id = self.request.query_params.get('organization')
-            if org_id:
-                return EmailTemplate.objects.filter(organization_id=org_id)
-            return EmailTemplate.objects.all()
-
+            qs = EmailTemplate.objects.all()
+            return qs.filter(organization_id=org_id) if org_id else qs
         org = get_user_org(self.request.user)
-        if not org:
-            return EmailTemplate.objects.none()
-        return EmailTemplate.objects.filter(organization=org)
+        return EmailTemplate.objects.filter(organization=org) if org else EmailTemplate.objects.none()
 
     def list(self, request, *args, **kwargs):
-        """GET /api/email-templates/ — список шаблонів"""
         try:
-            queryset = self.get_queryset()
-            serializer = self.get_serializer(queryset, many=True)
+            serializer = self.get_serializer(self.get_queryset(), many=True)
             return Response(serializer.data)
         except Exception as e:
-            import traceback
-            print(f"EmailTemplate LIST ERROR: {e}")
-            traceback.print_exc()
+            logger.exception("EmailTemplate LIST error")
             return Response(
                 {'error': 'Помилка завантаження шаблонів', 'detail': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     def create(self, request, *args, **kwargs):
-        """POST /api/email-templates/ — створення шаблону"""
         try:
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             self.perform_create(serializer)
-            headers = self.get_success_headers(serializer.data)
-            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
         except serializers.ValidationError as e:
-            return Response(
-                e.detail if isinstance(e.detail, dict) else {'error': str(e.detail)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            detail = e.detail if isinstance(e.detail, dict) else {'error': str(e.detail)}
+            return Response(detail, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            import traceback
-            print(f"EmailTemplate CREATE ERROR: {e}")
-            traceback.print_exc()
+            logger.exception("EmailTemplate CREATE error")
             return Response(
                 {'error': 'Помилка створення шаблону', 'detail': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     def update(self, request, *args, **kwargs):
-        """PUT/PATCH /api/email-templates/<id>/ — оновлення шаблону"""
         try:
             partial = kwargs.pop('partial', False)
             instance = self.get_object()
@@ -445,404 +532,166 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
             self.perform_update(serializer)
             return Response(serializer.data)
         except serializers.ValidationError as e:
-            return Response(
-                e.detail if isinstance(e.detail, dict) else {'error': str(e.detail)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            detail = e.detail if isinstance(e.detail, dict) else {'error': str(e.detail)}
+            return Response(detail, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            import traceback
-            print(f"EmailTemplate UPDATE ERROR: {e}")
-            traceback.print_exc()
+            logger.exception("EmailTemplate UPDATE error")
             return Response(
                 {'error': 'Помилка оновлення шаблону', 'detail': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     def perform_create(self, serializer):
-        """Збереження шаблону з автоматичним встановленням організації"""
         org = get_user_org(self.request.user)
         if not org:
             raise serializers.ValidationError(
-                {'error': 'Користувач не прив\'язаний до організації. Зверніться до адміністратора.'}
+                {'error': "Користувач не прив'язаний до організації. Зверніться до адміністратора."}
             )
-
         template_type = serializer.validated_data.get('template_type')
         if template_type:
-            existing = EmailTemplate.objects.filter(organization=org, template_type=template_type).first()
+            existing = EmailTemplate.objects.filter(
+                organization=org, template_type=template_type,
+            ).first()
             if existing:
-                # Оновлюємо існуючий шаблон замість створення нового
-                existing.subject = serializer.validated_data.get('subject', existing.subject)
-                existing.body = serializer.validated_data.get('body', existing.body)
-                existing.is_active = serializer.validated_data.get('is_active', existing.is_active)
+                for field in ('subject', 'body', 'is_active'):
+                    if field in serializer.validated_data:
+                        setattr(existing, field, serializer.validated_data[field])
                 existing.save()
-                # Повертаємо оновлений об'єкт через serializer
                 serializer.instance = existing
                 return
-
         serializer.save(organization=org)
 
     def perform_update(self, serializer):
-        """Оновлення шаблону з перевіркою прав"""
         org = get_user_org(self.request.user)
         if not org:
-            raise serializers.ValidationError(
-                {'error': 'Користувач не прив\'язаний до організації'}
-            )
+            raise serializers.ValidationError({'error': 'Користувач не прив\'язаний до організації'})
         if serializer.instance.organization != org:
-            raise serializers.ValidationError(
-                {'error': 'Немає прав для редагування цього шаблону'}
-            )
+            raise serializers.ValidationError({'error': 'Немає прав для редагування цього шаблону'})
         serializer.save()
+
+    # ─── Preview ────────────────────────────────────────────────
 
     @action(detail=True, methods=['post'])
     def preview(self, request, pk=None):
-        try:
-            template = self.get_object()
-        except Exception:
-            return Response({'error': 'Шаблон не знайдено'}, status=status.HTTP_404_NOT_FOUND)
-
+        template = self.get_object()
         candidate_id = request.data.get('candidate_id')
         if not candidate_id:
-            return Response({'error': 'candidate_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-
+            return Response(
+                {'error': 'candidate_id is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         try:
             candidate = Candidate.objects.get(id=candidate_id, organization=template.organization)
         except Candidate.DoesNotExist:
             return Response({'error': 'Кандидата не знайдено'}, status=status.HTTP_404_NOT_FOUND)
 
-        vacancy_title = candidate.vacancy.title if candidate.vacancy else '—'
-        hr_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
-        hr_email = request.user.email
-
-        subject = template.subject
-        body = template.body
-
-        replacements = {
-            '{{name}}': f"{candidate.first_name} {candidate.last_name}",
-            '{{first_name}}': candidate.first_name or '',
-            '{{last_name}}': candidate.last_name or '',
-            '{{vacancy}}': vacancy_title,
-            '{{email}}': candidate.email or '',
-            '{{phone}}': candidate.phone or '—',
-            '{{status}}': candidate.get_status_display(),
-            '{{hr_name}}': hr_name,
-            '{{hr_email}}': hr_email,
-            '{{organization}}': template.organization.name if template.organization else '—',
-            '{{date}}': candidate.created_at.strftime('%d.%m.%Y') if candidate.created_at else '—',
-        }
-
-        for placeholder, value in replacements.items():
-            subject = subject.replace(placeholder, str(value) if value else '')
-            body = body.replace(placeholder, str(value) if value else '')
-
+        subject, body = apply_template_replacements(
+            template.subject, template.body, candidate, request,
+        )
         return Response({
             'subject': subject,
             'body': body,
             'candidate_email': candidate.email,
-            'from_email': hr_email,
+            'from_email': request.user.email,
         })
 
-    def _send_via_smtp(self, request, template, candidate, hr_email, subject, body):
-        """Відправка через SMTP з Reply-To на HR"""
-        recipient_email = candidate.email
-
-        sent_email = SentEmail.objects.create(
-            candidate=candidate,
-            template=template,
-            recipient_email=recipient_email,
-            subject=subject,
-            body=body,
-            sent_by=request.user,
-            status='pending'
-        )
-
-        try:
-            # Використовуємо DEFAULT_FROM_EMAIL як відправника,
-            # але додаємо Reply-To на email HR
-            from_email = settings.DEFAULT_FROM_EMAIL
-
-            email = EmailMultiAlternatives(
-                subject=subject,
-                body=body,
-                from_email=from_email,
-                to=[recipient_email],
-                reply_to=[hr_email],  # Відповідь піде HR
-                headers={
-                    'X-Sender-Name': f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username,
-                    'X-Sender-Email': hr_email,
-                }
-            )
-            email.attach_alternative(body, "text/html")
-
-            old_timeout = socket.getdefaulttimeout()
-            socket.setdefaulttimeout(10)
-
-            try:
-                email.send()
-            finally:
-                socket.setdefaulttimeout(old_timeout)
-
-            sent_email.status = 'sent'
-            sent_email.save()
-
-            return Response({
-                'success': True,
-                'message': f'Лист відправлено від {from_email} від імені {hr_email} на {recipient_email}',
-                'sent_email_id': sent_email.id,
-                'subject': subject,
-                'from_email': from_email,
-                'reply_to': hr_email,
-            })
-
-        except (smtplib.SMTPException, socket.timeout, OSError) as e:
-            error_msg = str(e)
-            sent_email.status = 'failed'
-            sent_email.error_message = f'SMTP: {error_msg[:500]}'
-            sent_email.save()
-            raise Exception(f'SMTP помилка: {error_msg}')
-
-    def _send_via_sendgrid(self, request, template, candidate, hr_email, subject, body):
-        """Відправка через SendGrid з відправкою від HR"""
-        if not SENDGRID_AVAILABLE:
-            raise Exception('SendGrid бібліотека не встановлена')
-
-        recipient_email = candidate.email
-        hr_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
-
-        sent_email = SentEmail.objects.create(
-            candidate=candidate,
-            template=template,
-            recipient_email=recipient_email,
-            subject=subject,
-            body=body,
-            sent_by=request.user,
-            status='pending'
-        )
-
-        try:
-            sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
-
-            # В SendGrid можна відправляти від будь-якого email
-            from_email = Email(hr_email, name=hr_name)
-            to_email = Email(recipient_email)
-
-            message = Mail(
-                from_email=from_email,
-                to_emails=to_email,
-                subject=subject,
-                html_content=body
-            )
-
-            # Додаємо Reply-To (опціонально)
-            message.reply_to = ReplyTo(hr_email)
-
-            response = sg.send(message)
-
-            if response.status_code in [200, 202]:
-                sent_email.status = 'sent'
-                sent_email.save()
-
-                return Response({
-                    'success': True,
-                    'message': f'Лист відправлено від {hr_email} на {recipient_email} через SendGrid',
-                    'sent_email_id': sent_email.id,
-                    'subject': subject,
-                    'from_email': hr_email,
-                    'status_code': response.status_code,
-                })
-            else:
-                raise Exception(f'SendGrid відповів з кодом {response.status_code}')
-
-        except Exception as e:
-            sent_email.status = 'failed'
-            sent_email.error_message = str(e)[:500]
-            sent_email.save()
-            raise Exception(f'SendGrid помилка: {str(e)}')
-
-    def _send_via_console(self, request, template, candidate, hr_email, subject, body):
-        """Для розробки - виводимо в консоль"""
-        recipient_email = candidate.email
-        hr_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
-
-        sent_email = SentEmail.objects.create(
-            candidate=candidate,
-            template=template,
-            recipient_email=recipient_email,
-            subject=subject,
-            body=body,
-            sent_by=request.user,
-            status='sent'  # В консолі одразу позначаємо як відправлений
-        )
-
-        print(f"\n{'=' * 60}")
-        print(f"📧 ТЕСТОВИЙ ЛИСТ (режим консолі)")
-        print(f"{'=' * 60}")
-        print(f"Від: {hr_name} <{hr_email}>")
-        print(f"Кому: {candidate.first_name} {candidate.last_name} <{recipient_email}>")
-        print(f"Тема: {subject}")
-        print(f"{'-' * 60}")
-        print(f"Тіло листа:")
-        print(body)
-        print(f"{'=' * 60}\n")
-
-        return Response({
-            'success': True,
-            'message': f'Тестовий режим: лист не відправлено реально (використовується консольний бекенд)',
-            'test_mode': True,
-            'sent_email_id': sent_email.id,
-            'subject': subject,
-            'from_email': hr_email,
-        })
-
-    def _send_via_file(self, request, template, candidate, hr_email, subject, body):
-        """Для тестування - зберігаємо у файл"""
-        recipient_email = candidate.email
-        hr_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
-
-        sent_email = SentEmail.objects.create(
-            candidate=candidate,
-            template=template,
-            recipient_email=recipient_email,
-            subject=subject,
-            body=body,
-            sent_by=request.user,
-            status='sent'
-        )
-
-        # Використовуємо стандартний Django email бекенд (який налаштований на file)
-        from django.core.mail import send_mail
-        send_mail(
-            subject=subject,
-            message=body,
-            from_email=hr_email,
-            recipient_list=[recipient_email],
-            html_message=body,
-            fail_silently=False,
-        )
-
-        return Response({
-            'success': True,
-            'message': f'Лист збережено у файл (Email бекенд: {settings.EMAIL_BACKEND})',
-            'test_mode': True,
-            'sent_email_id': sent_email.id,
-            'subject': subject,
-            'from_email': hr_email,
-        })
+    # ─── Send ────────────────────────────────────────────────────
 
     @action(detail=True, methods=['post'])
     def send(self, request, pk=None):
         """
         POST /api/email-templates/{id}/send/
         Body: {"candidate_id": 123}
-
-        Відправляє email від імені поточного HR.
-        Підтримує:
-        - SendGrid (рекомендовано) - реальна відправка від email HR
-        - SMTP - відправка від DEFAULT_FROM_EMAIL з Reply-To на HR
-        - Console - для розробки
-        - File - для тестування
         """
+        template = self.get_object()
+        candidate, hr_email, subject, body = self._prepare_email(request, template)
+        if isinstance(candidate, Response):
+            return candidate  # early validation error
 
-        try:
-            template = self.get_object()
-        except Exception:
-            return Response(
-                {'success': False, 'error': 'Шаблон не знайдено'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        candidate_id = request.data.get('candidate_id')
-        if not candidate_id:
-            return Response(
-                {'success': False, 'error': 'candidate_id is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            candidate = Candidate.objects.get(id=candidate_id, organization=template.organization)
-        except Candidate.DoesNotExist:
-            return Response(
-                {'success': False, 'error': 'Кандидата не знайдено'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        if not candidate.email:
-            return Response(
-                {'success': False, 'error': 'У кандидата не вказано email'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Отримуємо email HR
-        hr_email = request.user.email
-        if not hr_email:
-            return Response(
-                {
-                    'success': False,
-                    'error': 'У вашому профілі не вказано email. Оновіть профіль перед відправкою.'
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Генерація subject та body з підстановкою
-        vacancy_title = candidate.vacancy.title if candidate.vacancy else '—'
-        hr_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username
-
-        subject = template.subject or 'Без теми'
-        body = template.body or ''
-
-        replacements = {
-            '{{name}}': f"{candidate.first_name} {candidate.last_name}",
-            '{{first_name}}': candidate.first_name or '',
-            '{{last_name}}': candidate.last_name or '',
-            '{{vacancy}}': vacancy_title,
-            '{{email}}': candidate.email or '',
-            '{{phone}}': candidate.phone or '—',
-            '{{status}}': candidate.get_status_display(),
-            '{{hr_name}}': hr_name,
-            '{{hr_email}}': hr_email,
-            '{{organization}}': template.organization.name if template.organization else '—',
-            '{{date}}': candidate.created_at.strftime('%d.%m.%Y') if candidate.created_at else '—',
-        }
-
-        for placeholder, value in replacements.items():
-            subject = subject.replace(placeholder, str(value) if value is not None else '')
-            body = body.replace(placeholder, str(value) if value is not None else '')
-
-        # Додаємо інформацію про HR в кінець листа (якщо ще немає)
-        if '{{hr_signature}}' in body:
-            signature = f"""
-            <br><br>
-            --<br>
-            <strong>{hr_name}</strong><br>
-            HR менеджер<br>
-            Email: <a href="mailto:{hr_email}">{hr_email}</a>
-            """
-            body = body.replace('{{hr_signature}}', signature)
-
-        # Визначаємо тип бекенду і відправляємо
         backend_type = getattr(settings, 'EMAIL_BACKEND_TYPE', 'console')
-
         try:
-            if backend_type == 'sendgrid' and settings.SENDGRID_API_KEY:
+            if backend_type == 'sendgrid' and getattr(settings, 'SENDGRID_API_KEY', ''):
                 return self._send_via_sendgrid(request, template, candidate, hr_email, subject, body)
             elif backend_type == 'smtp':
                 return self._send_via_smtp(request, template, candidate, hr_email, subject, body)
             elif backend_type == 'file':
                 return self._send_via_file(request, template, candidate, hr_email, subject, body)
-            else:  # console або інший
+            else:
                 return self._send_via_console(request, template, candidate, hr_email, subject, body)
-
         except Exception as e:
-            error_msg = str(e)
+            logger.exception("Email send error")
             return Response(
                 {
                     'success': False,
-                    'error': error_msg,
+                    'error': str(e),
                     'backend_type': backend_type,
-                    'suggestion': 'Перевірте налаштування email або змініть EMAIL_BACKEND_TYPE'
+                    'suggestion': 'Перевірте налаштування email або змініть EMAIL_BACKEND_TYPE',
                 },
-                status=status.HTTP_502_BAD_GATEWAY
+                status=status.HTTP_502_BAD_GATEWAY,
             )
+
+    @action(detail=True, methods=['post'])
+    def send_via_gmail(self, request, pk=None):
+        """POST /api/email-templates/{id}/send_via_gmail/"""
+        template = self.get_object()
+        candidate, hr_email, subject, body = self._prepare_email(request, template)
+        if isinstance(candidate, Response):
+            return candidate
+
+        if ALLAUTH_AVAILABLE:
+            has_google = SocialAccount.objects.filter(
+                user=request.user, provider='google',
+            ).exists()
+        else:
+            has_google = False
+
+        if not has_google:
+            return Response(
+                {
+                    'success': False,
+                    'error': 'Необхідно підключити Google акаунт',
+                    'redirect_url': '/accounts/google/login/',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        sent_email = SentEmail.objects.create(
+            candidate=candidate,
+            template=template,
+            recipient_email=candidate.email,
+            subject=subject,
+            body=body,
+            sent_by=request.user,
+            status='pending',
+        )
+
+        try:
+            result = GmailService.send_email(
+                user=request.user,
+                to_email=candidate.email,
+                subject=subject,
+                body=body,
+            )
+            sent_email.status = 'sent'
+            sent_email.save()
+            return Response({
+                'success': True,
+                'message': 'Лист відправлено через Gmail API',
+                'sent_email_id': sent_email.id,
+                'subject': subject,
+                'from_email': result['from_email'],
+                'message_id': result['message_id'],
+            })
+        except Exception as e:
+            sent_email.status = 'failed'
+            sent_email.error_message = str(e)[:500]
+            sent_email.save()
+            return Response(
+                {'success': False, 'error': str(e)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+    # ─── History ─────────────────────────────────────────────────
 
     @action(detail=False, methods=['get'])
     def history(self, request):
@@ -851,90 +700,261 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
 
         if role == 'superadmin':
             org_id = request.query_params.get('organization')
-            if org_id:
-                queryset = SentEmail.objects.filter(candidate__organization_id=org_id)
-            else:
-                queryset = SentEmail.objects.all()
+            qs = (
+                SentEmail.objects.filter(candidate__organization_id=org_id)
+                if org_id
+                else SentEmail.objects.all()
+            )
         else:
             org = get_user_org(request.user)
-            if not org:
-                queryset = SentEmail.objects.none()
-            else:
-                queryset = SentEmail.objects.filter(candidate__organization=org)
+            qs = (
+                SentEmail.objects.filter(candidate__organization=org)
+                if org
+                else SentEmail.objects.none()
+            )
 
-        candidate_id = request.query_params.get('candidate')
-        if candidate_id:
-            queryset = queryset.filter(candidate_id=candidate_id)
+        if request.query_params.get('candidate'):
+            qs = qs.filter(candidate_id=request.query_params['candidate'])
+        if request.query_params.get('template_type'):
+            qs = qs.filter(template__template_type=request.query_params['template_type'])
 
-        template_type = request.query_params.get('template_type')
-        if template_type:
-            queryset = queryset.filter(template__template_type=template_type)
-
-        page = self.paginate_queryset(queryset.select_related('candidate', 'template', 'sent_by'))
+        qs = qs.select_related('candidate', 'template', 'sent_by').order_by('-sent_at')
+        page = self.paginate_queryset(qs)
         if page is not None:
-            serializer = SentEmailSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+            return self.get_paginated_response(SentEmailSerializer(page, many=True).data)
+        return Response(SentEmailSerializer(qs, many=True).data)
 
-        serializer = SentEmailSerializer(queryset, many=True)
-        return Response(serializer.data)
+    # ─── Private helpers ──────────────────────────────────────────
+
+    def _prepare_email(self, request, template):
+        """
+        Валідує запит і повертає (candidate, hr_email, subject, body).
+        При помилці повертає (Response, None, None, None).
+        """
+        candidate_id = request.data.get('candidate_id')
+        if not candidate_id:
+            return (
+                Response({'success': False, 'error': 'candidate_id is required'}, status=status.HTTP_400_BAD_REQUEST),
+                None, None, None,
+            )
+
+        try:
+            candidate = Candidate.objects.get(id=candidate_id, organization=template.organization)
+        except Candidate.DoesNotExist:
+            return (
+                Response({'success': False, 'error': 'Кандидата не знайдено'}, status=status.HTTP_404_NOT_FOUND),
+                None, None, None,
+            )
+
+        if not candidate.email:
+            return (
+                Response({'success': False, 'error': 'У кандидата не вказано email'}, status=status.HTTP_400_BAD_REQUEST),
+                None, None, None,
+            )
+
+        hr_email = request.user.email
+        if not hr_email:
+            return (
+                Response(
+                    {'success': False, 'error': 'У вашому профілі не вказано email. Оновіть профіль перед відправкою.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                ),
+                None, None, None,
+            )
+
+        subject, body = apply_template_replacements(
+            template.subject or 'Без теми',
+            template.body or '',
+            candidate,
+            request,
+        )
+        return candidate, hr_email, subject, body
+
+    def _create_sent_record(self, candidate, template, hr_email, subject, body, request, *, initial_status='pending'):
+        return SentEmail.objects.create(
+            candidate=candidate,
+            template=template,
+            recipient_email=candidate.email,
+            subject=subject,
+            body=body,
+            sent_by=request.user,
+            status=initial_status,
+        )
+
+    def _send_via_smtp(self, request, template, candidate, hr_email, subject, body):
+        from django.core.mail import EmailMultiAlternatives
+
+        sent = self._create_sent_record(candidate, template, hr_email, subject, body, request)
+        try:
+            msg = EmailMultiAlternatives(
+                subject=subject,
+                body=body,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[candidate.email],
+                reply_to=[hr_email],
+            )
+            msg.attach_alternative(body, 'text/html')
+            old_timeout = socket.getdefaulttimeout()
+            socket.setdefaulttimeout(10)
+            try:
+                msg.send()
+            finally:
+                socket.setdefaulttimeout(old_timeout)
+
+            sent.status = 'sent'
+            sent.save()
+            return Response({
+                'success': True,
+                'message': f'Лист відправлено на {candidate.email}',
+                'sent_email_id': sent.id,
+                'from_email': settings.DEFAULT_FROM_EMAIL,
+                'reply_to': hr_email,
+            })
+        except (smtplib.SMTPException, socket.timeout, OSError) as e:
+            sent.status = 'failed'
+            sent.error_message = f'SMTP: {str(e)[:500]}'
+            sent.save()
+            raise Exception(f'SMTP помилка: {e}')
+
+    def _send_via_sendgrid(self, request, template, candidate, hr_email, subject, body):
+        if not SENDGRID_AVAILABLE:
+            raise Exception('SendGrid бібліотека не встановлена')
+
+        hr_name = (
+            f"{request.user.first_name} {request.user.last_name}".strip()
+            or request.user.username
+        )
+        sent = self._create_sent_record(candidate, template, hr_email, subject, body, request)
+        try:
+            sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+            message = Mail(
+                from_email=Email(hr_email, name=hr_name),
+                to_emails=Email(candidate.email),
+                subject=subject,
+                html_content=body,
+            )
+            message.reply_to = ReplyTo(hr_email)
+            response = sg.send(message)
+
+            if response.status_code not in (200, 202):
+                raise Exception(f'SendGrid відповів з кодом {response.status_code}')
+
+            sent.status = 'sent'
+            sent.save()
+            return Response({
+                'success': True,
+                'message': f'Лист відправлено через SendGrid на {candidate.email}',
+                'sent_email_id': sent.id,
+                'from_email': hr_email,
+                'status_code': response.status_code,
+            })
+        except Exception as e:
+            sent.status = 'failed'
+            sent.error_message = str(e)[:500]
+            sent.save()
+            raise Exception(f'SendGrid помилка: {e}')
+
+    def _send_via_console(self, request, template, candidate, hr_email, subject, body):
+        hr_name = (
+            f"{request.user.first_name} {request.user.last_name}".strip()
+            or request.user.username
+        )
+        sent = self._create_sent_record(
+            candidate, template, hr_email, subject, body, request, initial_status='sent',
+        )
+        logger.info(
+            "\n%s\n📧 ТЕСТОВИЙ ЛИСТ\nВід: %s <%s>\nКому: <%s>\nТема: %s\n%s\n%s\n%s",
+            '=' * 60, hr_name, hr_email, candidate.email, subject,
+            '-' * 60, body, '=' * 60,
+        )
+        return Response({
+            'success': True,
+            'message': 'Тестовий режим: лист виведено в консоль',
+            'test_mode': True,
+            'sent_email_id': sent.id,
+            'from_email': hr_email,
+        })
+
+    def _send_via_file(self, request, template, candidate, hr_email, subject, body):
+        from django.core.mail import send_mail
+
+        sent = self._create_sent_record(
+            candidate, template, hr_email, subject, body, request, initial_status='sent',
+        )
+        send_mail(
+            subject=subject,
+            message=body,
+            from_email=hr_email,
+            recipient_list=[candidate.email],
+            html_message=body,
+            fail_silently=False,
+        )
+        return Response({
+            'success': True,
+            'message': f'Лист збережено у файл (backend: {settings.EMAIL_BACKEND})',
+            'test_mode': True,
+            'sent_email_id': sent.id,
+            'from_email': hr_email,
+        })
 
 
 class SentEmailViewSet(viewsets.ReadOnlyModelViewSet):
-    """ViewSet для перегляду історії відправлених листів"""
     serializer_class = SentEmailSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardPagination
 
     def get_queryset(self):
         role = get_user_role(self.request.user)
-
         if role == 'superadmin':
             org_id = self.request.query_params.get('organization')
-            if org_id:
-                return SentEmail.objects.filter(candidate__organization_id=org_id)
-            return SentEmail.objects.all()
-
+            qs = SentEmail.objects.all()
+            return qs.filter(candidate__organization_id=org_id) if org_id else qs
         org = get_user_org(self.request.user)
-        if not org:
-            return SentEmail.objects.none()
-        return SentEmail.objects.filter(candidate__organization=org)
+        return (
+            SentEmail.objects.filter(candidate__organization=org)
+            if org
+            else SentEmail.objects.none()
+        )
 
     def list(self, request, *args, **kwargs):
-        """GET /api/sent-emails/ - список всіх відправлених листів"""
-        candidate_id = request.query_params.get('candidate')
-        template_type = request.query_params.get('template_type')
+        qs = self.get_queryset()
+        if request.query_params.get('candidate'):
+            qs = qs.filter(candidate_id=request.query_params['candidate'])
+        if request.query_params.get('template_type'):
+            qs = qs.filter(template__template_type=request.query_params['template_type'])
 
-        queryset = self.get_queryset()
-        if candidate_id:
-            queryset = queryset.filter(candidate_id=candidate_id)
-        if template_type:
-            queryset = queryset.filter(template__template_type=template_type)
-
-        queryset = queryset.select_related('candidate', 'template', 'sent_by').order_by('-sent_at')
-        page = self.paginate_queryset(queryset)
+        qs = qs.select_related('candidate', 'template', 'sent_by').order_by('-sent_at')
+        page = self.paginate_queryset(qs)
         if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+            return self.get_paginated_response(self.get_serializer(page, many=True).data)
+        return Response(self.get_serializer(qs, many=True).data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def google_auth_status(request):
+    has_google = (
+        ALLAUTH_AVAILABLE
+        and SocialAccount.objects.filter(user=request.user, provider='google').exists()
+    )
+    return Response({
+        'has_google_account': has_google,
+        'email': request.user.email,
+        'login_url': '/accounts/google/login/',
+        'logout_url': '/accounts/logout/',
+    })
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def test_email_config(request):
-    """Перевірка налаштувань email - корисний ендпоінт для діагностики"""
+    """Діагностика email-конфігурації."""
     return Response({
         'email_backend': settings.EMAIL_BACKEND,
         'email_backend_type': getattr(settings, 'EMAIL_BACKEND_TYPE', 'not_set'),
         'email_host': getattr(settings, 'EMAIL_HOST', None),
-        'email_host_user': bool(getattr(settings, 'EMAIL_HOST_USER', None)),
+        'email_host_user_set': bool(getattr(settings, 'EMAIL_HOST_USER', None)),
         'has_sendgrid_api_key': bool(getattr(settings, 'SENDGRID_API_KEY', None)),
         'sendgrid_available': SENDGRID_AVAILABLE,
-        'is_configured': bool(
-            getattr(settings, 'EMAIL_HOST_USER', None) or
-            getattr(settings, 'SENDGRID_API_KEY', None) or
-            getattr(settings, 'EMAIL_BACKEND_TYPE', '') in ['console', 'file']
-        ),
         'default_from_email': getattr(settings, 'DEFAULT_FROM_EMAIL', None),
         'current_user_email': request.user.email,
     })
