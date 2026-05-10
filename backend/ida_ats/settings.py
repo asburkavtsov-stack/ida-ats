@@ -291,15 +291,11 @@ AUTHENTICATION_BACKENDS = [
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
-# Читаються напряму в gmail_service.py через settings.GOOGLE_CLOUD_CLIENT_ID
-GOOGLE_CLOUD_CLIENT_ID = os.environ.get('GOOGLE_CLOUD_CLIENT_ID', '')
-GOOGLE_CLOUD_CLIENT_SECRET = os.environ.get('GOOGLE_CLOUD_CLIENT_SECRET', '')
-
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'APP': {
-            'client_id': GOOGLE_CLOUD_CLIENT_ID,
-            'secret': GOOGLE_CLOUD_CLIENT_SECRET,
+            'client_id': os.environ.get('GOOGLE_CLOUD_CLIENT_ID', ''),
+            'secret': os.environ.get('GOOGLE_CLOUD_CLIENT_SECRET', ''),
             'key': '',
         },
         'SCOPE': [
@@ -307,18 +303,20 @@ SOCIALACCOUNT_PROVIDERS = {
             'email',
             'profile',
             'https://www.googleapis.com/auth/gmail.send',
+            'https://www.googleapis.com/auth/gmail.readonly',
         ],
         'AUTH_PARAMS': {
             'access_type': 'offline',
             'prompt': 'consent',
         },
-        'OAUTH_PKCE_ENABLED': True,
     }
 }
 
 SOCIALACCOUNT_STORE_TOKENS = True
 SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
 SOCIALACCOUNT_EMAIL_REQUIRED = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
