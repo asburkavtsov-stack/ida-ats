@@ -111,6 +111,15 @@ STATUS_LABELS = {
     'rejected': 'Відмова',
 }
 
+SOURCE_LABELS = {
+    'linkedin': 'LinkedIn',
+    'dou': 'DOU',
+    'recommendation': 'Рекомендація',
+    'csv': 'CSV',
+    'direct': 'Прямий відгук',
+    'other': 'Інше',
+}
+
 # ═══════════════════════════════════════════════════════════════
 # VACANCIES
 # ═══════════════════════════════════════════════════════════════
@@ -170,6 +179,8 @@ class CandidateViewSet(viewsets.ModelViewSet):
             qs = qs.filter(vacancy_id=params['vacancy'])
         if params.get('status'):
             qs = qs.filter(status=params['status'])
+        if params.get('source'):
+            qs = qs.filter(source=params['source'])
         if params.get('assigned_to'):
             qs = qs.filter(assigned_to_id=params['assigned_to'])
         if params.get('mine') == 'true':
@@ -244,6 +255,8 @@ class CandidateExportCSVView(APIView):
             qs = qs.filter(vacancy_id=params['vacancy'])
         if params.get('status'):
             qs = qs.filter(status=params['status'])
+        if params.get('source'):
+            qs = qs.filter(source=params['source'])
         if params.get('search'):
             search = params['search']
             qs = qs.filter(
@@ -261,7 +274,7 @@ class CandidateExportCSVView(APIView):
         writer = csv.writer(response)
         writer.writerow([
             'ID', "Ім'я", 'Прізвище', 'Email', 'Телефон',
-            'Вакансія', 'Організація', 'Статус', 'Нотатки', 'Дата створення',
+            'Вакансія', 'Організація', 'Статус', 'Джерело', 'Нотатки', 'Дата створення',
         ])
 
         for c in qs:
@@ -274,6 +287,7 @@ class CandidateExportCSVView(APIView):
                 c.vacancy.title if c.vacancy else '—',
                 c.organization.name if c.organization else '—',
                 STATUS_LABELS.get(c.status, c.status),
+                c.get_source_display() if c.source else '—',
                 (c.notes or '').replace('\n', ' ').replace('\r', ''),
                 c.created_at.strftime('%d.%m.%Y %H:%M') if c.created_at else '—',
             ])

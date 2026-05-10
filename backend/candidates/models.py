@@ -49,6 +49,15 @@ class Candidate(models.Model):
         ('rejected', 'Відмова'),
     ]
 
+    SOURCE_CHOICES = [
+        ('linkedin', 'LinkedIn'),
+        ('dou', 'DOU'),
+        ('recommendation', 'Рекомендація'),
+        ('csv', 'CSV'),
+        ('direct', 'Прямий відгук'),
+        ('other', 'Інше'),
+    ]
+
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, blank=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
@@ -56,6 +65,7 @@ class Candidate(models.Model):
     phone = models.CharField(max_length=20, blank=True)
     vacancy = models.ForeignKey(Vacancy, on_delete=models.SET_NULL, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='new')
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='other', blank=True)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

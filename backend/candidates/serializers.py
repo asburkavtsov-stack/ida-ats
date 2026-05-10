@@ -28,13 +28,14 @@ class CandidateSerializer(serializers.ModelSerializer):
     assigned_to_name = serializers.SerializerMethodField()
     assigned_to_username = serializers.SerializerMethodField()
     status_history = StatusHistorySerializer(many=True, read_only=True)
+    source_display = serializers.CharField(source='get_source_display', read_only=True)
 
     class Meta:
         model = Candidate
         fields = [
             'id', 'first_name', 'last_name', 'email',
             'phone', 'vacancy', 'vacancy_title',
-            'status', 'notes', 'created_at',
+            'status', 'source', 'source_display', 'notes', 'created_at',
             'assigned_to', 'assigned_to_name', 'assigned_to_username',
             'status_history',
         ]
