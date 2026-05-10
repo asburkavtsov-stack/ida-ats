@@ -32,5 +32,4 @@ urlpatterns = [
     path('api/auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/test-email-config/', test_email_config, name='test_email_config'),
     path('accounts/', include('allauth.urls')),
-    path('setup-admin/', create_superuser_temp),  # ВИДАЛИТИ ПІСЛЯ ВИКОРИСТАННЯ
 ]
