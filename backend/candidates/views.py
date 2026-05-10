@@ -33,7 +33,6 @@ except ImportError:
     ALLAUTH_AVAILABLE = False
 
 
-
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════
@@ -186,7 +185,25 @@ class CandidateViewSet(viewsets.ModelViewSet):
         if params.get('mine') == 'true':
             qs = qs.filter(assigned_to=user)
 
-        return qs.select_related('assigned_to', 'vacancy', 'organization').order_by('-created_at')
+        # ── Пошук за ім'ям, прізвищем, email ──────────────────
+        if params.get('search'):
+            search = params['search']
+            qs = qs.filter(
+                models.Q(first_name__icontains=search)
+                | models.Q(last_name__icontains=search)
+                | models.Q(email__icontains=search)
+            )
+
+        # ── FIX: prefetch status_history щоб уникнути N+1 і 500 ──
+        return (
+            qs
+            .select_related('assigned_to', 'vacancy', 'organization')
+            .prefetch_related(
+                'status_history',
+                'status_history__changed_by',
+            )
+            .order_by('-created_at')
+        )
 
     def perform_create(self, serializer):
         serializer.save(organization=get_user_org(self.request.user))
@@ -462,7 +479,9 @@ class UserListView(viewsets.ViewSet):
 
         if profile:
             profile.role = request.data.get('role', profile.role)
-            if org_id == '' or org_id is None and 'organization' in request.data:
+            # FIX: була хибна умова `org_id is None and 'organization' in request.data`
+            # через неправильний пріоритет операторів. Тепер явно перевіряємо.
+            if 'organization' in request.data and (org_id == '' or org_id is None):
                 profile.organization = None
             elif org_id:
                 profile.organization = Organization.objects.filter(id=org_id).first()
@@ -967,6 +986,7 @@ class SentEmailViewSet(viewsets.ReadOnlyModelViewSet):
         if page is not None:
             return self.get_paginated_response(self.get_serializer(page, many=True).data)
         return Response(self.get_serializer(qs, many=True).data)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
