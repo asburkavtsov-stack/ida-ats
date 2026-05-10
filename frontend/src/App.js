@@ -85,31 +85,55 @@ function App() {
   if (!isAuth) return <Login onLogin={handleLogin} />;
 
   if (userRole === 'superadmin') {
+    const renderSuperadminPage = () => {
+      if (viewOrgId) {
+        return (
+          <div>
+            <div style={{ padding: '16px 28px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                onClick={() => setViewOrgId(null)}
+                style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Mono', fontSize: '0.78rem' }}
+              >
+                ← Назад до адмінки
+              </button>
+              <span style={{ fontSize: '0.82rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>Перегляд організації</span>
+            </div>
+            <Kanban key={viewOrgId} searchQuery="" orgId={viewOrgId} />
+          </div>
+        );
+      }
+      switch (currentPage) {
+        case 'users':          return <Users />;
+        case 'profile':        return <Profile />;
+        case 'email_templates': return <EmailTemplates />;
+        case 'analytics':      return <Analytics />;
+        case 'vacancies':      return <Vacancies />;
+        case 'kanban':         return <Kanban key={refreshKey} searchQuery={debouncedSearch} />;
+        case 'candidates':     return <Candidates key={refreshKey} searchQuery={debouncedSearch} />;
+        default:               return <Admin onViewOrg={setViewOrgId} />;
+      }
+    };
+
+    const superadminShowTopbar = ['kanban', 'candidates', 'vacancies', 'analytics'].includes(currentPage) && !viewOrgId;
+
     return (
       <div className="app-layout">
-        <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} onLogout={handleLogout} userRole={userRole} />
+        <Sidebar currentPage={currentPage} onNavigate={p => { setViewOrgId(null); setCurrentPage(p); }} onLogout={handleLogout} userRole={userRole} />
         <div className="main">
-          <div className="content" style={{ padding: 0 }}>
-            {viewOrgId ? (
-              <div>
-                <div style={{ padding: '16px 28px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <button
-                    onClick={() => setViewOrgId(null)}
-                    style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Mono', fontSize: '0.78rem' }}
-                  >
-                    ← Назад до адмінки
-                  </button>
-                  <span style={{ fontSize: '0.82rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>Перегляд організації</span>
-                </div>
-                <Kanban key={viewOrgId} searchQuery="" orgId={viewOrgId} />
-              </div>
-            ) : currentPage === 'users' ? (
-              <Users />
-            ) : (
-              <Admin onViewOrg={setViewOrgId} />
-            )}
+          {superadminShowTopbar && (
+            <Topbar
+              currentPage={currentPage}
+              onAddCandidate={() => setShowModal(true)}
+              onSearch={setSearchQuery}
+            />
+          )}
+          <div className="content" style={superadminShowTopbar ? {} : { padding: 0 }}>
+            {renderSuperadminPage()}
           </div>
         </div>
+        {showModal && (
+          <AddCandidateModal onClose={() => setShowModal(false)} onAdded={handleAdded} />
+        )}
       </div>
     );
   }
