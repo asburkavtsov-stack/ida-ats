@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api'; // ← твій авторизований axios instance
 
 function AddCandidateModal({ onClose, onAdded }) {
   const [vacancies, setVacancies] = useState([]);
@@ -18,8 +18,13 @@ function AddCandidateModal({ onClose, onAdded }) {
   }, []);
 
   useEffect(() => {
-    axios.get('/api/vacancies/')
-      .then(res => setVacancies(res.data));
+    api.get('/api/vacancies/')
+      .then(res => {
+        // Обробляємо як пагінований { results: [] }, так і звичайний масив
+        const data = res.data;
+        setVacancies(Array.isArray(data) ? data : (data.results ?? []));
+      })
+      .catch(err => console.error('Помилка завантаження вакансій:', err));
   }, []);
 
   const handleChange = e => {
@@ -32,7 +37,7 @@ function AddCandidateModal({ onClose, onAdded }) {
     if (!form.email.trim()) { setError("Email обов'язковий"); return; }
     if (!form.vacancy) { setError("Оберіть вакансію"); return; }
 
-    axios.post('/api/candidates/', form)
+    api.post('/api/candidates/', form)
       .then(() => { onAdded(); onClose(); })
       .catch(err => console.error(err));
   };
@@ -74,7 +79,6 @@ function AddCandidateModal({ onClose, onAdded }) {
           >
             <span aria-hidden="true">✕</span>
           </button>
-
         </div>
 
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
