@@ -15,6 +15,7 @@ const formatDate = (dateString) => {
 function Candidates({ searchQuery = '' }) {
   const [filter, setFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
+  const [tagFilter, setTagFilter] = useState([]);
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -24,6 +25,7 @@ function Candidates({ searchQuery = '' }) {
   const [isMobile, setIsMobile] = useState(false);
   const [mineFilter, setMineFilter] = useState(false);
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
+  const [availableTags, setAvailableTags] = useState([]);
   const PAGE_SIZE = 20;
 
   useEffect(() => {
@@ -33,7 +35,11 @@ function Candidates({ searchQuery = '' }) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-
+  useEffect(() => {
+    axios.get('/api/tags/')
+      .then(res => setAvailableTags(res.data.results ?? res.data))
+      .catch(() => {});
+  }, []);
 
   const fetchCandidates = useCallback((page = 1) => {
     setLoading(true);
@@ -44,6 +50,7 @@ function Candidates({ searchQuery = '' }) {
     if (sourceFilter !== 'all') params.set('source', sourceFilter);
     if (searchQuery) params.set('search', searchQuery);
     if (mineFilter) params.set('mine', 'true');
+    if (tagFilter.length > 0) params.set('tags', tagFilter.join(','));
 
     axios.get(`/api/candidates/?${params.toString()}`)
       .then(res => {
@@ -59,15 +66,15 @@ function Candidates({ searchQuery = '' }) {
       })
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
-  }, [filter, sourceFilter, searchQuery, mineFilter]);
+  }, [filter, sourceFilter, searchQuery, mineFilter, tagFilter]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, sourceFilter, searchQuery, mineFilter]);
+  }, [filter, sourceFilter, searchQuery, mineFilter, tagFilter]);
 
   useEffect(() => {
     fetchCandidates(currentPage);
-  }, [fetchCandidates, currentPage, mineFilter]);
+  }, [fetchCandidates, currentPage]);
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -81,6 +88,7 @@ function Candidates({ searchQuery = '' }) {
       if (filter !== 'all') params.set('status', filter);
       if (sourceFilter !== 'all') params.set('source', sourceFilter);
       if (searchQuery) params.set('search', searchQuery);
+      if (tagFilter.length > 0) params.set('tags', tagFilter.join(','));
 
       const response = await axios.get(`/api/candidates/export/?${params.toString()}`, {
         responseType: 'blob',
@@ -176,6 +184,37 @@ function Candidates({ searchQuery = '' }) {
           </div>
         ))}
 
+        {/* Tag filters */}
+        {availableTags.length > 0 && (
+          <>
+            <div style={{ width: '1px', height: '20px', background: 'var(--border)', margin: '0 4px' }} />
+            <span style={{ fontFamily: 'DM Mono', fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Теги:</span>
+            {availableTags.map(tag => (
+              <div
+                key={tag.id}
+                onClick={() => setTagFilter(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
+                style={{
+                  padding: '4px 10px', borderRadius: '20px', fontSize: '0.72rem',
+                  fontWeight: 500, cursor: 'pointer',
+                  border: `1px solid ${tagFilter.includes(tag.id) ? tag.color : 'var(--border)'}`,
+                  background: tagFilter.includes(tag.id) ? tag.color + '20' : 'var(--surface)',
+                  color: tagFilter.includes(tag.id) ? tag.color : 'var(--muted)',
+                }}
+              >
+                {tag.name}
+              </div>
+            ))}
+            {tagFilter.length > 0 && (
+              <button
+                onClick={() => setTagFilter([])}
+                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: '0.72rem', cursor: 'pointer' }}
+              >
+                ✕ Скинути
+              </button>
+            )}
+          </>
+        )}
+
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
           {totalCount > 0 && (
             <span style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
@@ -266,10 +305,25 @@ function Candidates({ searchQuery = '' }) {
                       </span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
                       {c.vacancy_title || '—'}
                     </div>
+                    {c.tags && c.tags.length > 0 && (
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        {c.tags.map(tag => (
+                          <span key={tag.id} style={{
+                            fontSize: '0.6rem', fontFamily: 'DM Mono', padding: '2px 6px',
+                            borderRadius: '10px', background: tag.color + '20',
+                            border: `1px solid ${tag.color}`, color: tag.color,
+                          }}>
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {c.assigned_to && (
                         <div
@@ -304,7 +358,7 @@ function Candidates({ searchQuery = '' }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--bg)' }}>
-                {['Кандидат', 'Вакансія', 'Статус', 'Джерело', 'Дата'].map(h => (
+                {['Кандидат', 'Вакансія', 'Статус', 'Теги', 'Джерело', 'Дата'].map(h => (
                   <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontSize: '0.72rem', fontFamily: 'DM Mono', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.8px', borderBottom: '1px solid var(--border)' }}>
                     {h}
                   </th>
@@ -314,13 +368,13 @@ function Candidates({ searchQuery = '' }) {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: '40px', textAlign: 'center' }}>
+                  <td colSpan={6} style={{ padding: '40px', textAlign: 'center' }}>
                     <Loader />
                   </td>
                 </tr>
               ) : candidates.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.82rem', fontFamily: 'DM Mono' }}>
+                  <td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.82rem', fontFamily: 'DM Mono' }}>
                     Кандидатів не знайдено
                   </td>
                 </tr>
@@ -352,6 +406,19 @@ function Candidates({ searchQuery = '' }) {
                     }}>
                       {getStatusLabel(c.status)}
                     </span>
+                  </td>
+                  <td style={{ padding: '13px 16px' }}>
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                      {c.tags && c.tags.map(tag => (
+                        <span key={tag.id} style={{
+                          fontSize: '0.6rem', fontFamily: 'DM Mono', padding: '2px 6px',
+                          borderRadius: '10px', background: tag.color + '20',
+                          border: `1px solid ${tag.color}`, color: tag.color,
+                        }}>
+                          {tag.name}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td style={{ padding: '13px 16px' }}>
                     <span style={{
