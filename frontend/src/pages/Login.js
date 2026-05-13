@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import API_URL from '../api';
-import axios from 'axios';
-axios.defaults.baseURL = API_URL;
+import axios from '../api';
 
 function Login({ onLogin }) {
   const [form, setForm] = useState({ username: '', password: '' });
