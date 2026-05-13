@@ -62,3 +62,12 @@ export const getHrAvatarColor = (userId) => {
   if (!userId) return '#71717a';
   return HR_AVATAR_COLORS[userId % HR_AVATAR_COLORS.length];
 };
+
+export const TAG_COLORS = [
+  '#7a1a2e', '#b03050', '#8a3a5a', '#e8a0b0',
+  '#c94f2a', '#16a34a', '#2563eb', '#7c3aed',
+  '#db2777', '#0891b2', '#ca8a04', '#4f46e5',
+  '#059669', '#dc2626', '#7c2d12', '#4338ca',
+];
+
+export const getTagColor = (index) => TAG_COLORS[index % TAG_COLORS.length];

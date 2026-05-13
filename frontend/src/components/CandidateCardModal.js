@@ -51,6 +51,12 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
   const [emailHistory, setEmailHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // Tags states
+  const [availableTags, setAvailableTags] = useState([]);
+  const [candidateTags, setCandidateTags] = useState([]);
+  const [showTagModal, setShowTagModal] = useState(false);
+  const [newTagForm, setNewTagForm] = useState({ name: '', color: '#7a1a2e' });
+
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
     checkMobile();
@@ -68,6 +74,11 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
         console.error('Помилка завантаження шаблонів:', err);
         setEmailError('Не вдалося завантажити шаблони листів');
       });
+    
+    // Завантаження тегів
+    axios.get('/api/tags/')
+      .then(res => setAvailableTags(res.data.results ?? res.data))
+      .catch(() => {});
       
     setLoading(true);
     setError('');
@@ -82,6 +93,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
         setUsers(usersData);
         const cand = candRes.data;
         setCandidate(cand);
+        setCandidateTags(cand.tags || []);
         setEditForm({
           first_name: cand.first_name || '',
           last_name: cand.last_name || '',
@@ -124,6 +136,44 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
       fetchEmailHistory();
     }
   }, [activeTab, candidateId, fetchEmailHistory]);
+
+  const updateTags = async (tagIds) => {
+    setSaving(true);
+    try {
+      const res = await axios.patch(`/api/candidates/${candidateId}/`, { tag_ids: tagIds });
+      setCandidate(res.data);
+      setCandidateTags(res.data.tags || []);
+    } catch (err) {
+      setError('Не вдалося оновити теги');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddTag = async (tagId) => {
+    const currentIds = candidateTags.map(t => t.id);
+    if (currentIds.includes(tagId)) return;
+    const newIds = [...currentIds, tagId];
+    await updateTags(newIds);
+  };
+
+  const handleRemoveTag = async (tagId) => {
+    const newIds = candidateTags.map(t => t.id).filter(id => id !== tagId);
+    await updateTags(newIds);
+  };
+
+  const handleCreateTag = async () => {
+    if (!newTagForm.name.trim()) return;
+    try {
+      const res = await axios.post('/api/tags/', newTagForm);
+      setAvailableTags(prev => [...prev, res.data]);
+      await handleAddTag(res.data.id);
+      setNewTagForm({ name: '', color: '#7a1a2e' });
+      setShowTagModal(false);
+    } catch (err) {
+      setError('Не вдалося створити тег');
+    }
+  };
 
   const handleStatusUpdate = (newStatus) => {
     if (!candidate || newStatus === candidate.status) return;
@@ -234,7 +284,6 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
       setShowEmailModal(false);
       setPreviewEmail(null);
       setSelectedTemplate(null);
-      // Оновлюємо історію після відправки
       fetchEmailHistory();
       alert('Лист успішно відправлено!');
     } catch (err) {
@@ -975,6 +1024,43 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                 </div>
               </div>
 
+              {/* Tags Section */}
+              <div>
+                <div style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  fontFamily: 'DM Mono',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  color: 'var(--muted)',
+                  marginBottom: '12px',
+                }}>
+                  Теги
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  {candidateTags.map(tag => (
+                    <span key={tag.id} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '6px',
+                      padding: '5px 12px', borderRadius: '20px',
+                      background: tag.color + '20',
+                      border: `1px solid ${tag.color}`,
+                      color: tag.color,
+                      fontSize: '0.75rem', fontWeight: 600, fontFamily: 'DM Sans',
+                    }}>
+                      {tag.name}
+                      <button onClick={() => handleRemoveTag(tag.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: tag.color, fontSize: '0.7rem', padding: 0 }}>✕</button>
+                    </span>
+                  ))}
+                  <button onClick={() => setShowTagModal(true)} style={{
+                    padding: '5px 12px', borderRadius: '20px', border: '1px dashed var(--border)',
+                    background: 'transparent', color: 'var(--muted)', fontSize: '0.75rem',
+                    cursor: 'pointer', fontFamily: 'DM Sans',
+                  }}>
+                    + Додати тег
+                  </button>
+                </div>
+              </div>
+
               {/* Email Templates Section */}
               <div>
                 <div style={{
@@ -1652,6 +1738,45 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
               >
                 {sendingEmail ? 'Відправка...' : '📤 Відправити лист'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tag Modal */}
+      {showTagModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px' }} onClick={() => setShowTagModal(false)}>
+          <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '400px', border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight: 700, marginBottom: '16px' }}>Управління тегами</div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px', maxHeight: '200px', overflowY: 'auto' }}>
+              {availableTags.map(tag => {
+                const isSelected = candidateTags.some(t => t.id === tag.id);
+                return (
+                  <button key={tag.id} onClick={() => isSelected ? handleRemoveTag(tag.id) : handleAddTag(tag.id)} style={{
+                    display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px',
+                    borderRadius: '8px', border: `1px solid ${isSelected ? tag.color : 'var(--border)'}`,
+                    background: isSelected ? tag.color + '15' : 'var(--bg)',
+                    cursor: 'pointer', textAlign: 'left', width: '100%',
+                  }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: tag.color }} />
+                    <span style={{ flex: 1, fontSize: '0.85rem' }}>{tag.name}</span>
+                    {isSelected && <span style={{ color: tag.color, fontSize: '0.8rem' }}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+            
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '10px' }}>Новий тег</div>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                <input value={newTagForm.name} onChange={e => setNewTagForm(f => ({ ...f, name: e.target.value }))} placeholder="Назва тегу" style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }} />
+                <input type="color" value={newTagForm.color} onChange={e => setNewTagForm(f => ({ ...f, color: e.target.value }))} style={{ width: '40px', height: '36px', border: 'none', cursor: 'pointer', background: 'none' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button onClick={() => setShowTagModal(false)} style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}>Скасувати</button>
+                <button onClick={handleCreateTag} style={{ padding: '8px 14px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>Створити</button>
+              </div>
             </div>
           </div>
         </div>

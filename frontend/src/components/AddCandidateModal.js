@@ -3,6 +3,8 @@ import api from '../api'; // ← твій авторизований axios insta
 
 function AddCandidateModal({ onClose, onAdded }) {
   const [vacancies, setVacancies] = useState([]);
+  const [availableTags, setAvailableTags] = useState([]);
+  const [selectedTags, setSelectedTags] = useState([]);
   const [error, setError] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   const [form, setForm] = useState({
@@ -20,11 +22,16 @@ function AddCandidateModal({ onClose, onAdded }) {
   useEffect(() => {
     api.get('/api/vacancies/')
       .then(res => {
-        // Обробляємо як пагінований { results: [] }, так і звичайний масив
         const data = res.data;
         setVacancies(Array.isArray(data) ? data : (data.results ?? []));
       })
       .catch(err => console.error('Помилка завантаження вакансій:', err));
+  }, []);
+
+  useEffect(() => {
+    api.get('/api/tags/')
+      .then(res => setAvailableTags(res.data.results ?? res.data))
+      .catch(err => console.error('Помилка завантаження тегів:', err));
   }, []);
 
   const handleChange = e => {
@@ -37,7 +44,7 @@ function AddCandidateModal({ onClose, onAdded }) {
     if (!form.email.trim()) { setError("Email обов'язковий"); return; }
     if (!form.vacancy) { setError("Оберіть вакансію"); return; }
 
-    api.post('/api/candidates/', form)
+    api.post('/api/candidates/', { ...form, tag_ids: selectedTags })
       .then(() => { onAdded(); onClose(); })
       .catch(err => console.error(err));
   };
@@ -108,6 +115,27 @@ function AddCandidateModal({ onClose, onAdded }) {
                 <option key={v.id} value={v.id}>{v.title}</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label style={label}>Теги</label>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {availableTags.map(tag => (
+                <button
+                  key={tag.id}
+                  onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
+                  type="button"
+                  style={{
+                    padding: '5px 12px', borderRadius: '20px', fontSize: '0.78rem',
+                    border: `1px solid ${selectedTags.includes(tag.id) ? tag.color : 'var(--border)'}`,
+                    background: selectedTags.includes(tag.id) ? tag.color + '20' : 'var(--bg)',
+                    color: selectedTags.includes(tag.id) ? tag.color : 'var(--muted)',
+                    cursor: 'pointer', fontFamily: 'DM Sans',
+                  }}
+                >
+                  {selectedTags.includes(tag.id) ? '✓ ' : ''}{tag.name}
+                </button>
+              ))}
+            </div>
           </div>
           <div>
             <label style={label}>Нотатки</label>

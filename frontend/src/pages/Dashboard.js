@@ -147,7 +147,7 @@ function Dashboard() {
               <div style={{ fontSize: '0.8rem', wordBreak: 'break-word' }}>
                 <strong>{c.first_name} {c.last_name}</strong> · {c.vacancy_title}
               </div>
-              <div style={{ fontFamily: 'DM Mono', fontSize: '0.65rem', color: 'var(--muted)', marginTop: '2px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ fontFamily: 'DM Mono', fontSize: '0.65rem', color: 'var(--muted)', marginTop: '2px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <span>{statusLabels[c.status]}</span>
                 <span>·</span>
                 <span>{formatDate(c.created_at)}</span>
@@ -155,6 +155,21 @@ function Dashboard() {
                   <>
                     <span>·</span>
                     <span style={{ color: getSourceColor(c.source) }}>{getSourceLabel(c.source)}</span>
+                  </>
+                )}
+                {c.tags && c.tags.length > 0 && (
+                  <>
+                    <span>·</span>
+                    <span style={{ display: 'flex', gap: '4px' }}>
+                      {c.tags.map(tag => (
+                        <span key={tag.id} style={{
+                          fontSize: '0.6rem', padding: '1px 4px', borderRadius: '4px',
+                          background: tag.color + '20', border: `1px solid ${tag.color}`, color: tag.color
+                        }}>
+                          {tag.name}
+                        </span>
+                      ))}
+                    </span>
                   </>
                 )}
               </div>
