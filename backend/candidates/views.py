@@ -17,11 +17,11 @@ from rest_framework.views import APIView
 
 from .models import (
     Candidate, EmailTemplate, Organization,
-    SentEmail, StatusHistory, UserProfile, Vacancy,
+    SentEmail, StatusHistory, Tag, UserProfile, Vacancy,
 )
 from .serializers import (
     CandidateSerializer, EmailTemplateSerializer, OrganizationSerializer,
-    SentEmailSerializer, VacancySerializer,
+    SentEmailSerializer, TagSerializer, VacancySerializer,
 )
 from .pagination import StandardPagination
 from .gmail_service import GmailService
@@ -120,6 +120,36 @@ SOURCE_LABELS = {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# TAGS
+# ═══════════════════════════════════════════════════════════════
+
+class TagViewSet(viewsets.ModelViewSet):
+    serializer_class = TagSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        role = get_user_role(self.request.user)
+        if role == 'superadmin':
+            org_id = self.request.query_params.get('organization')
+            qs = Tag.objects.all()
+            return qs.filter(organization_id=org_id) if org_id else qs
+        org = get_user_org(self.request.user)
+        return Tag.objects.filter(organization=org) if org else Tag.objects.none()
+
+    def perform_create(self, serializer):
+        org = get_user_org(self.request.user)
+        if not org:
+            raise serializers.ValidationError({'error': "Користувач не прив'язаний до організації"})
+        serializer.save(organization=org)
+
+    def perform_update(self, serializer):
+        org = get_user_org(self.request.user)
+        if not org or serializer.instance.organization != org:
+            raise serializers.ValidationError({'error': 'Немає прав'})
+        serializer.save()
+
+
+# ═══════════════════════════════════════════════════════════════
 # VACANCIES
 # ═══════════════════════════════════════════════════════════════
 
@@ -184,6 +214,9 @@ class CandidateViewSet(viewsets.ModelViewSet):
             qs = qs.filter(assigned_to_id=params['assigned_to'])
         if params.get('mine') == 'true':
             qs = qs.filter(assigned_to=user)
+        if params.get('tags'):
+            tag_ids = [int(t) for t in params.get('tags').split(',') if t.isdigit()]
+            qs = qs.filter(tags__id__in=tag_ids).distinct()
 
         # ── Пошук за ім'ям, прізвищем, email ──────────────────
         if params.get('search'):
@@ -201,12 +234,16 @@ class CandidateViewSet(viewsets.ModelViewSet):
             .prefetch_related(
                 'status_history',
                 'status_history__changed_by',
+                'tags',
             )
             .order_by('-created_at')
         )
 
     def perform_create(self, serializer):
-        serializer.save(organization=get_user_org(self.request.user))
+        tag_ids = serializer.validated_data.pop('tag_ids', [])
+        candidate = serializer.save(organization=get_user_org(self.request.user))
+        if tag_ids:
+            candidate.tags.set(tag_ids)
 
     @action(detail=True, methods=['patch'])
     def update_status(self, request, pk=None):
@@ -281,8 +318,11 @@ class CandidateExportCSVView(APIView):
                 | models.Q(last_name__icontains=search)
                 | models.Q(email__icontains=search)
             )
+        if params.get('tags'):
+            tag_ids = [int(t) for t in params.get('tags').split(',') if t.isdigit()]
+            qs = qs.filter(tags__id__in=tag_ids).distinct()
 
-        qs = qs.select_related('vacancy', 'organization').order_by('-created_at')
+        qs = qs.select_related('vacancy', 'organization').prefetch_related('tags').order_by('-created_at')
 
         response = HttpResponse(content_type='text/csv; charset=utf-8')
         response['Content-Disposition'] = 'attachment; filename="candidates.csv"'
@@ -291,10 +331,11 @@ class CandidateExportCSVView(APIView):
         writer = csv.writer(response)
         writer.writerow([
             'ID', "Ім'я", 'Прізвище', 'Email', 'Телефон',
-            'Вакансія', 'Організація', 'Статус', 'Джерело', 'Нотатки', 'Дата створення',
+            'Вакансія', 'Організація', 'Статус', 'Джерело', 'Теги', 'Нотатки', 'Дата створення',
         ])
 
         for c in qs:
+            tags_str = ', '.join([t.name for t in c.tags.all()])
             writer.writerow([
                 c.id,
                 c.first_name or '',
@@ -305,6 +346,7 @@ class CandidateExportCSVView(APIView):
                 c.organization.name if c.organization else '—',
                 STATUS_LABELS.get(c.status, c.status),
                 c.get_source_display() if c.source else '—',
+                tags_str,
                 (c.notes or '').replace('\n', ' ').replace('\r', ''),
                 c.created_at.strftime('%d.%m.%Y %H:%M') if c.created_at else '—',
             ])
@@ -479,8 +521,6 @@ class UserListView(viewsets.ViewSet):
 
         if profile:
             profile.role = request.data.get('role', profile.role)
-            # FIX: була хибна умова `org_id is None and 'organization' in request.data`
-            # через неправильний пріоритет операторів. Тепер явно перевіряємо.
             if 'organization' in request.data and (org_id == '' or org_id is None):
                 profile.organization = None
             elif org_id:

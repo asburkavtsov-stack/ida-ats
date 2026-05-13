@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Candidate, Vacancy, Organization, StatusHistory, EmailTemplate, SentEmail
+from .models import Candidate, Vacancy, Organization, StatusHistory, EmailTemplate, SentEmail, Tag
 
 
 class VacancySerializer(serializers.ModelSerializer):
@@ -23,12 +23,25 @@ class StatusHistorySerializer(serializers.ModelSerializer):
         return full or obj.changed_by.username
 
 
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ['id', 'name', 'color', 'created_at']
+
+
 class CandidateSerializer(serializers.ModelSerializer):
     vacancy_title = serializers.CharField(source='vacancy.title', read_only=True)
     assigned_to_name = serializers.SerializerMethodField()
     assigned_to_username = serializers.SerializerMethodField()
     status_history = StatusHistorySerializer(many=True, read_only=True)
     source_display = serializers.CharField(source='get_source_display', read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
+    tag_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        required=False,
+        allow_empty=True,
+    )
 
     class Meta:
         model = Candidate
@@ -37,7 +50,7 @@ class CandidateSerializer(serializers.ModelSerializer):
             'phone', 'vacancy', 'vacancy_title',
             'status', 'source', 'source_display', 'notes', 'created_at',
             'assigned_to', 'assigned_to_name', 'assigned_to_username',
-            'status_history',
+            'status_history', 'tags', 'tag_ids',
         ]
 
     def get_assigned_to_name(self, obj):
@@ -48,6 +61,13 @@ class CandidateSerializer(serializers.ModelSerializer):
 
     def get_assigned_to_username(self, obj):
         return obj.assigned_to.username if obj.assigned_to else None
+
+    def update(self, instance, validated_data):
+        tag_ids = validated_data.pop('tag_ids', None)
+        candidate = super().update(instance, validated_data)
+        if tag_ids is not None:
+            candidate.tags.set(tag_ids)
+        return candidate
 
 
 class OrganizationSerializer(serializers.ModelSerializer):

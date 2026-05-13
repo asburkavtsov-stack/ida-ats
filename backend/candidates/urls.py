@@ -1,10 +1,10 @@
-# candidates/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     CandidateViewSet, VacancyViewSet, OrganizationViewSet,
     UserListView, current_user, CandidateExportCSVView,
-    EmailTemplateViewSet, SentEmailViewSet, google_auth_status
+    EmailTemplateViewSet, SentEmailViewSet, google_auth_status,
+    TagViewSet,
 )
 
 router = DefaultRouter()
@@ -14,6 +14,7 @@ router.register(r'organizations', OrganizationViewSet, basename='organization')
 router.register(r'users', UserListView, basename='users')
 router.register(r'email-templates', EmailTemplateViewSet, basename='email-template')
 router.register(r'sent-emails', SentEmailViewSet, basename='sent-emails')
+router.register(r'tags', TagViewSet, basename='tag')
 
 urlpatterns = [
     path('candidates/export/', CandidateExportCSVView.as_view(), name='candidates-export'),
