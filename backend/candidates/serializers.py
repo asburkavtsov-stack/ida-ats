@@ -29,6 +29,15 @@ class TagSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'color', 'created_at']
 
 
+class DuplicateCandidateSerializer(serializers.ModelSerializer):
+    """Легкий серіалізатор для відображення дублікатів."""
+    vacancy_title = serializers.CharField(source='vacancy.title', read_only=True)
+
+    class Meta:
+        model = Candidate
+        fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'vacancy_title', 'status', 'created_at']
+
+
 class CandidateSerializer(serializers.ModelSerializer):
     vacancy_title = serializers.CharField(source='vacancy.title', read_only=True)
     assigned_to_name = serializers.SerializerMethodField()
@@ -42,6 +51,7 @@ class CandidateSerializer(serializers.ModelSerializer):
         required=False,
         allow_empty=True,
     )
+    duplicates = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Candidate
@@ -50,7 +60,7 @@ class CandidateSerializer(serializers.ModelSerializer):
             'phone', 'vacancy', 'vacancy_title',
             'status', 'source', 'source_display', 'notes', 'created_at',
             'assigned_to', 'assigned_to_name', 'assigned_to_username',
-            'status_history', 'tags', 'tag_ids',
+            'status_history', 'tags', 'tag_ids', 'duplicates',
         ]
 
     def get_assigned_to_name(self, obj):
@@ -61,6 +71,67 @@ class CandidateSerializer(serializers.ModelSerializer):
 
     def get_assigned_to_username(self, obj):
         return obj.assigned_to.username if obj.assigned_to else None
+
+    def get_duplicates(self, obj):
+        """Повертає знайдені дублікати при читанні."""
+        dups = obj.check_duplicate()
+        if dups.exists():
+            return DuplicateCandidateSerializer(dups[:5], many=True).data
+        return []
+
+    def validate(self, data):
+        """Валідація дублікатів при створенні/оновленні."""
+        request = self.context.get('request')
+        if not request:
+            return data
+
+        # Отримуємо організацію користувача
+        org = None
+        try:
+            org = request.user.profile.organization
+        except (AttributeError, UserProfile.DoesNotExist):
+            pass
+
+        email = data.get('email', '')
+        phone = data.get('phone', '')
+
+        if not email:
+            return data
+
+        from django.db.models import Q
+        from .models import normalize_phone
+
+        qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.all()
+
+        # Виключаємо поточний об'єкт при оновленні
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+
+        # Перевірка за email
+        email_dup = qs.filter(email__iexact=email).first()
+        if email_dup:
+            raise serializers.ValidationError({
+                'duplicate': True,
+                'duplicate_by': 'email',
+                'duplicate_candidate': DuplicateCandidateSerializer(email_dup).data,
+                'message': f'Кандидат з email {email} вже існує: {email_dup.first_name} {email_dup.last_name}'
+            })
+
+        # Перевірка за телефоном
+        if phone:
+            phone_normalized = normalize_phone(phone)
+            phone_dup = qs.filter(
+                Q(phone=phone_normalized) | Q(phone__iexact=phone)
+            ).exclude(email__iexact=email).first()
+            if phone_dup:
+                raise serializers.ValidationError({
+                    'duplicate': True,
+                    'duplicate_by': 'phone',
+                    'duplicate_candidate': DuplicateCandidateSerializer(phone_dup).data,
+                    'message': f'Кандидат з телефоном {phone} вже існує: {phone_dup.first_name} {phone_dup.last_name}'
+                })
+
+        return data
 
     def update(self, instance, validated_data):
         tag_ids = validated_data.pop('tag_ids', None)
@@ -88,7 +159,8 @@ class EmailTemplateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EmailTemplate
-        fields = ['id', 'organization', 'organization_name', 'template_type', 'template_type_display', 'subject', 'body', 'is_active', 'created_at', 'updated_at']
+        fields = ['id', 'organization', 'organization_name', 'template_type', 'template_type_display', 'subject',
+                  'body', 'is_active', 'created_at', 'updated_at']
         read_only_fields = ['organization', 'organization_name', 'created_at', 'updated_at']
 
 

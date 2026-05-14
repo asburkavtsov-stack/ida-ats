@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+import re
 
 
 class Organization(models.Model):
@@ -54,6 +55,13 @@ class Vacancy(models.Model):
         return self.title
 
 
+def normalize_phone(phone):
+    """Нормалізує телефон: залишає тільки цифри."""
+    if not phone:
+        return ''
+    return re.sub(r'\D', '', phone)
+
+
 class Candidate(models.Model):
     STATUS_CHOICES = [
         ('new', 'Новий'),
@@ -96,6 +104,35 @@ class Candidate(models.Model):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
+
+    def save(self, *args, **kwargs):
+        # Нормалізуємо телефон перед збереженням
+        if self.phone:
+            self.phone = normalize_phone(self.phone)
+        super().save(*args, **kwargs)
+
+    def check_duplicate(self):
+        """
+        Перевіряє чи існує дублікат за email або телефоном в межах організації.
+        Повертає QuerySet знайдених дублікатів (без себе, якщо вже збережений).
+        """
+        from django.db.models import Q
+        qs = Candidate.objects.filter(organization=self.organization)
+
+        if self.pk:
+            qs = qs.exclude(pk=self.pk)
+
+        # Пошук за email (точний збіг, case-insensitive)
+        email_q = Q(email__iexact=self.email)
+
+        # Пошук за телефоном (тільки якщо телефон не порожній)
+        phone_q = Q()
+        if self.phone:
+            phone_normalized = normalize_phone(self.phone)
+            phone_q = Q(phone=phone_normalized) | Q(phone__iexact=self.phone)
+
+        duplicates = qs.filter(email_q | phone_q).distinct()
+        return duplicates
 
 
 class StatusHistory(models.Model):

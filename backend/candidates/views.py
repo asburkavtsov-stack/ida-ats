@@ -3,6 +3,7 @@ import logging
 import smtplib
 import socket
 import traceback
+import io
 
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -17,23 +18,24 @@ from rest_framework.views import APIView
 
 from .models import (
     Candidate, EmailTemplate, Organization,
-    SentEmail, StatusHistory, Tag, UserProfile, Vacancy,
+    SentEmail, StatusHistory, Tag, UserProfile, Vacancy, normalize_phone,
 )
 from .serializers import (
     CandidateSerializer, EmailTemplateSerializer, OrganizationSerializer,
-    SentEmailSerializer, TagSerializer, VacancySerializer,
+    SentEmailSerializer, TagSerializer, VacancySerializer, DuplicateCandidateSerializer,
 )
 from .pagination import StandardPagination
 from .gmail_service import GmailService
 
 try:
     from allauth.socialaccount.models import SocialAccount
+
     ALLAUTH_AVAILABLE = True
 except ImportError:
     ALLAUTH_AVAILABLE = False
 
-
 logger = logging.getLogger(__name__)
+
 
 # ═══════════════════════════════════════════════════════════════
 # HELPERS
@@ -59,8 +61,8 @@ def get_user_role(user):
 def apply_template_replacements(subject: str, body: str, candidate, request) -> tuple[str, str]:
     """Підставляє змінні в тему та тіло листа."""
     hr_name = (
-        f"{request.user.first_name} {request.user.last_name}".strip()
-        or request.user.username
+            f"{request.user.first_name} {request.user.last_name}".strip()
+            or request.user.username
     )
     vacancy_title = candidate.vacancy.title if candidate.vacancy else '—'
     org_name = (
@@ -118,6 +120,7 @@ SOURCE_LABELS = {
     'direct': 'Прямий відгук',
     'other': 'Інше',
 }
+
 
 # ═══════════════════════════════════════════════════════════════
 # TAGS
@@ -284,6 +287,196 @@ class CandidateViewSet(viewsets.ModelViewSet):
                 {'error': 'User not found'},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+    @action(detail=False, methods=['post'])
+    def check_duplicate(self, request):
+        """
+        POST /api/candidates/check_duplicate/
+        Body: {"email": "...", "phone": "..."}
+        Перевіряє чи існує дублікат без створення кандидата.
+        """
+        email = request.data.get('email', '').strip()
+        phone = request.data.get('phone', '').strip()
+
+        if not email and not phone:
+            return Response(
+                {'error': 'Email або телефон обов\'язкові'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        org = get_user_org(request.user)
+        qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
+
+        from django.db.models import Q
+
+        filters = Q()
+        if email:
+            filters |= Q(email__iexact=email)
+        if phone:
+            phone_norm = normalize_phone(phone)
+            filters |= Q(phone=phone_norm) | Q(phone__iexact=phone)
+
+        duplicates = qs.filter(filters).distinct()[:5]
+
+        return Response({
+            'has_duplicate': duplicates.exists(),
+            'count': duplicates.count(),
+            'duplicates': DuplicateCandidateSerializer(duplicates, many=True).data,
+        })
+
+    @action(detail=False, methods=['post'])
+    def import_csv(self, request):
+        """
+        POST /api/candidates/import_csv/
+        Body: multipart/form-data з файлом CSV
+        Повертає: {"created": N, "duplicates": [...], "errors": [...]}
+        """
+        csv_file = request.FILES.get('file')
+        if not csv_file:
+            return Response(
+                {'error': 'Файл CSV обов\'язковий'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        org = get_user_org(request.user)
+        if not org:
+            return Response(
+                {'error': "Користувач не прив'язаний до організації"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        created_count = 0
+        duplicates = []
+        errors = []
+
+        try:
+            decoded_file = csv_file.read().decode('utf-8-sig')
+            io_string = io.StringIO(decoded_file)
+            reader = csv.DictReader(io_string)
+
+            # Нормалізуємо назви колонок
+            fieldnames = [f.strip().lower() for f in reader.fieldnames] if reader.fieldnames else []
+
+            # Мапінг можливих назв колонок
+            col_map = {}
+            for f in fieldnames:
+                if f in ('first_name', 'ім\'я', 'имя', 'name', 'first name', 'імя'):
+                    col_map['first_name'] = f
+                elif f in ('last_name', 'прізвище', 'фамилия', 'last name', 'прізвище'):
+                    col_map['last_name'] = f
+                elif f in ('email', 'пошта', 'email address', 'e-mail'):
+                    col_map['email'] = f
+                elif f in ('phone', 'телефон', 'phone number', 'мобільний'):
+                    col_map['phone'] = f
+                elif f in ('vacancy', 'вакансія', 'vacancy_id', 'position'):
+                    col_map['vacancy'] = f
+                elif f in ('status', 'статус'):
+                    col_map['status'] = f
+                elif f in ('source', 'джерело', 'source'):
+                    col_map['source'] = f
+                elif f in ('notes', 'нотатки', 'коментар', 'comments'):
+                    col_map['notes'] = f
+
+            if 'first_name' not in col_map or 'last_name' not in col_map or 'email' not in col_map:
+                return Response(
+                    {'error': 'CSV має містити колонки: first_name, last_name, email'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            for row_num, row in enumerate(reader, start=2):
+                try:
+                    first_name = row.get(col_map.get('first_name', ''), '').strip()
+                    last_name = row.get(col_map.get('last_name', ''), '').strip()
+                    email = row.get(col_map.get('email', ''), '').strip().lower()
+                    phone = row.get(col_map.get('phone', ''), '').strip()
+                    vacancy_title = row.get(col_map.get('vacancy', ''), '').strip()
+                    status_val = row.get(col_map.get('status', ''), 'new').strip().lower()
+                    source_val = row.get(col_map.get('source', ''), 'csv').strip().lower()
+                    notes = row.get(col_map.get('notes', ''), '').strip()
+
+                    if not first_name or not last_name or not email:
+                        errors.append({
+                            'row': row_num,
+                            'error': "Ім'я, прізвище та email обов'язкові"
+                        })
+                        continue
+
+                    # Перевірка дублікатів
+                    from django.db.models import Q
+                    phone_norm = normalize_phone(phone) if phone else ''
+
+                    dup_filters = Q(email__iexact=email)
+                    if phone_norm:
+                        dup_filters |= Q(phone=phone_norm)
+
+                    existing = Candidate.objects.filter(
+                        organization=org
+                    ).filter(dup_filters).first()
+
+                    if existing:
+                        duplicates.append({
+                            'row': row_num,
+                            'candidate': DuplicateCandidateSerializer(existing).data,
+                            'matched_by': 'email' if existing.email.lower() == email else 'phone',
+                            'import_data': {
+                                'first_name': first_name,
+                                'last_name': last_name,
+                                'email': email,
+                                'phone': phone,
+                            }
+                        })
+                        continue
+
+                    # Знаходимо вакансію за назвою
+                    vacancy = None
+                    if vacancy_title:
+                        vacancy = Vacancy.objects.filter(
+                            organization=org,
+                            title__iexact=vacancy_title
+                        ).first()
+
+                    # Валідний статус
+                    valid_statuses = [s[0] for s in Candidate.STATUS_CHOICES]
+                    if status_val not in valid_statuses:
+                        status_val = 'new'
+
+                    # Валідне джерело
+                    valid_sources = [s[0] for s in Candidate.SOURCE_CHOICES]
+                    if source_val not in valid_sources:
+                        source_val = 'csv'
+
+                    candidate = Candidate.objects.create(
+                        organization=org,
+                        first_name=first_name,
+                        last_name=last_name,
+                        email=email,
+                        phone=phone,
+                        vacancy=vacancy,
+                        status=status_val,
+                        source=source_val,
+                        notes=notes,
+                    )
+                    created_count += 1
+
+                except Exception as e:
+                    errors.append({
+                        'row': row_num,
+                        'error': str(e)
+                    })
+
+        except Exception as e:
+            return Response(
+                {'error': f'Помилка обробки CSV: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response({
+            'created': created_count,
+            'duplicates_found': len(duplicates),
+            'duplicates': duplicates,
+            'errors_count': len(errors),
+            'errors': errors[:10],  # Показуємо перші 10 помилок
+        })
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -813,7 +1006,8 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
 
         if not candidate.email:
             return (
-                Response({'success': False, 'error': 'У кандидата не вказано email'}, status=status.HTTP_400_BAD_REQUEST),
+                Response({'success': False, 'error': 'У кандидата не вказано email'},
+                         status=status.HTTP_400_BAD_REQUEST),
                 None, None, None,
             )
 
@@ -954,8 +1148,8 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
 
     def _send_via_console(self, request, template, candidate, hr_email, subject, body):
         hr_name = (
-            f"{request.user.first_name} {request.user.last_name}".strip()
-            or request.user.username
+                f"{request.user.first_name} {request.user.last_name}".strip()
+                or request.user.username
         )
         sent = self._create_sent_record(
             candidate, template, hr_email, subject, body, request, initial_status='sent',
@@ -1032,8 +1226,8 @@ class SentEmailViewSet(viewsets.ReadOnlyModelViewSet):
 @permission_classes([IsAuthenticated])
 def google_auth_status(request):
     has_google = (
-        ALLAUTH_AVAILABLE
-        and SocialAccount.objects.filter(user=request.user, provider='google').exists()
+            ALLAUTH_AVAILABLE
+            and SocialAccount.objects.filter(user=request.user, provider='google').exists()
     )
     return Response({
         'has_google_account': has_google,
