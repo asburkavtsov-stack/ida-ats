@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { KANBAN_COLUMNS, SOURCE_CONFIG } from '../constants/statusColors';
 
@@ -20,7 +20,7 @@ function Analytics() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const loadTimeToHire = () => {
+  const loadTimeToHire = useCallback(() => {
     setTimeToHireLoading(true);
     const params = new URLSearchParams();
     params.set('period', timeToHirePeriod);
@@ -30,7 +30,7 @@ function Analytics() {
       .then(res => setTimeToHire(res.data))
       .catch(() => {})
       .finally(() => setTimeToHireLoading(false));
-  };
+  }, [timeToHirePeriod, timeToHireVacancy]);
 
   useEffect(() => {
     Promise.all([
@@ -41,11 +41,11 @@ function Analytics() {
       setVacancies(vRes.data.results ?? vRes.data);
     });
     loadTimeToHire();
-  }, []);
+  }, [loadTimeToHire]);
 
   useEffect(() => {
     loadTimeToHire();
-  }, [timeToHirePeriod, timeToHireVacancy]);
+  }, [loadTimeToHire]);
 
   const total = candidates.length || 1;
 
