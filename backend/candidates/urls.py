@@ -29,5 +29,8 @@ urlpatterns = [
         'delete': 'destroy',
     })),
     path('analytics/time-to-hire/', time_to_hire_analytics, name='time-to-hire'),
+    path('analytics/time-to-hire/candidate/<int:candidate_id>/', candidate_time_to_hire_detail,
+         name='time-to-hire-candidate'),
+    path('analytics/time-to-hire/export/', export_time_to_hire_csv, name='time-to-hire-export'),
     path('google-auth-status/', google_auth_status, name='google-auth-status'),
 ]
