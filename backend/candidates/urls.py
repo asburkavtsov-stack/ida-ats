@@ -5,6 +5,8 @@ from .views import (
     UserListView, current_user, CandidateExportCSVView,
     EmailTemplateViewSet, SentEmailViewSet, google_auth_status,
     TagViewSet, time_to_hire_analytics,
+    candidate_time_to_hire_detail,
+    export_time_to_hire_csv,
 )
 
 router = DefaultRouter()
