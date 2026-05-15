@@ -4,11 +4,16 @@ import smtplib
 import socket
 import traceback
 import io
+from datetime import datetime, timedelta
 
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import models
 from django.http import HttpResponse
+from django.core.cache import cache
+from django.db.models import Avg, F, ExpressionWrapper, DurationField, Q, Prefetch
+from django.db.models.functions import TruncDay, TruncWeek, TruncMonth, TruncQuarter, TruncYear
+from django.shortcuts import get_object_or_404
 
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
@@ -307,8 +312,6 @@ class CandidateViewSet(viewsets.ModelViewSet):
         org = get_user_org(request.user)
         qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
 
-        from django.db.models import Q
-
         filters = Q()
         if email:
             filters |= Q(email__iexact=email)
@@ -402,7 +405,6 @@ class CandidateViewSet(viewsets.ModelViewSet):
                         continue
 
                     # Перевірка дублікатів
-                    from django.db.models import Q
                     phone_norm = normalize_phone(phone) if phone else ''
 
                     dup_filters = Q(email__iexact=email)
@@ -1252,3 +1254,427 @@ def test_email_config(request):
         'current_user_email': request.user.email,
         'google_client_id_set': bool(getattr(settings, 'GOOGLE_CLOUD_CLIENT_ID', '')),
     })
+
+
+# ═══════════════════════════════════════════════════════════════
+# TIME-TO-HIRE ANALYTICS
+# ═══════════════════════════════════════════════════════════════
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def time_to_hire_analytics(request):
+    """
+    GET /api/analytics/time-to-hire/
+
+    Query params:
+      - vacancy: ID вакансії (опціонально)
+      - assigned_to: ID HR-менеджера (опціонально)
+      - period: day|week|month|quarter|year (default: month)
+      - date_from: YYYY-MM-DD
+      - date_to: YYYY-MM-DD
+      - organization: ID організації (тільки для superadmin)
+
+    Повертає:
+      - overall_avg: загальний середній час (днів)
+      - median: медіана
+      - total_offers: кількість офферів
+      - by_vacancy: по вакансіях
+      - by_period: по періодах
+      - distribution: розподіл по діапазонах (0-7, 7-14, 14-30, 30-60, 60+ днів)
+      - trend: накопичувальний середній
+    """
+    role = get_user_role(request.user)
+
+    # Валідація дат
+    date_from = request.query_params.get('date_from')
+    date_to = request.query_params.get('date_to')
+
+    if date_from:
+        try:
+            datetime.strptime(date_from, '%Y-%m-%d')
+        except ValueError:
+            return Response(
+                {'error': 'date_from має бути у форматі YYYY-MM-DD'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    if date_to:
+        try:
+            datetime.strptime(date_to, '%Y-%m-%d')
+        except ValueError:
+            return Response(
+                {'error': 'date_to має бути у форматі YYYY-MM-DD'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    # Кешування
+    cache_key_parts = [
+        'time_to_hire',
+        role,
+        request.query_params.get('organization', ''),
+        request.query_params.get('vacancy', ''),
+        request.query_params.get('assigned_to', ''),
+        date_from or '',
+        date_to or '',
+        request.query_params.get('period', 'month'),
+    ]
+    cache_key = '_'.join(str(p) for p in cache_key_parts)
+    cached_data = cache.get(cache_key)
+
+    if cached_data:
+        return Response(cached_data)
+
+    # Базовий queryset
+    if role == 'superadmin':
+        qs = Candidate.objects.all()
+        if request.query_params.get('organization'):
+            qs = qs.filter(organization_id=request.query_params['organization'])
+    else:
+        org = get_user_org(request.user)
+        qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
+
+    # Фільтр по вакансії
+    vacancy_id = request.query_params.get('vacancy')
+    if vacancy_id:
+        qs = qs.filter(vacancy_id=vacancy_id)
+
+    # Фільтр по HR-менеджеру
+    assigned_to = request.query_params.get('assigned_to')
+    if assigned_to:
+        qs = qs.filter(assigned_to_id=assigned_to)
+
+    # Фільтр по датам
+    if date_from:
+        qs = qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(created_at__date__lte=date_to)
+
+    # Оптимізований запит: кандидати зі статусом "offer" + префетч історії
+    candidates_with_offer = qs.filter(status='offer').select_related('vacancy', 'assigned_to').prefetch_related(
+        Prefetch(
+            'status_history',
+            queryset=StatusHistory.objects.filter(new_status='offer').order_by('changed_at'),
+            to_attr='offer_history'
+        )
+    )
+
+    time_data = []
+
+    for candidate in candidates_with_offer:
+        # Час створення (статус "new" за замовчуванням)
+        new_time = candidate.created_at
+
+        # Перший перехід в "offer" з історії
+        first_offer = candidate.offer_history[0] if candidate.offer_history else None
+
+        # Якщо кандидат одразу створений зі статусом 'offer'
+        if candidate.status == 'offer' and not first_offer:
+            days = 0
+            offer_date = candidate.created_at
+        elif first_offer and new_time:
+            days = (first_offer.changed_at - new_time).total_seconds() / 86400
+            offer_date = first_offer.changed_at
+        else:
+            continue
+
+        if days >= 0:  # Ігноруємо негативні значення
+            time_data.append({
+                'candidate_id': candidate.id,
+                'candidate_name': f"{candidate.first_name} {candidate.last_name}",
+                'vacancy_id': candidate.vacancy_id,
+                'vacancy_title': candidate.vacancy.title if candidate.vacancy else '—',
+                'assigned_to_id': candidate.assigned_to_id,
+                'assigned_to_name': f"{candidate.assigned_to.first_name} {candidate.assigned_to.last_name}".strip() if candidate.assigned_to else None,
+                'days': round(days, 1),
+                'new_date': new_time,
+                'offer_date': offer_date,
+            })
+
+    if not time_data:
+        response_data = {
+            'overall_avg': None,
+            'median': None,
+            'total_offers': 0,
+            'by_vacancy': [],
+            'by_period': [],
+            'distribution': [],
+            'trend': [],
+        }
+        cache.set(cache_key, response_data, 3600)  # Кеш на 1 годину
+        return Response(response_data)
+
+    # Загальна статистика
+    all_days = [d['days'] for d in time_data]
+    overall_avg = round(sum(all_days) / len(all_days), 1)
+    all_days_sorted = sorted(all_days)
+    median = round(all_days_sorted[len(all_days_sorted) // 2], 1)
+
+    # По вакансіях
+    vacancy_stats = {}
+    for d in time_data:
+        vid = d['vacancy_id']
+        if vid not in vacancy_stats:
+            vacancy_stats[vid] = {
+                'vacancy_id': vid,
+                'vacancy_title': d['vacancy_title'],
+                'times': [],
+            }
+        vacancy_stats[vid]['times'].append(d['days'])
+
+    by_vacancy = []
+    for vid, stat in vacancy_stats.items():
+        times = stat['times']
+        avg = round(sum(times) / len(times), 1)
+        times_sorted = sorted(times)
+        by_vacancy.append({
+            'vacancy_id': vid,
+            'vacancy_title': stat['vacancy_title'],
+            'avg_days': avg,
+            'median_days': round(times_sorted[len(times_sorted) // 2], 1),
+            'offers_count': len(times),
+            'min_days': round(min(times), 1),
+            'max_days': round(max(times), 1),
+        })
+    by_vacancy.sort(key=lambda x: x['avg_days'])
+
+    # По періодах
+    period = request.query_params.get('period', 'month')
+    period_format = {
+        'day': '%Y-%m-%d',
+        'week': '%Y-W%W',
+        'month': '%Y-%m',
+        'quarter': '%Y-Q%q',
+        'year': '%Y',
+    }.get(period, '%Y-%m')
+
+    period_stats = {}
+    for d in time_data:
+        period_key = d['offer_date'].strftime(period_format)
+
+        if period_key not in period_stats:
+            period_stats[period_key] = []
+        period_stats[period_key].append(d['days'])
+
+    by_period = []
+    for pkey, times in sorted(period_stats.items()):
+        avg = round(sum(times) / len(times), 1)
+        by_period.append({
+            'period': pkey,
+            'avg_days': avg,
+            'offers_count': len(times),
+        })
+
+    # Розподіл по діапазонах
+    ranges = [
+        ('0-7 днів', 0, 7),
+        ('7-14 днів', 7, 14),
+        ('14-30 днів', 14, 30),
+        ('30-60 днів', 30, 60),
+        ('60+ днів', 60, float('inf')),
+    ]
+    distribution = []
+    for label, min_d, max_d in ranges:
+        count = sum(1 for d in all_days if min_d <= d < max_d)
+        distribution.append({
+            'range': label,
+            'count': count,
+            'percentage': round(count / len(all_days) * 100, 1) if all_days else 0,
+        })
+
+    # Тренд (накопичувальний середній по періодах)
+    trend = []
+    cumulative_times = []
+    for bp in by_period:
+        # Додаємо всі дні з цього періоду
+        period_times = period_stats.get(bp['period'], [])
+        cumulative_times.extend(period_times)
+        trend.append({
+            'period': bp['period'],
+            'cumulative_avg': round(sum(cumulative_times) / len(cumulative_times), 1) if cumulative_times else 0,
+            'offers_to_date': len(cumulative_times),
+        })
+
+    response_data = {
+        'overall_avg': overall_avg,
+        'median': median,
+        'total_offers': len(time_data),
+        'by_vacancy': by_vacancy,
+        'by_period': by_period,
+        'distribution': distribution,
+        'trend': trend,
+    }
+
+    # Кешуємо результат на 1 годину
+    cache.set(cache_key, response_data, 3600)
+
+    return Response(response_data)
+
+
+# ═══════════════════════════════════════════════════════════════
+# TIME-TO-HIRE DETAILS
+# ═══════════════════════════════════════════════════════════════
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def candidate_time_to_hire_detail(request, candidate_id):
+    """
+    GET /api/analytics/time-to-hire/candidate/{id}/
+
+    Повертає детальну інформацію по конкретному кандидату:
+      - Вся історія змін статусів з часом перебування в кожному статусі
+      - Загальний час до оффера (якщо є)
+    """
+    candidate = get_object_or_404(Candidate, id=candidate_id)
+
+    # Перевірка прав доступу
+    role = get_user_role(request.user)
+    if role != 'superadmin':
+        org = get_user_org(request.user)
+        if candidate.organization != org:
+            return Response({'error': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+    # Збираємо таймлайн статусів
+    status_timeline = []
+    prev_time = candidate.created_at
+    prev_status = 'new'  # Початковий статус
+
+    for history in candidate.status_history.order_by('changed_at'):
+        if prev_time:
+            days = round((history.changed_at - prev_time).total_seconds() / 86400, 1)
+            status_timeline.append({
+                'from_status': prev_status,
+                'to_status': history.new_status,
+                'changed_by': history.changed_by.get_full_name() or history.changed_by.username,
+                'changed_at': history.changed_at,
+                'days_in_status': days,
+            })
+        prev_time = history.changed_at
+        prev_status = history.new_status
+
+    # Час до оффера
+    time_to_offer = None
+    offer_date = None
+
+    if candidate.status == 'offer':
+        first_offer = candidate.status_history.filter(new_status='offer').order_by('changed_at').first()
+        if first_offer:
+            time_to_offer = round((first_offer.changed_at - candidate.created_at).total_seconds() / 86400, 1)
+            offer_date = first_offer.changed_at
+        else:
+            # Кандидат одразу створений зі статусом offer
+            time_to_offer = 0
+            offer_date = candidate.created_at
+
+    return Response({
+        'candidate_id': candidate.id,
+        'name': f"{candidate.first_name} {candidate.last_name}".strip(),
+        'email': candidate.email,
+        'phone': candidate.phone,
+        'vacancy': {
+            'id': candidate.vacancy_id,
+            'title': candidate.vacancy.title if candidate.vacancy else None,
+        },
+        'assigned_to': {
+            'id': candidate.assigned_to_id,
+            'name': f"{candidate.assigned_to.first_name} {candidate.assigned_to.last_name}".strip() if candidate.assigned_to else None,
+        } if candidate.assigned_to else None,
+        'created_at': candidate.created_at,
+        'current_status': candidate.status,
+        'current_status_display': candidate.get_status_display(),
+        'time_to_offer_days': time_to_offer,
+        'offer_date': offer_date,
+        'status_timeline': status_timeline,
+        'total_status_changes': len(status_timeline),
+    })
+
+
+# ═══════════════════════════════════════════════════════════════
+# TIME-TO-HIRE EXPORT
+# ═══════════════════════════════════════════════════════════════
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_time_to_hire_csv(request):
+    """
+    GET /api/analytics/time-to-hire/export/
+
+    Експортує дані Time-to-Hire у CSV форматі.
+    Приймає ті ж параметри, що й time_to_hire_analytics.
+    """
+    role = get_user_role(request.user)
+
+    # Базовий queryset (аналогічно до time_to_hire_analytics)
+    if role == 'superadmin':
+        qs = Candidate.objects.all()
+        if request.query_params.get('organization'):
+            qs = qs.filter(organization_id=request.query_params['organization'])
+    else:
+        org = get_user_org(request.user)
+        qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
+
+    # Фільтри
+    if request.query_params.get('vacancy'):
+        qs = qs.filter(vacancy_id=request.query_params['vacancy'])
+    if request.query_params.get('assigned_to'):
+        qs = qs.filter(assigned_to_id=request.query_params['assigned_to'])
+    if request.query_params.get('date_from'):
+        qs = qs.filter(created_at__date__gte=request.query_params['date_from'])
+    if request.query_params.get('date_to'):
+        qs = qs.filter(created_at__date__lte=request.query_params['date_to'])
+
+    # Отримуємо кандидатів з офферами
+    candidates_with_offer = qs.filter(status='offer').select_related('vacancy', 'assigned_to').prefetch_related(
+        Prefetch(
+            'status_history',
+            queryset=StatusHistory.objects.filter(new_status='offer').order_by('changed_at'),
+            to_attr='offer_history'
+        )
+    )
+
+    # Збираємо дані
+    export_data = []
+    for candidate in candidates_with_offer:
+        new_time = candidate.created_at
+        first_offer = candidate.offer_history[0] if candidate.offer_history else None
+
+        if candidate.status == 'offer' and not first_offer:
+            days = 0
+            offer_date = candidate.created_at
+        elif first_offer and new_time:
+            days = round((first_offer.changed_at - new_time).total_seconds() / 86400, 1)
+            offer_date = first_offer.changed_at
+        else:
+            continue
+
+        if days >= 0:
+            export_data.append({
+                'id': candidate.id,
+                'first_name': candidate.first_name,
+                'last_name': candidate.last_name,
+                'email': candidate.email,
+                'phone': candidate.phone,
+                'vacancy': candidate.vacancy.title if candidate.vacancy else '—',
+                'assigned_to': f"{candidate.assigned_to.first_name} {candidate.assigned_to.last_name}".strip() if candidate.assigned_to else '—',
+                'created_at': candidate.created_at.strftime('%d.%m.%Y %H:%M') if candidate.created_at else '—',
+                'offer_date': offer_date.strftime('%d.%m.%Y %H:%M') if offer_date else '—',
+                'days_to_offer': days,
+            })
+
+    # Формуємо CSV відповідь
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="time_to_hire_export.csv"'
+    response.write('\ufeff')  # BOM для Excel
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'ID', "Ім'я", 'Прізвище', 'Email', 'Телефон',
+        'Вакансія', 'HR Менеджер', 'Дата створення', 'Дата офферу', 'Днів до офферу'
+    ])
+
+    for row in export_data:
+        writer.writerow([
+            row['id'], row['first_name'], row['last_name'], row['email'], row['phone'],
+            row['vacancy'], row['assigned_to'], row['created_at'], row['offer_date'], row['days_to_offer']
+        ])
+
+    return response

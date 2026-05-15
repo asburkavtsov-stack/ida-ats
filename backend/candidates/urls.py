@@ -28,5 +28,6 @@ urlpatterns = [
         'patch': 'partial_update',
         'delete': 'destroy',
     })),
+    path('analytics/time-to-hire/', time_to_hire_analytics, name='time-to-hire'),
     path('google-auth-status/', google_auth_status, name='google-auth-status'),
 ]
