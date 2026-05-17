@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from django.db.models import Q, Prefetch, QuerySet
+from django.db.models import Q, Prefetch, QuerySet, Count
 from django.core.cache import cache
 
 from candidates.models import Candidate, StatusHistory
@@ -174,7 +174,7 @@ class AnalyticsService:
 
             # Розподіл по статусах
             status_counts = dict(
-                hr_candidates.values('status').annotate(count=models.Count('id')).values_list('status', 'count'))
+                hr_candidates.values('status').annotate(count=Count('id')).values_list('status', 'count'))
 
             offers = status_counts.get('offer', 0)
             interviews = status_counts.get('interview', 0)
@@ -188,7 +188,7 @@ class AnalyticsService:
             interview_rate = round((interviews + offers) / total * 100, 1) if total > 0 else 0
 
             # Середній час до офферу
-            time_data = AnalyticsService.calculate_time_to_hire_data(hr_candidates.filter(status='offer'))
+            time_data = AnalyticsService.calculate_time_to_hire_data(hr_candidates)
             avg_time = round(sum(d['days'] for d in time_data) / len(time_data), 1) if time_data else None
 
             hr_name = f"{hr_user.first_name} {hr_user.last_name}".strip() or hr_user.username
