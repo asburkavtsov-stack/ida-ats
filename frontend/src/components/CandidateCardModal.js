@@ -69,7 +69,10 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
     
     // Завантаження email-шаблонів
     axios.get('/api/email-templates/')
-      .then(res => setEmailTemplates(res.data.filter(t => t.is_active)))
+      .then(res => {
+        const templates = res.data.results ?? res.data;
+        setEmailTemplates(templates.filter(t => t.is_active));
+      })
       .catch(err => {
         console.error('Помилка завантаження шаблонів:', err);
         setEmailError('Не вдалося завантажити шаблони листів');
@@ -180,7 +183,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
 
     setSaving(true);
     setError('');
-    axios.patch(`/api/candidates/${candidateId}/update_status/`, { status: newStatus })
+    axios.patch(`/api/candidates/${candidateId}/update-status/`, { status: newStatus })
       .then(res => {
         const updated = res.data;
         setCandidate(updated);
