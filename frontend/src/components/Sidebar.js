@@ -10,6 +10,7 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
   const navItems = userRole === 'superadmin' ? [
     { key: 'admin', icon: '⚙', label: 'Організації' },
     { key: 'users', icon: '👥', label: 'Юзери' },
+    { key: 'profile',      icon: '◉', label: 'Профіль',       badgeKey: null },
   ] : userRole === 'admin' ? [
     { key: 'dashboard',    icon: '◈', label: 'Дашборд',      badgeKey: null },
     { key: 'kanban',       icon: '⊞', label: 'Канбан',        badgeKey: 'kanban' },
@@ -24,7 +25,6 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
     { key: 'kanban',     icon: '⊞', label: 'Канбан',      badgeKey: 'kanban' },
     { key: 'candidates', icon: '◉', label: 'Кандидати',   badgeKey: 'candidates' },
     { key: 'vacancies',  icon: '◫', label: 'Вакансії',    badgeKey: 'vacancies' },
-    { key: 'analytics',  icon: '◎', label: 'Аналітика',   badgeKey: null },
     { key: 'profile',    icon: '◉', label: 'Профіль',     badgeKey: null },
   ];
 
