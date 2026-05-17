@@ -55,7 +55,7 @@ function OrgSettings() {
     if (!org) return;
     setLoadingUsers(true);
     axios.get(`/api/users/?organization=${org.id}`)
-      .then(res => setUsers(res.data))
+      .then(res => setUsers(res.data.results ?? res.data))
       .catch(() => {})
       .finally(() => setLoadingUsers(false));
   }, [org]);
