@@ -1,3 +1,4 @@
+// Vacancies.js
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import AddVacancyModal from '../components/AddVacancyModal';
@@ -17,6 +18,7 @@ function Vacancies() {
   const [isMobile, setIsMobile] = useState(false);
   const [vacancyLimit, setVacancyLimit] = useState({ current: 0, max: 10 });
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -39,6 +41,10 @@ function Vacancies() {
       setCandidates(candsData);
       const maxVacancies = meRes.data.organization?.max_vacancies || 10;
       setVacancyLimit({ current: vacsData.length, max: maxVacancies });
+      
+      // Перевірка ролі - така сама, як в Sidebar
+      const userRole = meRes.data.role;
+      setIsAdmin(userRole === 'admin');
     } catch (err) {
       console.error('Помилка завантаження:', err);
     } finally {
@@ -416,25 +422,43 @@ function Vacancies() {
             </span>
           )}
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          disabled={isLimitReached}
-          style={{
+        
+        {/* Кнопка додавання вакансії - доступна лише адміністраторам */}
+        {isAdmin ? (
+          <button
+            onClick={() => setShowModal(true)}
+            disabled={isLimitReached}
+            style={{
+              padding: isMobile ? '10px 16px' : '8px 16px',
+              borderRadius: '8px',
+              border: 'none',
+              background: isLimitReached ? '#e5e7eb' : 'var(--accent)',
+              color: isLimitReached ? '#9ca3af' : '#fff',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              cursor: isLimitReached ? 'not-allowed' : 'pointer',
+              fontFamily: 'DM Sans',
+              transition: 'all 0.15s',
+            }}
+            title={isLimitReached ? `Ліміт ${vacancyLimit.max} вакансій досягнуто` : ''}
+          >
+            <span aria-hidden="true">{isLimitReached ? '⛔' : '+'}</span> {isLimitReached ? 'Ліміт досягнуто' : 'Нова вакансія'}
+          </button>
+        ) : (
+          <div style={{
             padding: isMobile ? '10px 16px' : '8px 16px',
             borderRadius: '8px',
-            border: 'none',
-            background: isLimitReached ? '#e5e7eb' : 'var(--accent)',
-            color: isLimitReached ? '#9ca3af' : '#fff',
-            fontSize: '0.82rem',
-            fontWeight: 600,
-            cursor: isLimitReached ? 'not-allowed' : 'pointer',
-            fontFamily: 'DM Sans',
-            transition: 'all 0.15s',
-          }}
-          title={isLimitReached ? `Ліміт ${vacancyLimit.max} вакансій досягнуто` : ''}
-        >
-          <span aria-hidden="true">{isLimitReached ? '⛔' : '+'}</span> {isLimitReached ? 'Ліміт досягнуто' : 'Нова вакансія'}
-        </button>
+            background: '#f3f4f6',
+            color: '#6b7280',
+            fontSize: '0.75rem',
+            fontFamily: 'DM Mono',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}>
+            <span aria-hidden="true">🔒</span> Тільки для адміністраторів
+          </div>
+        )}
       </div>
 
       <div style={{
