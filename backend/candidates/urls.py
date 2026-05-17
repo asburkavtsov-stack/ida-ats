@@ -7,6 +7,8 @@ from .views import (
     TagViewSet, time_to_hire_analytics,
     candidate_time_to_hire_detail,
     export_time_to_hire_csv,
+    hr_effectiveness_analytics,
+    export_hr_effectiveness_csv,
 )
 
 router = DefaultRouter()
@@ -32,5 +34,7 @@ urlpatterns = [
     path('analytics/time-to-hire/candidate/<int:candidate_id>/', candidate_time_to_hire_detail,
          name='time-to-hire-candidate'),
     path('analytics/time-to-hire/export/', export_time_to_hire_csv, name='time-to-hire-export'),
+    path('analytics/hr-effectiveness/', hr_effectiveness_analytics, name='hr-effectiveness'),
+    path('analytics/hr-effectiveness/export/', export_hr_effectiveness_csv, name='hr-effectiveness-export'),
     path('google-auth-status/', google_auth_status, name='google-auth-status'),
 ]

@@ -135,3 +135,81 @@ class AnalyticsService:
     @staticmethod
     def cache_analytics(cache_key: str, data: Dict, timeout: int = 3600) -> None:
         cache.set(cache_key, data, timeout)
+
+    @staticmethod
+    def calculate_hr_effectiveness(queryset: QuerySet) -> List[Dict[str, Any]]:
+        """
+        Розраховує ефективність HR-менеджерів.
+
+        Повертає список з:
+        - hr_id, hr_name
+        - total_candidates (всього кандидатів)
+        - by_status (розподіл по статусах)
+        - conversion_rate (конверсія в оффер %)
+        - offers_count (кількість офферів)
+        - interviews_count (кількість співбесід)
+        - rejected_count (кількість відмов)
+        - active_candidates (активні кандидати, не rejected)
+        - time_to_hire_avg (середній час до офферу)
+        """
+        from django.contrib.auth.models import User
+
+        # Групуємо по assigned_to
+        hr_stats = []
+
+        # Отримуємо всіх HR з кандидатами
+        hr_ids = queryset.exclude(assigned_to__isnull=True).values_list('assigned_to', flat=True).distinct()
+
+        for hr_id in hr_ids:
+            try:
+                hr_user = User.objects.get(id=hr_id)
+            except User.DoesNotExist:
+                continue
+
+            hr_candidates = queryset.filter(assigned_to=hr_id)
+            total = hr_candidates.count()
+
+            if total == 0:
+                continue
+
+            # Розподіл по статусах
+            status_counts = dict(
+                hr_candidates.values('status').annotate(count=models.Count('id')).values_list('status', 'count'))
+
+            offers = status_counts.get('offer', 0)
+            interviews = status_counts.get('interview', 0)
+            rejected = status_counts.get('rejected', 0)
+            active = total - rejected
+
+            # Конверсія в оффер
+            conversion_rate = round(offers / total * 100, 1) if total > 0 else 0
+
+            # Конверсія в співбесіду+
+            interview_rate = round((interviews + offers) / total * 100, 1) if total > 0 else 0
+
+            # Середній час до офферу
+            time_data = AnalyticsService.calculate_time_to_hire_data(hr_candidates.filter(status='offer'))
+            avg_time = round(sum(d['days'] for d in time_data) / len(time_data), 1) if time_data else None
+
+            hr_name = f"{hr_user.first_name} {hr_user.last_name}".strip() or hr_user.username
+
+            hr_stats.append({
+                'hr_id': hr_id,
+                'hr_name': hr_name,
+                'hr_email': hr_user.email,
+                'hr_username': hr_user.username,
+                'total_candidates': total,
+                'offers_count': offers,
+                'interviews_count': interviews,
+                'rejected_count': rejected,
+                'active_candidates': active,
+                'conversion_rate': conversion_rate,
+                'interview_rate': interview_rate,
+                'time_to_hire_avg': avg_time,
+                'by_status': {s: status_counts.get(s, 0) for s in
+                              ['new', 'screening', 'interview', 'offer', 'rejected']},
+            })
+
+        hr_stats.sort(key=lambda x: (-x['conversion_rate'], -x['total_candidates']))
+
+        return hr_stats

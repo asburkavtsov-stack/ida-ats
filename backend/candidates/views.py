@@ -1,4 +1,3 @@
-# candidates/views.py
 import csv
 import logging
 from datetime import datetime
@@ -635,4 +634,95 @@ def export_time_to_hire_csv(request):
                          row['vacancy_title'], row['assigned_to_name'] or '',
                          row['new_date'].strftime('%d.%m.%Y') if row['new_date'] else '',
                          row['offer_date'].strftime('%d.%m.%Y') if row['offer_date'] else '', row['days']])
+    return response
+
+
+# ═══════════════════════════════════════════════════════════════
+# HR EFFECTIVENESS ANALYTICS
+# ═══════════════════════════════════════════════════════════════
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsOrgMember])
+def hr_effectiveness_analytics(request):
+    role = get_user_role(request.user)
+    if role == 'superadmin':
+        qs = Candidate.objects.all()
+        org_id = request.query_params.get('organization')
+        if org_id:
+            qs = qs.filter(organization_id=org_id)
+    else:
+        org = get_user_organization(request.user)
+        qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
+
+    # Фільтр по даті
+    if request.query_params.get('date_from'):
+        qs = qs.filter(created_at__date__gte=request.query_params['date_from'])
+    if request.query_params.get('date_to'):
+        qs = qs.filter(created_at__date__lte=request.query_params['date_to'])
+
+    # Фільтр по вакансії
+    if request.query_params.get('vacancy'):
+        qs = qs.filter(vacancy_id=request.query_params['vacancy'])
+
+    hr_data = AnalyticsService.calculate_hr_effectiveness(qs)
+
+    # Додаткова агрегована статистика
+    total_candidates = qs.count()
+    total_offers = qs.filter(status='offer').count()
+    overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
+
+    return Response({
+        'hr_managers': hr_data,
+        'summary': {
+            'total_hr': len(hr_data),
+            'total_candidates': total_candidates,
+            'total_offers': total_offers,
+            'overall_conversion': overall_conversion,
+        }
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsOrgMember])
+def export_hr_effectiveness_csv(request):
+    import csv
+    from django.http import HttpResponse
+
+    role = get_user_role(request.user)
+    if role == 'superadmin':
+        qs = Candidate.objects.all()
+        org_id = request.query_params.get('organization')
+        if org_id:
+            qs = qs.filter(organization_id=org_id)
+    else:
+        org = get_user_organization(request.user)
+        qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
+
+    hr_data = AnalyticsService.calculate_hr_effectiveness(qs)
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = 'attachment; filename="hr_effectiveness.csv"'
+    response.write('\ufeff')
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'HR ID', "Ім'я HR", 'Username', 'Email',
+        'Всього кандидатів', 'Офферів', 'Співбесід', 'Відмов', 'Активних',
+        'Конверсія в оффер %', 'Конверсія в співбесіду+ %',
+        'Середній час до офферу (дні)',
+        'Нові', 'Скринінг', 'Співбесіда', 'Оффер', 'Відмова'
+    ])
+
+    for hr in hr_data:
+        writer.writerow([
+            hr['hr_id'], hr['hr_name'], hr['hr_username'], hr['hr_email'],
+            hr['total_candidates'], hr['offers_count'], hr['interviews_count'],
+            hr['rejected_count'], hr['active_candidates'],
+            hr['conversion_rate'], hr['interview_rate'],
+            hr['time_to_hire_avg'] or '—',
+            hr['by_status']['new'], hr['by_status']['screening'],
+            hr['by_status']['interview'], hr['by_status']['offer'],
+            hr['by_status']['rejected'],
+        ])
+
     return response
