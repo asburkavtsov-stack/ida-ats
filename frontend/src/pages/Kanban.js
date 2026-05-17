@@ -66,7 +66,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
     setCandidates(prev => prev.map(c =>
       c.id === candidateId ? { ...c, status: newStatus } : c
     ));
-    axios.patch(`/api/candidates/${candidateId}/update_status/`, { status: newStatus })
+    axios.patch(`/api/candidates/${candidateId}/update-status/`, { status: newStatus })
       .catch(() => {
         setCandidates(prev => prev.map(c =>
           c.id === candidateId ? { ...c, status: source.droppableId } : c
@@ -78,7 +78,7 @@ function Kanban({ searchQuery = '', orgId = null }) {
     setCandidates(prev => prev.map(c =>
       c.id === candidateId ? { ...c, status: newStatus } : c
     ));
-    axios.patch(`/api/candidates/${candidateId}/update_status/`, { status: newStatus })
+    axios.patch(`/api/candidates/${candidateId}/update-status/`, { status: newStatus })
       .catch(() => {
         setCandidates(prev => prev.map(c =>
           c.id === candidateId ? { ...c, status: c.status } : c
