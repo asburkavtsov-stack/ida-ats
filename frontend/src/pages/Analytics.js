@@ -12,6 +12,7 @@ function Analytics() {
   const [timeToHirePeriod, setTimeToHirePeriod] = useState('month');
   const [timeToHireVacancy, setTimeToHireVacancy] = useState('all');
   const [timeToHireLoading, setTimeToHireLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // HR Effectiveness states
   const [hrEffectiveness, setHrEffectiveness] = useState(null);
@@ -59,6 +60,65 @@ function Analytics() {
   useEffect(() => {
     loadTimeToHire();
   }, [loadTimeToHire]);
+
+  // Експорт функції
+  const handleExport = async (type, format) => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      
+      if (type === 'tth') {
+        if (timeToHireVacancy !== 'all') params.set('vacancy', timeToHireVacancy);
+        if (timeToHire?.date_from) params.set('date_from', timeToHire.date_from);
+        if (timeToHire?.date_to) params.set('date_to', timeToHire.date_to);
+        
+        const url = format === 'excel' 
+          ? `/api/analytics/time-to-hire/export-excel/?${params.toString()}`
+          : `/api/analytics/time-to-hire/export-pdf/?${params.toString()}`;
+        
+        const response = await axios.get(url, { responseType: 'blob' });
+        const blob = new Blob([response.data], { 
+          type: format === 'excel' 
+            ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            : 'application/pdf'
+        });
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const dateStr = new Date().toISOString().slice(0, 10);
+        link.href = downloadUrl;
+        link.setAttribute('download', `time_to_hire_${dateStr}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+      } else if (type === 'hr') {
+        const url = format === 'excel'
+          ? '/api/analytics/hr-effectiveness/export-excel/'
+          : '/api/analytics/hr-effectiveness/export-pdf/';
+        
+        const response = await axios.get(url, { responseType: 'blob' });
+        const blob = new Blob([response.data], { 
+          type: format === 'excel'
+            ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            : 'application/pdf'
+        });
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const dateStr = new Date().toISOString().slice(0, 10);
+        link.href = downloadUrl;
+        link.setAttribute('download', `hr_effectiveness_${dateStr}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+      }
+    } catch (err) {
+      console.error('Помилка експорту:', err);
+      alert('Не вдалося експортувати звіт');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const total = candidates.length || 1;
 
@@ -221,6 +281,54 @@ function Analytics() {
               <option value="quarter">По кварталах</option>
               <option value="year">По роках</option>
             </select>
+
+            {/* Кнопки експорту Time-to-Hire */}
+            {timeToHire && timeToHire.total_offers > 0 && (
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  onClick={() => handleExport('tth', 'excel')}
+                  disabled={exporting}
+                  aria-label="Експорт Time-to-Hire у Excel"
+                  type="button"
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg)',
+                    color: '#16a34a',
+                    fontSize: '0.72rem',
+                    cursor: exporting ? 'not-allowed' : 'pointer',
+                    fontFamily: 'DM Mono',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <span aria-hidden="true">📊</span> Excel
+                </button>
+                <button
+                  onClick={() => handleExport('tth', 'pdf')}
+                  disabled={exporting}
+                  aria-label="Експорт Time-to-Hire у PDF"
+                  type="button"
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg)',
+                    color: '#dc2626',
+                    fontSize: '0.72rem',
+                    cursor: exporting ? 'not-allowed' : 'pointer',
+                    fontFamily: 'DM Mono',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <span aria-hidden="true">📄</span> PDF
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -547,7 +655,7 @@ function Analytics() {
                         <th style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600 }}>Середній час</th>
                         <th style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600 }}>Офферів</th>
                         <th style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600 }}>Оцінка</th>
-                      </tr>
+                      <tr>
                     </thead>
                     <tbody>
                       {timeToHire.by_period.map((p, i) => (
@@ -714,25 +822,55 @@ function Analytics() {
               </span>
             )}
           </span>
-          {hrEffectiveness && hrEffectiveness.hr_managers.length > 0 && (
-            <button
-              onClick={() => {
-                window.open('/api/analytics/hr-effectiveness/export/', '_blank');
-              }}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '8px',
-                border: '1px solid var(--border)',
-                background: 'var(--bg)',
-                color: 'var(--text)',
-                fontSize: '0.78rem',
-                cursor: 'pointer',
-                fontFamily: 'DM Sans',
-              }}
-            >
-              <span aria-hidden="true">⬇</span> Експорт CSV
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Кнопки експорту HR Effectiveness */}
+            {hrEffectiveness && hrEffectiveness.hr_managers.length > 0 && (
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <button
+                  onClick={() => handleExport('hr', 'excel')}
+                  disabled={exporting}
+                  aria-label="Експорт HR Effectiveness у Excel"
+                  type="button"
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg)',
+                    color: '#16a34a',
+                    fontSize: '0.72rem',
+                    cursor: exporting ? 'not-allowed' : 'pointer',
+                    fontFamily: 'DM Mono',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <span aria-hidden="true">📊</span> Excel
+                </button>
+                <button
+                  onClick={() => handleExport('hr', 'pdf')}
+                  disabled={exporting}
+                  aria-label="Експорт HR Effectiveness у PDF"
+                  type="button"
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg)',
+                    color: '#dc2626',
+                    fontSize: '0.72rem',
+                    cursor: exporting ? 'not-allowed' : 'pointer',
+                    fontFamily: 'DM Mono',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <span aria-hidden="true">📄</span> PDF
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {hrEffectivenessLoading ? (
@@ -847,7 +985,7 @@ function Analytics() {
                     <th style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600 }}>Конверсія</th>
                     <th style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600 }}>Активних</th>
                     <th style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600 }}>Time-to-Hire</th>
-                  </tr>
+                  </table>
                 </thead>
                 <tbody>
                   {hrEffectiveness.hr_managers.map((hr, i) => (
