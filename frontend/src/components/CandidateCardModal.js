@@ -64,12 +64,12 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  useEffect(() => {
+    useEffect(() => {
     if (!candidateId) return;
     
     // Завантаження email-шаблонів
     axios.get('/api/email-templates/')
-      .then(res => setEmailTemplates(res.data.filter(t => t.is_active)))
+      .then(res => setEmailTemplates((res.data.results ?? res.data).filter(t => t.is_active)))
       .catch(err => {
         console.error('Помилка завантаження шаблонів:', err);
         setEmailError('Не вдалося завантажити шаблони листів');
