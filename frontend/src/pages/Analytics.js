@@ -69,8 +69,6 @@ function Analytics() {
       
       if (type === 'tth') {
         if (timeToHireVacancy !== 'all') params.set('vacancy', timeToHireVacancy);
-        if (timeToHire?.date_from) params.set('date_from', timeToHire.date_from);
-        if (timeToHire?.date_to) params.set('date_to', timeToHire.date_to);
         
         const url = format === 'excel' 
           ? `/api/analytics/time-to-hire/export-excel/?${params.toString()}`
@@ -288,7 +286,6 @@ function Analytics() {
                 <button
                   onClick={() => handleExport('tth', 'excel')}
                   disabled={exporting}
-                  aria-label="Експорт Time-to-Hire у Excel"
                   type="button"
                   style={{
                     padding: '6px 12px',
@@ -309,7 +306,6 @@ function Analytics() {
                 <button
                   onClick={() => handleExport('tth', 'pdf')}
                   disabled={exporting}
-                  aria-label="Експорт Time-to-Hire у PDF"
                   type="button"
                   style={{
                     padding: '6px 12px',
@@ -355,7 +351,6 @@ function Analytics() {
           </div>
         ) : (
           <div style={{ padding: isMobile ? '16px' : '24px' }}>
-
             {/* ── Key Metrics ── */}
             <div style={{
               display: 'grid',
@@ -655,7 +650,7 @@ function Analytics() {
                         <th style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600 }}>Середній час</th>
                         <th style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600 }}>Офферів</th>
                         <th style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600 }}>Оцінка</th>
-                      <tr>
+                      </tr>
                     </thead>
                     <tbody>
                       {timeToHire.by_period.map((p, i) => (
@@ -829,7 +824,6 @@ function Analytics() {
                 <button
                   onClick={() => handleExport('hr', 'excel')}
                   disabled={exporting}
-                  aria-label="Експорт HR Effectiveness у Excel"
                   type="button"
                   style={{
                     padding: '6px 12px',
@@ -850,7 +844,6 @@ function Analytics() {
                 <button
                   onClick={() => handleExport('hr', 'pdf')}
                   disabled={exporting}
-                  aria-label="Експорт HR Effectiveness у PDF"
                   type="button"
                   style={{
                     padding: '6px 12px',
@@ -896,7 +889,6 @@ function Analytics() {
           </div>
         ) : (
           <div style={{ padding: isMobile ? '16px' : '24px' }}>
-
             {/* Summary Cards */}
             <div style={{
               display: 'grid',
@@ -985,7 +977,7 @@ function Analytics() {
                     <th style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600 }}>Конверсія</th>
                     <th style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600 }}>Активних</th>
                     <th style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600 }}>Time-to-Hire</th>
-                  </table>
+                  </tr>
                 </thead>
                 <tbody>
                   {hrEffectiveness.hr_managers.map((hr, i) => (
@@ -1154,7 +1146,6 @@ function Analytics() {
                 })}
               </div>
             </div>
-
           </div>
         )}
       </div>
