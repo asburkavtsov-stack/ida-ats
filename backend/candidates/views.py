@@ -1,3 +1,4 @@
+# views.py
 import csv
 import logging
 from datetime import datetime
@@ -23,7 +24,7 @@ from .serializers import (
 from .pagination import StandardPagination
 from .permissions import IsSuperAdmin, IsOrgMember
 from .services import CandidateService, EmailService, AnalyticsService
-from .utils.export_service import ExportService  # <-- ДОДАНО
+from .utils.export_service import ExportService, FullReportExportService
 from .utils.context_processors import (
     get_user_profile, get_user_organization, get_user_role,
     is_superadmin, clear_user_cache
@@ -31,9 +32,11 @@ from .utils.context_processors import (
 from .utils.validators import check_candidate_duplicates, validate_organization_limits
 from .utils.csv_handlers import CSVHandler, CSVImportResult
 
+# Константи для аналітики
+from .constants import KANBAN_COLUMNS, SOURCE_CONFIG
+
 try:
     from allauth.socialaccount.models import SocialAccount
-
     ALLAUTH_AVAILABLE = True
 except ImportError:
     ALLAUTH_AVAILABLE = False
@@ -438,7 +441,7 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
 
         try:
             if EmailService.get_email_backend_type() == 'gmail' and ALLAUTH_AVAILABLE:
-                sender_user = User.objects.filter(id=request.user.id).first()  # спрощено
+                sender_user = User.objects.filter(id=request.user.id).first()
                 result = EmailService.send_via_gmail(sender_user, candidate.email, subject, body)
                 sent_email.status = 'sent'
                 sent_email.save()
@@ -724,7 +727,7 @@ def export_hr_effectiveness_csv(request):
             hr['by_status']['new'], hr['by_status']['screening'],
             hr['by_status']['interview'], hr['by_status']['offer'],
             hr['by_status']['rejected'],
-        ])
+            ])
 
     return response
 
@@ -732,9 +735,6 @@ def export_hr_effectiveness_csv(request):
 # ═══════════════════════════════════════════════════════════════
 # EXCEL / PDF EXPORT VIEWS
 # ═══════════════════════════════════════════════════════════════
-
-from .utils.export_service import ExportService
-
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
@@ -890,3 +890,193 @@ def export_hr_effectiveness_pdf(request):
     }
 
     return ExportService.export_hr_effectiveness_pdf(hr_data, summary, filters)
+
+
+# ═══════════════════════════════════════════════════════════════
+# FULL REPORT EXPORT (ПОВНИЙ ЗВІТ З АНАЛІТИКИ)
+# ═══════════════════════════════════════════════════════════════
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsOrgMember])
+def export_full_report_excel(request):
+    """
+    Експорт ПОВНОГО звіту з аналітики у формат Excel:
+    - Time-to-Hire статистика
+    - HR Effectiveness
+    - Воронка кандидатів
+    - Джерела кандидатів
+    - Вакансії
+    """
+    role = get_user_role(request.user)
+
+    # 1. Збираємо всіх кандидатів з урахуванням фільтрів
+    if role == 'superadmin':
+        org_id = request.query_params.get('organization')
+        if org_id:
+            candidates_qs = Candidate.objects.filter(organization_id=org_id)
+        else:
+            candidates_qs = Candidate.objects.all()
+    else:
+        org = get_user_organization(request.user)
+        candidates_qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
+
+    # Фільтри по вакансії, HR, датах
+    vacancy_filter = request.query_params.get('vacancy')
+    assigned_to_filter = request.query_params.get('assigned_to')
+    date_from = request.query_params.get('date_from')
+    date_to = request.query_params.get('date_to')
+
+    if vacancy_filter:
+        candidates_qs = candidates_qs.filter(vacancy_id=vacancy_filter)
+    if assigned_to_filter:
+        candidates_qs = candidates_qs.filter(assigned_to_id=assigned_to_filter)
+    if date_from:
+        candidates_qs = candidates_qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        candidates_qs = candidates_qs.filter(created_at__date__lte=date_to)
+
+    # 2. Збираємо вакансії
+    if role == 'superadmin':
+        if org_id:
+            vacancies_qs = Vacancy.objects.filter(organization_id=org_id)
+        else:
+            vacancies_qs = Vacancy.objects.all()
+    else:
+        org = get_user_organization(request.user)
+        vacancies_qs = Vacancy.objects.filter(organization=org) if org else Vacancy.objects.none()
+
+    # 3. Розраховуємо Time-to-Hire
+    time_data = AnalyticsService.calculate_time_to_hire_data(candidates_qs, date_from, date_to)
+    tth_statistics = AnalyticsService.calculate_statistics(time_data)
+
+    # Додаємо by_period та trend для повноти
+    period = request.query_params.get('period', 'month')
+    period_format = {'day': '%Y-%m-%d', 'week': '%Y-W%W', 'month': '%Y-%m', 'quarter': '%Y-Q%q', 'year': '%Y'}.get(period, '%Y-%m')
+    period_stats = {}
+    for d in time_data:
+        pkey = d['offer_date'].strftime(period_format)
+        period_stats.setdefault(pkey, []).append(d['days'])
+    tth_statistics['by_period'] = [{'period': pkey, 'avg_days': round(sum(t) / len(t), 1), 'offers_count': len(t)}
+                                   for pkey, t in sorted(period_stats.items())]
+
+    cumulative_times = []
+    tth_statistics['trend'] = []
+    for bp in tth_statistics['by_period']:
+        cumulative_times.extend(period_stats.get(bp['period'], []))
+        tth_statistics['trend'].append({
+            'period': bp['period'],
+            'cumulative_avg': round(sum(cumulative_times) / len(cumulative_times), 1) if cumulative_times else 0,
+            'offers_to_date': len(cumulative_times)
+        })
+
+    # 4. Розраховуємо HR Effectiveness
+    hr_data = AnalyticsService.calculate_hr_effectiveness(candidates_qs)
+    total_candidates = candidates_qs.count()
+    total_offers = candidates_qs.filter(status='offer').count()
+    overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
+
+    hr_effectiveness = {
+        'hr_managers': hr_data,
+        'summary': {
+            'total_hr': len(hr_data),
+            'total_candidates': total_candidates,
+            'total_offers': total_offers,
+            'overall_conversion': overall_conversion,
+        }
+    }
+
+    # 5. Воронка кандидатів
+    funnel = AnalyticsService.calculate_funnel_data(candidates_qs, total_candidates, KANBAN_COLUMNS)
+
+    # 6. Джерела кандидатів та конверсія
+    sources, source_conversion = AnalyticsService.calculate_sources_data(candidates_qs, total_candidates, SOURCE_CONFIG)
+
+    # 7. Вакансії
+    vacancies_list = AnalyticsService.calculate_vacancies_data(candidates_qs, vacancies_qs)
+
+    # 8. Формуємо повний об'єкт даних
+    analytics_data = {
+        'time_to_hire': tth_statistics,
+        'hr_effectiveness': hr_effectiveness,
+        'funnel': funnel,
+        'sources': sources,
+        'source_conversion': source_conversion,
+        'vacancies': vacancies_list,
+        'total_candidates': total_candidates,
+        'time_to_hire_filters': {
+            'period': period,
+        },
+        'filters': {
+            'organization_id': org_id if role == 'superadmin' else None,
+            'vacancy': vacancy_filter,
+            'assigned_to': assigned_to_filter,
+            'date_from': date_from,
+            'date_to': date_to,
+        }
+    }
+
+    return FullReportExportService.export_full_report_excel(analytics_data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsOrgMember])
+def export_full_report_pdf(request):
+    """
+    Експорт ПОВНОГО звіту з аналітики у формат PDF
+    """
+    role = get_user_role(request.user)
+
+    # Збираємо дані (аналогічно Excel експорту)
+    if role == 'superadmin':
+        org_id = request.query_params.get('organization')
+        if org_id:
+            candidates_qs = Candidate.objects.filter(organization_id=org_id)
+        else:
+            candidates_qs = Candidate.objects.all()
+    else:
+        org = get_user_organization(request.user)
+        candidates_qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
+
+    vacancy_filter = request.query_params.get('vacancy')
+    assigned_to_filter = request.query_params.get('assigned_to')
+    date_from = request.query_params.get('date_from')
+    date_to = request.query_params.get('date_to')
+
+    if vacancy_filter:
+        candidates_qs = candidates_qs.filter(vacancy_id=vacancy_filter)
+    if assigned_to_filter:
+        candidates_qs = candidates_qs.filter(assigned_to_id=assigned_to_filter)
+    if date_from:
+        candidates_qs = candidates_qs.filter(created_at__date__gte=date_from)
+    if date_to:
+        candidates_qs = candidates_qs.filter(created_at__date__lte=date_to)
+
+    # Time-to-Hire
+    time_data = AnalyticsService.calculate_time_to_hire_data(candidates_qs, date_from, date_to)
+    tth_statistics = AnalyticsService.calculate_statistics(time_data)
+
+    # HR Effectiveness
+    hr_data = AnalyticsService.calculate_hr_effectiveness(candidates_qs)
+    total_candidates = candidates_qs.count()
+    total_offers = candidates_qs.filter(status='offer').count()
+    overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
+
+    # Воронка
+    funnel = AnalyticsService.calculate_funnel_data(candidates_qs, total_candidates, KANBAN_COLUMNS)
+
+    analytics_data = {
+        'time_to_hire': tth_statistics,
+        'hr_effectiveness': {
+            'hr_managers': hr_data,
+            'summary': {
+                'total_hr': len(hr_data),
+                'total_candidates': total_candidates,
+                'total_offers': total_offers,
+                'overall_conversion': overall_conversion,
+            }
+        },
+        'funnel': funnel,
+        'total_candidates': total_candidates,
+    }
+
+    return FullReportExportService.export_full_report_pdf(analytics_data)
