@@ -562,13 +562,14 @@ class ExportService:
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="hr_effectiveness_{datetime.now().strftime("%Y%m%d")}.pdf"'
 
+        # ВИПРАВЛЕННЯ: використовуємо A4 замість landscape, або зменшуємо ширину таблиці
         doc = SimpleDocTemplate(
             response,
-            pagesize=landscape(A4),
-            rightMargin=15*mm,
-            leftMargin=15*mm,
-            topMargin=20*mm,
-            bottomMargin=20*mm,
+            pagesize=A4,
+            rightMargin=10*mm,
+            leftMargin=10*mm,
+            topMargin=15*mm,
+            bottomMargin=15*mm,
         )
 
         styles = cls._get_pdf_styles()
@@ -606,11 +607,12 @@ class ExportService:
         story.append(summary_table)
         story.append(Spacer(1, 15))
 
-        # Деталі по HR
+        # Деталі по HR - ВИПРАВЛЕННЯ: зменшуємо кількість колонок та ширину
         story.append(Paragraph("Детальна статистика по HR-менеджерах", styles['CyrillicHeading2']))
 
+        # Зменшуємо кількість колонок та ширину для A4
         hr_table_data = [[
-            "HR", "Канд.", "Оффер", "Співб.", "Відмова", "Активні", "Конверс.", "TTH"
+            "HR", "Канд.", "Оффер", "Співб.", "Відм.", "Активн.", "Конверс."
         ]]
 
         for hr in hr_data:
@@ -621,11 +623,11 @@ class ExportService:
                 str(hr['interviews_count']),
                 str(hr['rejected_count']),
                 str(hr['active_candidates']),
-                f"{hr['conversion_rate']}%",
-                f"{hr.get('time_to_hire_avg', '—')}" if hr.get('time_to_hire_avg') else "—"
+                f"{hr['conversion_rate']}%"
             ])
 
-        hr_table = Table(hr_table_data, colWidths=[55, 35, 35, 35, 35, 35, 40, 35])
+        # ВИПРАВЛЕННЯ: ширина для A4 (190mm доступно)
+        hr_table = Table(hr_table_data, colWidths=[50, 30, 30, 30, 30, 35, 35])
         hr_table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), 'CyrillicFont'),
             ('FONTSIZE', (0, 0), (-1, -1), 8),
@@ -981,13 +983,14 @@ class FullReportExportService:
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="full_analytics_report_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf"'
 
+        # ВИПРАВЛЕННЯ: використовуємо A4 portrait замість landscape
         doc = SimpleDocTemplate(
             response,
-            pagesize=landscape(A4),
-            rightMargin=15*mm,
-            leftMargin=15*mm,
-            topMargin=20*mm,
-            bottomMargin=20*mm,
+            pagesize=A4,
+            rightMargin=10*mm,
+            leftMargin=10*mm,
+            topMargin=15*mm,
+            bottomMargin=15*mm,
         )
 
         styles = ExportService._get_pdf_styles()

@@ -37,6 +37,7 @@ from .constants import KANBAN_COLUMNS, SOURCE_CONFIG
 
 try:
     from allauth.socialaccount.models import SocialAccount
+
     ALLAUTH_AVAILABLE = True
 except ImportError:
     ALLAUTH_AVAILABLE = False
@@ -727,7 +728,7 @@ def export_hr_effectiveness_csv(request):
             hr['by_status']['new'], hr['by_status']['screening'],
             hr['by_status']['interview'], hr['by_status']['offer'],
             hr['by_status']['rejected'],
-            ])
+        ])
 
     return response
 
@@ -951,7 +952,8 @@ def export_full_report_excel(request):
 
     # Додаємо by_period та trend для повноти
     period = request.query_params.get('period', 'month')
-    period_format = {'day': '%Y-%m-%d', 'week': '%Y-W%W', 'month': '%Y-%m', 'quarter': '%Y-Q%q', 'year': '%Y'}.get(period, '%Y-%m')
+    period_format = {'day': '%Y-%m-%d', 'week': '%Y-W%W', 'month': '%Y-%m', 'quarter': '%Y-Q%q', 'year': '%Y'}.get(
+        period, '%Y-%m')
     period_stats = {}
     for d in time_data:
         pkey = d['offer_date'].strftime(period_format)
