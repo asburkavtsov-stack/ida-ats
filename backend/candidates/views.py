@@ -1017,8 +1017,11 @@ def export_full_report_excel(request):
         }
     }
 
-    return FullReportExportService.export_full_report_excel(analytics_data)
-
+    try:
+        return FullReportExportService.export_full_report_pdf(analytics_data)
+    except Exception as e:
+        logger.error(f"Full report PDF export failed: {e}")
+        return JsonResponse({'error': 'PDF export failed, try Excel'}, status=500)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
@@ -1081,4 +1084,8 @@ def export_full_report_pdf(request):
         'total_candidates': total_candidates,
     }
 
-    return FullReportExportService.export_full_report_pdf(analytics_data)
+    try:
+        return FullReportExportService.export_full_report_pdf(analytics_data)
+    except Exception as e:
+        logger.error(f"Full report PDF export failed: {e}")
+        return JsonResponse({'error': 'PDF export failed, try Excel'}, status=500)
