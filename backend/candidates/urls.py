@@ -9,6 +9,11 @@ from .views import (
     export_time_to_hire_csv,
     hr_effectiveness_analytics,
     export_hr_effectiveness_csv,
+    # === НОВІ ЕКСПОРТИ ===
+    export_time_to_hire_excel,
+    export_time_to_hire_pdf,
+    export_hr_effectiveness_excel,
+    export_hr_effectiveness_pdf,
 )
 
 router = DefaultRouter()
@@ -34,7 +39,11 @@ urlpatterns = [
     path('analytics/time-to-hire/candidate/<int:candidate_id>/', candidate_time_to_hire_detail,
          name='time-to-hire-candidate'),
     path('analytics/time-to-hire/export/', export_time_to_hire_csv, name='time-to-hire-export'),
+    path('analytics/time-to-hire/export-excel/', export_time_to_hire_excel, name='time-to-hire-export-excel'),
+    path('analytics/time-to-hire/export-pdf/', export_time_to_hire_pdf, name='time-to-hire-export-pdf'),
     path('analytics/hr-effectiveness/', hr_effectiveness_analytics, name='hr-effectiveness'),
     path('analytics/hr-effectiveness/export/', export_hr_effectiveness_csv, name='hr-effectiveness-export'),
+    path('analytics/hr-effectiveness/export-excel/', export_hr_effectiveness_excel, name='hr-effectiveness-export-excel'),
+    path('analytics/hr-effectiveness/export-pdf/', export_hr_effectiveness_pdf, name='hr-effectiveness-export-pdf'),
     path('google-auth-status/', google_auth_status, name='google-auth-status'),
 ]

@@ -23,6 +23,7 @@ from .serializers import (
 from .pagination import StandardPagination
 from .permissions import IsSuperAdmin, IsOrgMember
 from .services import CandidateService, EmailService, AnalyticsService
+from .utils.export_service import ExportService  # <-- ДОДАНО
 from .utils.context_processors import (
     get_user_profile, get_user_organization, get_user_role,
     is_superadmin, clear_user_cache
@@ -145,7 +146,7 @@ class CandidateViewSet(viewsets.ModelViewSet):
         if tag_ids:
             candidate.tags.set(tag_ids)
 
-    @action(detail=True, methods=['patch'], url_path='update-status')
+    @action(detail=True, methods=['patch'], url_path='update_status')
     def update_status(self, request, pk=None):
         candidate = self.get_object()
         new_status = request.data.get('status')
@@ -726,3 +727,166 @@ def export_hr_effectiveness_csv(request):
         ])
 
     return response
+
+
+# ═══════════════════════════════════════════════════════════════
+# EXCEL / PDF EXPORT VIEWS
+# ═══════════════════════════════════════════════════════════════
+
+from .utils.export_service import ExportService
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsOrgMember])
+def export_time_to_hire_excel(request):
+    role = get_user_role(request.user)
+    if role == 'superadmin':
+        qs = Candidate.objects.all()
+        org_id = request.query_params.get('organization')
+        if org_id:
+            qs = qs.filter(organization_id=org_id)
+    else:
+        org = get_user_organization(request.user)
+        qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
+
+    if request.query_params.get('vacancy'):
+        qs = qs.filter(vacancy_id=request.query_params['vacancy'])
+    if request.query_params.get('assigned_to'):
+        qs = qs.filter(assigned_to_id=request.query_params['assigned_to'])
+
+    time_data = AnalyticsService.calculate_time_to_hire_data(
+        qs,
+        request.query_params.get('date_from'),
+        request.query_params.get('date_to')
+    )
+    statistics = AnalyticsService.calculate_statistics(time_data)
+
+    filters = {
+        'Організація': org_id if role == 'superadmin' else (org.name if org else None),
+        'Вакансія': request.query_params.get('vacancy'),
+        'HR Менеджер': request.query_params.get('assigned_to'),
+        'Дата від': request.query_params.get('date_from'),
+        'Дата до': request.query_params.get('date_to'),
+    }
+
+    return ExportService.export_time_to_hire_excel(time_data, statistics, filters)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsOrgMember])
+def export_time_to_hire_pdf(request):
+    role = get_user_role(request.user)
+    if role == 'superadmin':
+        qs = Candidate.objects.all()
+        org_id = request.query_params.get('organization')
+        if org_id:
+            qs = qs.filter(organization_id=org_id)
+    else:
+        org = get_user_organization(request.user)
+        qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
+
+    if request.query_params.get('vacancy'):
+        qs = qs.filter(vacancy_id=request.query_params['vacancy'])
+    if request.query_params.get('assigned_to'):
+        qs = qs.filter(assigned_to_id=request.query_params['assigned_to'])
+
+    time_data = AnalyticsService.calculate_time_to_hire_data(
+        qs,
+        request.query_params.get('date_from'),
+        request.query_params.get('date_to')
+    )
+    statistics = AnalyticsService.calculate_statistics(time_data)
+
+    filters = {
+        'Організація': org_id if role == 'superadmin' else (org.name if org else None),
+        'Вакансія': request.query_params.get('vacancy'),
+        'HR Менеджер': request.query_params.get('assigned_to'),
+        'Дата від': request.query_params.get('date_from'),
+        'Дата до': request.query_params.get('date_to'),
+    }
+
+    return ExportService.export_time_to_hire_pdf(time_data, statistics, filters)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsOrgMember])
+def export_hr_effectiveness_excel(request):
+    role = get_user_role(request.user)
+    if role == 'superadmin':
+        qs = Candidate.objects.all()
+        org_id = request.query_params.get('organization')
+        if org_id:
+            qs = qs.filter(organization_id=org_id)
+    else:
+        org = get_user_organization(request.user)
+        qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
+
+    if request.query_params.get('date_from'):
+        qs = qs.filter(created_at__date__gte=request.query_params['date_from'])
+    if request.query_params.get('date_to'):
+        qs = qs.filter(created_at__date__lte=request.query_params['date_to'])
+    if request.query_params.get('vacancy'):
+        qs = qs.filter(vacancy_id=request.query_params['vacancy'])
+
+    hr_data = AnalyticsService.calculate_hr_effectiveness(qs)
+    total_candidates = qs.count()
+    total_offers = qs.filter(status='offer').count()
+    overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
+
+    summary = {
+        'total_hr': len(hr_data),
+        'total_candidates': total_candidates,
+        'total_offers': total_offers,
+        'overall_conversion': overall_conversion,
+    }
+
+    filters = {
+        'Організація': org_id if role == 'superadmin' else (org.name if org else None),
+        'Вакансія': request.query_params.get('vacancy'),
+        'Дата від': request.query_params.get('date_from'),
+        'Дата до': request.query_params.get('date_to'),
+    }
+
+    return ExportService.export_hr_effectiveness_excel(hr_data, summary, filters)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsOrgMember])
+def export_hr_effectiveness_pdf(request):
+    role = get_user_role(request.user)
+    if role == 'superadmin':
+        qs = Candidate.objects.all()
+        org_id = request.query_params.get('organization')
+        if org_id:
+            qs = qs.filter(organization_id=org_id)
+    else:
+        org = get_user_organization(request.user)
+        qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
+
+    if request.query_params.get('date_from'):
+        qs = qs.filter(created_at__date__gte=request.query_params['date_from'])
+    if request.query_params.get('date_to'):
+        qs = qs.filter(created_at__date__lte=request.query_params['date_to'])
+    if request.query_params.get('vacancy'):
+        qs = qs.filter(vacancy_id=request.query_params['vacancy'])
+
+    hr_data = AnalyticsService.calculate_hr_effectiveness(qs)
+    total_candidates = qs.count()
+    total_offers = qs.filter(status='offer').count()
+    overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
+
+    summary = {
+        'total_hr': len(hr_data),
+        'total_candidates': total_candidates,
+        'total_offers': total_offers,
+        'overall_conversion': overall_conversion,
+    }
+
+    filters = {
+        'Організація': org_id if role == 'superadmin' else (org.name if org else None),
+        'Вакансія': request.query_params.get('vacancy'),
+        'Дата від': request.query_params.get('date_from'),
+        'Дата до': request.query_params.get('date_to'),
+    }
+
+    return ExportService.export_hr_effectiveness_pdf(hr_data, summary, filters)
