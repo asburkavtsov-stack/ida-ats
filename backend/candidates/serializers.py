@@ -1,6 +1,8 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from .models import Candidate, Vacancy, Organization, StatusHistory, EmailTemplate, SentEmail, Tag, Interview
+
+User = get_user_model()
 
 
 class VacancySerializer(serializers.ModelSerializer):
@@ -74,6 +76,7 @@ class InterviewSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
         read_only_fields = [
+            'organization',
             'google_event_id', 'google_meet_link', 'google_calendar_link',
             'created_by', 'created_at', 'updated_at',
         ]
@@ -109,7 +112,7 @@ class InterviewSerializer(serializers.ModelSerializer):
         instance.save()
         if interviewers is not None:
             instance.interviewers.set(interviewers)
-        return instance
+        return interview
 
 
 class CandidateSerializer(serializers.ModelSerializer):
