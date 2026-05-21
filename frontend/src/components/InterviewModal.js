@@ -31,7 +31,7 @@ function InterviewModal({ interview, candidateId, onClose, onSaved }) {
   const [form, setForm] = useState({
     title: '',
     candidate: candidateId || '',
-    vacancy: '',
+    vacancy: null,           // ← змінено з '' на null
     interview_type: 'online',
     status: 'scheduled',
     scheduled_at: '',
@@ -53,11 +53,11 @@ function InterviewModal({ interview, candidateId, onClose, onSaved }) {
       setForm({
         title: interview.title || '',
         candidate: interview.candidate || '',
-        vacancy: interview.vacancy || '',
+        vacancy: interview.vacancy || null,    // ← змінено з '' на null
         interview_type: interview.interview_type || 'online',
         status: interview.status || 'scheduled',
         scheduled_at: interview.scheduled_at
-          ? interview.scheduled_at.slice(0, 16)  // datetime-local format
+          ? interview.scheduled_at.slice(0, 16)
           : '',
         duration_minutes: interview.duration_minutes || 60,
         location: interview.location || '',
@@ -97,12 +97,29 @@ function InterviewModal({ interview, candidateId, onClose, onSaved }) {
     if (!form.candidate) { setError('Оберіть кандидата'); return; }
     if (!form.scheduled_at) { setError('Вкажіть дату та час'); return; }
 
-    // Конвертуємо datetime-local → ISO з timezone offset
+    // Конвертуємо datetime-local → ISO
     const localDate = new Date(form.scheduled_at);
+
+    // 🔧 ФІКС: конвертуємо ID в числа, прибираємо порожні поля
     const payload = {
-      ...form,
+      title: form.title.trim(),
+      candidate: Number(form.candidate),           // ← число
+      interview_type: form.interview_type,
+      status: form.status,
       scheduled_at: localDate.toISOString(),
+      duration_minutes: Number(form.duration_minutes),
+      location: form.location.trim() || undefined,
+      notes: form.notes.trim() || undefined,
+      interviewer_ids: form.interviewer_ids.map(id => Number(id)),  // ← числа
     };
+
+    // 🔧 ФІКС: vacancy тільки якщо вибрана
+    if (form.vacancy) {
+      payload.vacancy = Number(form.vacancy);  // ← число
+    }
+    // organization НЕ передаємо — ставить бекенд
+
+    console.log("Payload:", JSON.stringify(payload, null, 2));
 
     setSaving(true);
     try {
@@ -116,7 +133,8 @@ function InterviewModal({ interview, candidateId, onClose, onSaved }) {
       onSaved(result);
       if (!result.warning) onClose();
     } catch (e) {
-      setError(e.response?.data?.detail || 'Помилка збереження');
+      console.error('Save error:', e.response?.data);
+      setError(e.response?.data?.detail || e.response?.data?.message || 'Помилка збереження');
     } finally {
       setSaving(false);
     }
@@ -212,7 +230,11 @@ function InterviewModal({ interview, candidateId, onClose, onSaved }) {
           {!candidateId && (
             <div>
               <label style={labelStyle}>Кандидат</label>
-              <select value={form.candidate} onChange={e => set('candidate', e.target.value)} style={inputStyle}>
+              <select 
+                value={form.candidate} 
+                onChange={e => set('candidate', e.target.value)} 
+                style={inputStyle}
+              >
                 <option value="">— Оберіть кандидата —</option>
                 {candidates.map(c => (
                   <option key={c.id} value={c.id}>
@@ -226,7 +248,11 @@ function InterviewModal({ interview, candidateId, onClose, onSaved }) {
           {/* Вакансія */}
           <div>
             <label style={labelStyle}>Вакансія</label>
-            <select value={form.vacancy} onChange={e => set('vacancy', e.target.value)} style={inputStyle}>
+            <select 
+              value={form.vacancy || ''} 
+              onChange={e => set('vacancy', e.target.value || null)} 
+              style={inputStyle}
+            >
               <option value="">— Вакансія (необов'язково) —</option>
               {vacancies.filter(v => v.is_active).map(v => (
                 <option key={v.id} value={v.id}>{v.title}</option>
