@@ -67,14 +67,14 @@ function Analytics() {
     setExporting(true);
     try {
       const params = new URLSearchParams();
-      
+
       if (type === 'tth') {
         if (timeToHireVacancy !== 'all') params.set('vacancy', timeToHireVacancy);
-        
+
         const url = format === 'excel' 
           ? `/api/analytics/time-to-hire/export-excel/?${params.toString()}`
           : `/api/analytics/time-to-hire/export-pdf/?${params.toString()}`;
-        
+
         const response = await axios.get(url, { responseType: 'blob' });
         const blob = new Blob([response.data], { 
           type: format === 'excel' 
@@ -94,7 +94,7 @@ function Analytics() {
         const url = format === 'excel'
           ? '/api/analytics/hr-effectiveness/export-excel/'
           : '/api/analytics/hr-effectiveness/export-pdf/';
-        
+
         const response = await axios.get(url, { responseType: 'blob' });
         const blob = new Blob([response.data], { 
           type: format === 'excel'
@@ -114,43 +114,6 @@ function Analytics() {
     } catch (err) {
       console.error('Помилка експорту:', err);
       alert('Не вдалося експортувати звіт');
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  // Експорт ПОВНОГО звіту
-  const handleExportFullReport = async (format) => {
-    setExporting(true);
-    try {
-      const params = new URLSearchParams();
-      
-      // Додаємо всі активні фільтри до запиту
-      if (timeToHireVacancy !== 'all') params.set('vacancy', timeToHireVacancy);
-      if (timeToHirePeriod) params.set('period', timeToHirePeriod);
-      
-      const url = format === 'excel' 
-        ? `/api/analytics/export-full-excel/?${params.toString()}`
-        : `/api/analytics/export-full-pdf/?${params.toString()}`;
-      
-      const response = await axios.get(url, { responseType: 'blob' });
-      const blob = new Blob([response.data], { 
-        type: format === 'excel' 
-          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-          : 'application/pdf'
-      });
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      const dateStr = new Date().toISOString().slice(0, 10);
-      link.href = downloadUrl;
-      link.setAttribute('download', `full_analytics_report_${dateStr}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(downloadUrl);
-    } catch (err) {
-      console.error('Помилка експорту повного звіту:', err);
-      alert('Не вдалося експортувати повний звіт');
     } finally {
       setExporting(false);
     }
@@ -856,7 +819,7 @@ function Analytics() {
             )}
           </span>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* Кнопки експорту HR Effectiveness */}
+            {/* Кнопки експорту HR Effectiveness — залишено тільки 2 */}
             {hrEffectiveness && hrEffectiveness.hr_managers.length > 0 && (
               <div style={{ display: 'flex', gap: '6px' }}>
                 <button
@@ -898,59 +861,6 @@ function Analytics() {
                   }}
                 >
                   <span aria-hidden="true">📄</span> PDF (HR)
-                </button>
-              </div>
-            )}
-            
-            {/* Роздільник */}
-            {(timeToHire?.total_offers > 0 || (hrEffectiveness?.hr_managers?.length > 0)) && (
-              <span style={{ color: 'var(--border)', margin: '0 4px' }}>|</span>
-            )}
-            
-            {/* КНОПКИ ДЛЯ ПОВНОГО ЗВІТУ */}
-            {(timeToHire?.total_offers > 0 || hrEffectiveness?.hr_managers?.length > 0) && (
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button
-                  onClick={() => handleExportFullReport('excel')}
-                  disabled={exporting}
-                  type="button"
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border)',
-                    background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
-                    color: '#fff',
-                    fontSize: '0.72rem',
-                    cursor: exporting ? 'not-allowed' : 'pointer',
-                    fontFamily: 'DM Mono',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontWeight: 600,
-                  }}
-                >
-                  <span aria-hidden="true">📊📄</span> Повний звіт (Excel)
-                </button>
-                <button
-                  onClick={() => handleExportFullReport('pdf')}
-                  disabled={exporting}
-                  type="button"
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border)',
-                    background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
-                    color: '#fff',
-                    fontSize: '0.72rem',
-                    cursor: exporting ? 'not-allowed' : 'pointer',
-                    fontFamily: 'DM Mono',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontWeight: 600,
-                  }}
-                >
-                  <span aria-hidden="true">📄📊</span> Повний звіт (PDF)
                 </button>
               </div>
             )}
