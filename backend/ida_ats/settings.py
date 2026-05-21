@@ -3,12 +3,6 @@ from datetime import timedelta
 import os
 
 import dj_database_url
-from dotenv import load_dotenv
-
-# ═══════════════════════════════════════════════════════════════
-# ЗАВАНТАЖЕННЯ ЗМІННИХ СЕРЕДОВИЩА З .env ФАЙЛУ
-# ═══════════════════════════════════════════════════════════════
-load_dotenv()
 
 # ═══════════════════════════════════════════════════════════════
 # БАЗОВІ НАЛАШТУВАННЯ
@@ -72,7 +66,7 @@ INSTALLED_APPS = [
 # ═══════════════════════════════════════════════════════════════
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',           # завжди першим
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
