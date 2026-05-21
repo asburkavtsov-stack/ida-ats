@@ -1,370 +1,270 @@
-from pathlib import Path
-from datetime import timedelta
-import os
+from rest_framework import serializers
+from django.contrib.auth.models import User
+from .models import Candidate, Vacancy, Organization, StatusHistory, EmailTemplate, SentEmail, Tag, Interview
 
-import dj_database_url
 
-# ═══════════════════════════════════════════════════════════════
-# БАЗОВІ НАЛАШТУВАННЯ
-# ═══════════════════════════════════════════════════════════════
+class VacancySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Vacancy
+        fields = ['id', 'title', 'department', 'is_active', 'created_at']
 
-BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Отримуємо SECRET_KEY з середовища, або використовуємо тимчасовий для локальної розробки
-SECRET_KEY = os.environ.get('SECRET_KEY')
-if not SECRET_KEY:
-    # Для локальної розробки - тимчасовий ключ
-    SECRET_KEY = 'django-insecure-temp-key-for-local-development-only-2026'
-    print("⚠️  WARNING: Using temporary SECRET_KEY for development!")
+class StatusHistorySerializer(serializers.ModelSerializer):
+    changed_by_name = serializers.SerializerMethodField()
 
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+    class Meta:
+        model = StatusHistory
+        fields = ['id', 'old_status', 'new_status', 'changed_by_name', 'changed_at']
 
-ALLOWED_HOSTS_ENV = os.environ.get('ALLOWED_HOSTS', '')
-ALLOWED_HOSTS = (
-    [h.strip() for h in ALLOWED_HOSTS_ENV.split(',') if h.strip()]
-    if ALLOWED_HOSTS_ENV
-    else ['localhost', '127.0.0.1']
-)
+    def get_changed_by_name(self, obj):
+        if not obj.changed_by:
+            return None
+        full = f"{obj.changed_by.first_name} {obj.changed_by.last_name}".strip()
+        return full or obj.changed_by.username
 
-# Дозволяємо Railway / Vercel хости автоматично
-if not DEBUG:
-    ALLOWED_HOSTS += [
-        '.railway.app',
-        '.vercel.app',
-        '.up.railway.app',
-    ]
 
-# ═══════════════════════════════════════════════════════════════
-# ДОДАТКИ
-# ═══════════════════════════════════════════════════════════════
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ['id', 'name', 'color', 'created_at']
 
-INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'django.contrib.sites',
 
-    # Third-party
-    'rest_framework',
-    'rest_framework_simplejwt',
-    'rest_framework_simplejwt.token_blacklist',
-    'corsheaders',
-    'allauth',
-    'allauth.account',
-    'allauth.socialaccount',
-    'allauth.socialaccount.providers.google',
+class DuplicateCandidateSerializer(serializers.ModelSerializer):
+    vacancy_title = serializers.CharField(source='vacancy.title', read_only=True)
 
-    # Local
-    'candidates',
-]
+    class Meta:
+        model = Candidate
+        fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'vacancy_title', 'status', 'created_at']
 
-# ═══════════════════════════════════════════════════════════════
-# MIDDLEWARE
-# ═══════════════════════════════════════════════════════════════
 
-MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'allauth.account.middleware.AccountMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-]
+class InterviewerSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
 
-ROOT_URLCONF = 'ida_ats.urls'
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'full_name']
 
-TEMPLATES = [
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-            ],
-        },
-    },
-]
+    def get_full_name(self, obj):
+        return obj.get_full_name() or obj.username
 
-WSGI_APPLICATION = 'ida_ats.wsgi.application'
 
-# ═══════════════════════════════════════════════════════════════
-# БАЗА ДАНИХ
-# ═══════════════════════════════════════════════════════════════
+class InterviewSerializer(serializers.ModelSerializer):
+    interviewers = InterviewerSerializer(many=True, read_only=True)
+    interviewer_ids = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=User.objects.all(),
+        write_only=True, source='interviewers', required=False
+    )
+    candidate_name = serializers.SerializerMethodField()
+    candidate_email = serializers.SerializerMethodField()
+    vacancy_title = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
 
-DATABASE_URL = os.environ.get('DATABASE_URL', '').strip()
+    class Meta:
+        model = Interview
+        fields = [
+            'id', 'organization',  # залишаємо в fields
+            'candidate', 'candidate_name', 'candidate_email',
+            'vacancy', 'vacancy_title',
+            'title', 'interview_type', 'status',
+            'scheduled_at', 'duration_minutes',
+            'location', 'notes',
+            'interviewers', 'interviewer_ids',
+            'google_event_id', 'google_meet_link', 'google_calendar_link',
+            'created_by', 'created_by_name',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'organization',  # ← ДОДАНО: організація встановлюється автоматично на бекенді
+            'google_event_id', 'google_meet_link', 'google_calendar_link',
+            'created_by', 'created_at', 'updated_at',
+        ]
 
-if DATABASE_URL and 'postgres' in DATABASE_URL:
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=600,
-            ssl_require=not DEBUG,
+    def get_candidate_name(self, obj):
+        return f"{obj.candidate.first_name} {obj.candidate.last_name}"
+
+    def get_candidate_email(self, obj):
+        return obj.candidate.email
+
+    def get_vacancy_title(self, obj):
+        return obj.vacancy.title if obj.vacancy else ''
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return obj.created_by.get_full_name() or obj.created_by.username
+        return ''
+
+    def create(self, validated_data):
+        interviewers = validated_data.pop('interviewers', [])
+        request = self.context.get('request')
+        interview = Interview.objects.create(
+            created_by=request.user if request else None,
+            **validated_data
         )
-    }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+        interview.interviewers.set(interviewers)
+        return interview
 
-# ═══════════════════════════════════════════════════════════════
-# ПАРОЛІ
-# ═══════════════════════════════════════════════════════════════
+    def update(self, instance, validated_data):
+        interviewers = validated_data.pop('interviewers', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if interviewers is not None:
+            instance.interviewers.set(interviewers)
+        return interview
 
-AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
-]
 
-# ═══════════════════════════════════════════════════════════════
-# ІНТЕРНАЦІОНАЛІЗАЦІЯ
-# ═══════════════════════════════════════════════════════════════
+class CandidateSerializer(serializers.ModelSerializer):
+    vacancy_title = serializers.CharField(source='vacancy.title', read_only=True)
+    assigned_to_name = serializers.SerializerMethodField()
+    assigned_to_username = serializers.SerializerMethodField()
+    status_history = StatusHistorySerializer(many=True, read_only=True)
+    source_display = serializers.CharField(source='get_source_display', read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
+    tag_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        required=False,
+        allow_empty=True,
+    )
+    duplicates = serializers.SerializerMethodField(read_only=True)
 
-LANGUAGE_CODE = 'uk'
-TIME_ZONE = 'Europe/Kyiv'
-USE_I18N = True
-USE_TZ = True
+    class Meta:
+        model = Candidate
+        fields = [
+            'id', 'first_name', 'last_name', 'email',
+            'phone', 'vacancy', 'vacancy_title',
+            'status', 'source', 'source_display', 'notes', 'created_at',
+            'assigned_to', 'assigned_to_name', 'assigned_to_username',
+            'status_history', 'tags', 'tag_ids', 'duplicates',
+        ]
 
-# ═══════════════════════════════════════════════════════════════
-# СТАТИКА ТА МЕДІА
-# ═══════════════════════════════════════════════════════════════
+    def get_assigned_to_name(self, obj):
+        if not obj.assigned_to:
+            return None
+        full = f"{obj.assigned_to.first_name} {obj.assigned_to.last_name}".strip()
+        return full or obj.assigned_to.username
 
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    def get_assigned_to_username(self, obj):
+        return obj.assigned_to.username if obj.assigned_to else None
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', str(BASE_DIR / 'media')))
+    def get_duplicates(self, obj):
+        dups = obj.check_duplicate()
+        if dups.exists():
+            return DuplicateCandidateSerializer(dups[:5], many=True).data
+        return []
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+    def validate(self, data):
+        request = self.context.get('request')
+        if not request:
+            return data
 
-# ═══════════════════════════════════════════════════════════════
-# БЕЗПЕКА (тільки для production)
-# ═══════════════════════════════════════════════════════════════
+        org = None
+        try:
+            org = request.user.profile.organization
+        except (AttributeError, UserProfile.DoesNotExist):
+            pass
 
-if not DEBUG:
-    SECURE_SSL_REDIRECT = True
-    SECURE_HSTS_SECONDS = 31536000
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    X_FRAME_OPTIONS = 'DENY'
+        email = data.get('email', '')
+        phone = data.get('phone', '')
 
-# ═══════════════════════════════════════════════════════════════
-# CORS НАЛАШТУВАННЯ
-# ═══════════════════════════════════════════════════════════════
+        if not email:
+            return data
 
-_EXTRA_CORS = [o.strip() for o in os.environ.get('CORS_EXTRA_ORIGINS', '').split(',') if o.strip()]
+        from django.db.models import Q
+        from .models import normalize_phone
 
-CORS_ALLOWED_ORIGINS = [
-    'https://ida-ats.vercel.app',
-    'https://web-production-007d9.up.railway.app',
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-] + _EXTRA_CORS
+        qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.all()
 
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r'^https://.*\.railway\.app$',
-    r'^https://.*\.vercel\.app$',
-]
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
 
-CORS_ALLOW_CREDENTIALS = True
+        email_dup = qs.filter(email__iexact=email).first()
+        if email_dup:
+            raise serializers.ValidationError({
+                'duplicate': True,
+                'duplicate_by': 'email',
+                'duplicate_candidate': DuplicateCandidateSerializer(email_dup).data,
+                'message': f'Кандидат з email {email} вже існує: {email_dup.first_name} {email_dup.last_name}'
+            })
 
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-]
+        if phone:
+            phone_normalized = normalize_phone(phone)
+            phone_dup = qs.filter(
+                Q(phone=phone_normalized) | Q(phone__iexact=phone)
+            ).exclude(email__iexact=email).first()
+            if phone_dup:
+                raise serializers.ValidationError({
+                    'duplicate': True,
+                    'duplicate_by': 'phone',
+                    'duplicate_candidate': DuplicateCandidateSerializer(phone_dup).data,
+                    'message': f'Кандидат з телефоном {phone} вже існує: {phone_dup.first_name} {phone_dup.last_name}'
+                })
 
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
+        return data
 
-CORS_PREFLIGHT_MAX_AGE = 86400
+    def update(self, instance, validated_data):
+        tag_ids = validated_data.pop('tag_ids', None)
+        candidate = super().update(instance, validated_data)
+        if tag_ids is not None:
+            candidate.tags.set(tag_ids)
+        return candidate
 
-# ═══════════════════════════════════════════════════════════════
-# CSRF
-# ═══════════════════════════════════════════════════════════════
 
-CSRF_TRUSTED_ORIGINS = [
-    'https://ida-ats.vercel.app',
-    'https://web-production-007d9.up.railway.app',
-    'https://*.railway.app',
-    'https://*.vercel.app',
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-]
+class OrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ['id', 'name', 'slug', 'is_active', 'created_at', 'max_hr', 'max_vacancies']
 
-# ═══════════════════════════════════════════════════════════════
-# DJANGO REST FRAMEWORK
-# ═══════════════════════════════════════════════════════════════
 
-REST_FRAMEWORK = {
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ],
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-    ],
-    'DEFAULT_PARSER_CLASSES': [
-        'rest_framework.parsers.JSONParser',
-        'rest_framework.parsers.MultiPartParser',
-    ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20,
-}
+class OrganizationDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = '__all__'
 
-# ═══════════════════════════════════════════════════════════════
-# SIMPLE JWT
-# ═══════════════════════════════════════════════════════════════
 
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'UPDATE_LAST_LOGIN': True,
-    'AUTH_HEADER_TYPES': ('Bearer',),
-}
+class EmailTemplateSerializer(serializers.ModelSerializer):
+    template_type_display = serializers.CharField(source='get_template_type_display', read_only=True)
+    organization_name = serializers.CharField(source='organization.name', read_only=True)
 
-# ═══════════════════════════════════════════════════════════════
-# EMAIL
-# ═══════════════════════════════════════════════════════════════
+    class Meta:
+        model = EmailTemplate
+        fields = ['id', 'organization', 'organization_name', 'template_type', 'template_type_display', 'subject',
+                  'body', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['organization', 'organization_name', 'created_at', 'updated_at']
 
-EMAIL_BACKEND_TYPE = os.environ.get('EMAIL_BACKEND_TYPE', 'console')
-SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '')
 
-if EMAIL_BACKEND_TYPE == 'sendgrid' and SENDGRID_API_KEY:
-    EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
-    SENDGRID_SANDBOX_MODE_IN_DEBUG = False
-    SENDGRID_ECHO_TO_STDOUT = DEBUG
-    SENDGRID_TRACK_EMAIL_OPENS = False
-    SENDGRID_TRACK_CLICKS = False
-elif EMAIL_BACKEND_TYPE == 'smtp':
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-    EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
-    EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
-    EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False') == 'True'
-    EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-    EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-    EMAIL_TIMEOUT = 30
-elif EMAIL_BACKEND_TYPE == 'file':
-    EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
-    EMAIL_FILE_PATH = os.environ.get('EMAIL_FILE_PATH', '/tmp/django_email_logs')
-else:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+class SentEmailSerializer(serializers.ModelSerializer):
+    candidate_name = serializers.SerializerMethodField()
+    sent_by_name = serializers.SerializerMethodField()
+    template_type_display = serializers.SerializerMethodField()
+    template_type = serializers.SerializerMethodField()
 
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@example.com')
-EMAIL_SUBJECT_PREFIX = os.environ.get('EMAIL_SUBJECT_PREFIX', '[IDA ATS] ')
+    class Meta:
+        model = SentEmail
+        fields = [
+            'id', 'candidate', 'candidate_name', 'template', 'template_type', 'template_type_display',
+            'recipient_email', 'subject', 'body', 'sent_by', 'sent_by_name',
+            'sent_at', 'status', 'error_message'
+        ]
+        read_only_fields = ['id', 'sent_at', 'status', 'error_message']
 
-# ═══════════════════════════════════════════════════════════════
-# ALLAUTH / SOCIALACCOUNT
-# ═══════════════════════════════════════════════════════════════
+    def get_candidate_name(self, obj):
+        if obj.candidate:
+            return f"{obj.candidate.first_name} {obj.candidate.last_name}"
+        return None
 
-SITE_ID = 1
+    def get_sent_by_name(self, obj):
+        if obj.sent_by:
+            full = f"{obj.sent_by.first_name} {obj.sent_by.last_name}".strip()
+            return full or obj.sent_by.username
+        return None
 
-AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
-    'allauth.account.auth_backends.AuthenticationBackend',
-]
+    def get_template_type_display(self, obj):
+        if obj.template:
+            return obj.template.get_template_type_display()
+        return None
 
-SOCIALACCOUNT_PROVIDERS = {
-    'google': {
-        'APP': {
-            'client_id': os.environ.get('GOOGLE_CLOUD_CLIENT_ID', ''),
-            'secret': os.environ.get('GOOGLE_CLOUD_CLIENT_SECRET', ''),
-            'key': '',
-        },
-        'SCOPE': [
-            'openid',
-            'email',
-            'profile',
-            'https://www.googleapis.com/auth/gmail.send',
-            'https://www.googleapis.com/auth/gmail.readonly',
-            'https://www.googleapis.com/auth/calendar',
-            'https://www.googleapis.com/auth/calendar.events',
-        ],
-        'AUTH_PARAMS': {
-            'access_type': 'offline',
-            'prompt': 'consent',
-        },
-    }
-}
-
-SOCIALACCOUNT_STORE_TOKENS = True
-SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
-SOCIALACCOUNT_EMAIL_REQUIRED = True
-SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
-SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
-
-LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/'
-
-# ═══════════════════════════════════════════════════════════════
-# LOGGING
-# ═══════════════════════════════════════════════════════════════
-
-if not DEBUG:
-    LOGGING = {
-        'version': 1,
-        'disable_existing_loggers': False,
-        'formatters': {
-            'verbose': {
-                'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
-                'style': '{',
-            },
-        },
-        'handlers': {
-            'console': {
-                'class': 'logging.StreamHandler',
-                'formatter': 'verbose',
-            },
-        },
-        'root': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-        },
-        'loggers': {
-            'django': {
-                'handlers': ['console'],
-                'level': os.environ.get('DJANGO_LOG_LEVEL', 'WARNING'),
-                'propagate': False,
-            },
-            'django.request': {
-                'handlers': ['console'],
-                'level': 'ERROR',
-                'propagate': False,
-            },
-        },
-    }
+    def get_template_type(self, obj):
+        if obj.template:
+            return obj.template.template_type
+        return None
