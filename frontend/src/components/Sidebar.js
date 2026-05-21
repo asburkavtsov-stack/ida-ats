@@ -16,6 +16,7 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
     { key: 'kanban',       icon: '⊞', label: 'Канбан',        badgeKey: 'kanban' },
     { key: 'candidates',   icon: '◉', label: 'Кандидати',     badgeKey: 'candidates' },
     { key: 'vacancies',    icon: '◫', label: 'Вакансії',      badgeKey: 'vacancies' },
+    { key: 'interviews',  icon: '📅' , label: "Інтерв'ю",  badgeKey: 'InterviewClendar' },
     { key: 'analytics',   icon: '◎', label: 'Аналітика',     badgeKey: null },
     { key: 'org_settings', icon: '🏢', label: 'Організація',  badgeKey: null },
     { key: 'email_templates', icon: '✉', label: 'Шаблони листів', badgeKey: null },
@@ -25,6 +26,7 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
     { key: 'kanban',     icon: '⊞', label: 'Канбан',      badgeKey: 'kanban' },
     { key: 'candidates', icon: '◉', label: 'Кандидати',   badgeKey: 'candidates' },
     { key: 'vacancies',  icon: '◫', label: 'Вакансії',    badgeKey: 'vacancies' },
+    { key: 'interviews', icon: '📅' , label: "Інтерв'ю",  badgeKey: 'InterviewClendar' },
     { key: 'profile',    icon: '◉', label: 'Профіль',     badgeKey: null },
   ];
 
