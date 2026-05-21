@@ -3,6 +3,12 @@ from datetime import timedelta
 import os
 
 import dj_database_url
+from dotenv import load_dotenv
+
+# ═══════════════════════════════════════════════════════════════
+# ЗАВАНТАЖЕННЯ ЗМІННИХ СЕРЕДОВИЩА З .env ФАЙЛУ
+# ═══════════════════════════════════════════════════════════════
+load_dotenv()
 
 # ═══════════════════════════════════════════════════════════════
 # БАЗОВІ НАЛАШТУВАННЯ
@@ -10,11 +16,14 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Отримуємо SECRET_KEY з середовища, або використовуємо тимчасовий для локальної розробки
 SECRET_KEY = os.environ.get('SECRET_KEY')
 if not SECRET_KEY:
-    raise ValueError("SECRET_KEY environment variable is not set!")
+    # Для локальної розробки - тимчасовий ключ
+    SECRET_KEY = 'django-insecure-temp-key-for-local-development-only-2026'
+    print("⚠️  WARNING: Using temporary SECRET_KEY for development!")
 
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS_ENV = os.environ.get('ALLOWED_HOSTS', '')
 ALLOWED_HOSTS = (
@@ -215,6 +224,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://web-production-007d9.up.railway.app',
     'https://*.railway.app',
     'https://*.vercel.app',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
 ]
 
 # ═══════════════════════════════════════════════════════════════
@@ -283,6 +294,9 @@ else:
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@example.com')
 EMAIL_SUBJECT_PREFIX = os.environ.get('EMAIL_SUBJECT_PREFIX', '[IDA ATS] ')
 
+# ═══════════════════════════════════════════════════════════════
+# ALLAUTH / SOCIALACCOUNT
+# ═══════════════════════════════════════════════════════════════
 
 SITE_ID = 1
 
@@ -304,6 +318,8 @@ SOCIALACCOUNT_PROVIDERS = {
             'profile',
             'https://www.googleapis.com/auth/gmail.send',
             'https://www.googleapis.com/auth/gmail.readonly',
+            'https://www.googleapis.com/auth/calendar',
+            'https://www.googleapis.com/auth/calendar.events',
         ],
         'AUTH_PARAMS': {
             'access_type': 'offline',
@@ -320,6 +336,10 @@ SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
+
+# ═══════════════════════════════════════════════════════════════
+# LOGGING
+# ═══════════════════════════════════════════════════════════════
 
 if not DEBUG:
     LOGGING = {
