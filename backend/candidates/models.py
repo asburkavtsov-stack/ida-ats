@@ -106,31 +106,20 @@ class Candidate(models.Model):
         return f"{self.first_name} {self.last_name}"
 
     def save(self, *args, **kwargs):
-        # Нормалізуємо телефон перед збереженням
         if self.phone:
             self.phone = normalize_phone(self.phone)
         super().save(*args, **kwargs)
 
     def check_duplicate(self):
-        """
-        Перевіряє чи існує дублікат за email або телефоном в межах організації.
-        Повертає QuerySet знайдених дублікатів (без себе, якщо вже збережений).
-        """
         from django.db.models import Q
         qs = Candidate.objects.filter(organization=self.organization)
-
         if self.pk:
             qs = qs.exclude(pk=self.pk)
-
-        # Пошук за email (точний збіг, case-insensitive)
         email_q = Q(email__iexact=self.email)
-
-        # Пошук за телефоном (тільки якщо телефон не порожній)
         phone_q = Q()
         if self.phone:
             phone_normalized = normalize_phone(self.phone)
             phone_q = Q(phone=phone_normalized) | Q(phone__iexact=self.phone)
-
         duplicates = qs.filter(email_q | phone_q).distinct()
         return duplicates
 
@@ -198,3 +187,73 @@ class SentEmail(models.Model):
 
     def __str__(self):
         return f"{self.subject} -> {self.recipient_email} ({self.sent_at})"
+
+
+class Interview(models.Model):
+    INTERVIEW_TYPE_CHOICES = [
+        ('online', 'Онлайн'),
+        ('offline', 'Офлайн'),
+    ]
+    STATUS_CHOICES = [
+        ('scheduled', 'Заплановано'),
+        ('completed', 'Проведено'),
+        ('cancelled', 'Скасовано'),
+        ('rescheduled', 'Перенесено'),
+    ]
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE,
+        related_name='interviews'
+    )
+    candidate = models.ForeignKey(
+        Candidate, on_delete=models.CASCADE,
+        related_name='interviews'
+    )
+    vacancy = models.ForeignKey(
+        Vacancy, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='interviews'
+    )
+
+    title = models.CharField(max_length=255)
+    interview_type = models.CharField(
+        max_length=10,
+        choices=INTERVIEW_TYPE_CHOICES,
+        default='online'
+    )
+    status = models.CharField(
+        max_length=15,
+        choices=STATUS_CHOICES,
+        default='scheduled'
+    )
+
+    scheduled_at = models.DateTimeField()
+    duration_minutes = models.PositiveIntegerField(default=60)
+    location = models.CharField(max_length=500, blank=True)
+    notes = models.TextField(blank=True)
+
+    interviewers = models.ManyToManyField(
+        User,
+        blank=True,
+        related_name='interviews_as_interviewer'
+    )
+
+    # Google Calendar
+    google_event_id = models.CharField(max_length=255, blank=True)
+    google_meet_link = models.URLField(blank=True)
+    google_calendar_link = models.URLField(blank=True)
+
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='created_interviews'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['scheduled_at']
+        verbose_name = "Інтерв'ю"
+        verbose_name_plural = "Інтерв'ю"
+
+    def __str__(self):
+        return f"{self.title} — {self.candidate} ({self.scheduled_at.strftime('%d.%m.%Y %H:%M')})"

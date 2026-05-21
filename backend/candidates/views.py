@@ -1,11 +1,9 @@
-# views.py
 import csv
 import logging
 from datetime import datetime
-
 from django.db import models
 from django.shortcuts import get_object_or_404
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
@@ -15,11 +13,12 @@ from rest_framework.views import APIView
 
 from .models import (
     Candidate, EmailTemplate, Organization,
-    SentEmail, Tag, User, UserProfile, Vacancy,
+    SentEmail, Tag, User, UserProfile, Vacancy, Interview
 )
 from .serializers import (
     CandidateSerializer, EmailTemplateSerializer, OrganizationSerializer,
     SentEmailSerializer, TagSerializer, VacancySerializer, DuplicateCandidateSerializer,
+    InterviewSerializer
 )
 from .pagination import StandardPagination
 from .permissions import IsSuperAdmin, IsOrgMember
@@ -32,12 +31,10 @@ from .utils.context_processors import (
 from .utils.validators import check_candidate_duplicates, validate_organization_limits
 from .utils.csv_handlers import CSVHandler, CSVImportResult
 
-# Константи для аналітики
 from .constants import KANBAN_COLUMNS, SOURCE_CONFIG
 
 try:
     from allauth.socialaccount.models import SocialAccount
-
     ALLAUTH_AVAILABLE = True
 except ImportError:
     ALLAUTH_AVAILABLE = False
@@ -276,6 +273,109 @@ class CandidateExportCSVView(APIView):
         headers = ['ID', "Ім'я", 'Прізвище', 'Email', 'Телефон', 'Вакансія', 'Організація', 'Статус', 'Джерело', 'Теги',
                    'Нотатки', 'Дата створення']
         return CSVHandler.export_queryset_to_csv(qs, 'candidates.csv', headers, extractor)
+
+
+# ═══════════════════════════════════════════════════════════════
+# INTERVIEWS
+# ═══════════════════════════════════════════════════════════════
+
+class InterviewViewSet(viewsets.ModelViewSet):
+    serializer_class = InterviewSerializer
+    permission_classes = [IsAuthenticated, IsOrgMember]
+
+    def get_queryset(self):
+        role = get_user_role(self.request.user)
+        if role == 'superadmin':
+            org_id = self.request.query_params.get('organization')
+            qs = Interview.objects.select_related(
+                'candidate', 'vacancy', 'organization', 'created_by'
+            ).prefetch_related('interviewers')
+            return qs.filter(organization_id=org_id) if org_id else qs
+        org = get_user_organization(self.request.user)
+        if not org:
+            return Interview.objects.none()
+        qs = Interview.objects.filter(organization=org).select_related(
+            'candidate', 'vacancy', 'organization', 'created_by'
+        ).prefetch_related('interviewers')
+        # Фільтри
+        candidate_id = self.request.query_params.get('candidate')
+        vacancy_id = self.request.query_params.get('vacancy')
+        status_f = self.request.query_params.get('status')
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        if candidate_id:
+            qs = qs.filter(candidate_id=candidate_id)
+        if vacancy_id:
+            qs = qs.filter(vacancy_id=vacancy_id)
+        if status_f:
+            qs = qs.filter(status=status_f)
+        if date_from:
+            qs = qs.filter(scheduled_at__date__gte=date_from)
+        if date_to:
+            qs = qs.filter(scheduled_at__date__lte=date_to)
+        return qs
+
+    def perform_create(self, serializer):
+        org = get_user_organization(self.request.user)
+        interview = serializer.save(
+            organization=org,
+            created_by=self.request.user,
+        )
+        self._sync_google_create(interview)
+
+    def perform_update(self, serializer):
+        interview = serializer.save()
+        self._sync_google_update(interview)
+
+    def perform_destroy(self, instance):
+        self._sync_google_delete(instance)
+        instance.delete()
+
+    def _sync_google_create(self, interview):
+        from .utils.google_calendar import create_calendar_event
+        result = create_calendar_event(interview, self.request.user)
+        if result:
+            Interview.objects.filter(pk=interview.pk).update(**result)
+
+    def _sync_google_update(self, interview):
+        from .utils.google_calendar import update_calendar_event
+        result = update_calendar_event(interview, self.request.user)
+        if result:
+            Interview.objects.filter(pk=interview.pk).update(**result)
+
+    def _sync_google_delete(self, interview):
+        from .utils.google_calendar import delete_calendar_event
+        delete_calendar_event(interview, self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='sync-google')
+    def sync_google(self, request, pk=None):
+        """POST /api/interviews/{id}/sync-google/ — примусова синхронізація з Google Calendar."""
+        interview = self.get_object()
+        from .utils.google_calendar import update_calendar_event, create_calendar_event
+        if interview.google_event_id:
+            result = update_calendar_event(interview, request.user)
+        else:
+            result = create_calendar_event(interview, request.user)
+        if result:
+            for field, value in result.items():
+                setattr(interview, field, value)
+            interview.save(update_fields=list(result.keys()))
+            return Response(InterviewSerializer(interview, context={'request': request}).data)
+        return Response(
+            {'warning': 'Не вдалося синхронізувати з Google Calendar. Інтерв\'ю збережено.'},
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=['patch'], url_path='change-status')
+    def change_status(self, request, pk=None):
+        """PATCH /api/interviews/{id}/change-status/ — змінити статус інтерв'ю."""
+        interview = self.get_object()
+        new_status = request.data.get('status')
+        if new_status not in dict(Interview.STATUS_CHOICES):
+            return Response({'error': 'Невірний статус'}, status=status.HTTP_400_BAD_REQUEST)
+        interview.status = new_status
+        interview.save(update_fields=['status'])
+        return Response(InterviewSerializer(interview, context={'request': request}).data)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -659,19 +759,15 @@ def hr_effectiveness_analytics(request):
         org = get_user_organization(request.user)
         qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
 
-    # Фільтр по даті
     if request.query_params.get('date_from'):
         qs = qs.filter(created_at__date__gte=request.query_params['date_from'])
     if request.query_params.get('date_to'):
         qs = qs.filter(created_at__date__lte=request.query_params['date_to'])
-
-    # Фільтр по вакансії
     if request.query_params.get('vacancy'):
         qs = qs.filter(vacancy_id=request.query_params['vacancy'])
 
     hr_data = AnalyticsService.calculate_hr_effectiveness(qs)
 
-    # Додаткова агрегована статистика
     total_candidates = qs.count()
     total_offers = qs.filter(status='offer').count()
     overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
@@ -893,24 +989,12 @@ def export_hr_effectiveness_pdf(request):
     return ExportService.export_hr_effectiveness_pdf(hr_data, summary, filters)
 
 
-# ═══════════════════════════════════════════════════════════════
-# FULL REPORT EXPORT (ПОВНИЙ ЗВІТ З АНАЛІТИКИ)
-# ═══════════════════════════════════════════════════════════════
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
 def export_full_report_excel(request):
-    """
-    Експорт ПОВНОГО звіту з аналітики у формат Excel:
-    - Time-to-Hire статистика
-    - HR Effectiveness
-    - Воронка кандидатів
-    - Джерела кандидатів
-    - Вакансії
-    """
+    """Експорт ПОВНОГО звіту з аналітики у формат Excel"""
     role = get_user_role(request.user)
 
-    # 1. Збираємо всіх кандидатів з урахуванням фільтрів
     if role == 'superadmin':
         org_id = request.query_params.get('organization')
         if org_id:
@@ -921,7 +1005,6 @@ def export_full_report_excel(request):
         org = get_user_organization(request.user)
         candidates_qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
 
-    # Фільтри по вакансії, HR, датах
     vacancy_filter = request.query_params.get('vacancy')
     assigned_to_filter = request.query_params.get('assigned_to')
     date_from = request.query_params.get('date_from')
@@ -936,7 +1019,6 @@ def export_full_report_excel(request):
     if date_to:
         candidates_qs = candidates_qs.filter(created_at__date__lte=date_to)
 
-    # 2. Збираємо вакансії
     if role == 'superadmin':
         if org_id:
             vacancies_qs = Vacancy.objects.filter(organization_id=org_id)
@@ -946,11 +1028,9 @@ def export_full_report_excel(request):
         org = get_user_organization(request.user)
         vacancies_qs = Vacancy.objects.filter(organization=org) if org else Vacancy.objects.none()
 
-    # 3. Розраховуємо Time-to-Hire
     time_data = AnalyticsService.calculate_time_to_hire_data(candidates_qs, date_from, date_to)
     tth_statistics = AnalyticsService.calculate_statistics(time_data)
 
-    # Додаємо by_period та trend для повноти
     period = request.query_params.get('period', 'month')
     period_format = {'day': '%Y-%m-%d', 'week': '%Y-W%W', 'month': '%Y-%m', 'quarter': '%Y-Q%q', 'year': '%Y'}.get(
         period, '%Y-%m')
@@ -971,7 +1051,6 @@ def export_full_report_excel(request):
             'offers_to_date': len(cumulative_times)
         })
 
-    # 4. Розраховуємо HR Effectiveness
     hr_data = AnalyticsService.calculate_hr_effectiveness(candidates_qs)
     total_candidates = candidates_qs.count()
     total_offers = candidates_qs.filter(status='offer').count()
@@ -987,16 +1066,10 @@ def export_full_report_excel(request):
         }
     }
 
-    # 5. Воронка кандидатів
     funnel = AnalyticsService.calculate_funnel_data(candidates_qs, total_candidates, KANBAN_COLUMNS)
-
-    # 6. Джерела кандидатів та конверсія
     sources, source_conversion = AnalyticsService.calculate_sources_data(candidates_qs, total_candidates, SOURCE_CONFIG)
-
-    # 7. Вакансії
     vacancies_list = AnalyticsService.calculate_vacancies_data(candidates_qs, vacancies_qs)
 
-    # 8. Формуємо повний об'єкт даних
     analytics_data = {
         'time_to_hire': tth_statistics,
         'hr_effectiveness': hr_effectiveness,
@@ -1005,9 +1078,6 @@ def export_full_report_excel(request):
         'source_conversion': source_conversion,
         'vacancies': vacancies_list,
         'total_candidates': total_candidates,
-        'time_to_hire_filters': {
-            'period': period,
-        },
         'filters': {
             'organization_id': org_id if role == 'superadmin' else None,
             'vacancy': vacancy_filter,
@@ -1023,15 +1093,13 @@ def export_full_report_excel(request):
         logger.error(f"Full report PDF export failed: {e}")
         return JsonResponse({'error': 'PDF export failed, try Excel'}, status=500)
 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
 def export_full_report_pdf(request):
-    """
-    Експорт ПОВНОГО звіту з аналітики у формат PDF
-    """
+    """Експорт ПОВНОГО звіту з аналітики у формат PDF"""
     role = get_user_role(request.user)
 
-    # Збираємо дані (аналогічно Excel експорту)
     if role == 'superadmin':
         org_id = request.query_params.get('organization')
         if org_id:
@@ -1056,17 +1124,14 @@ def export_full_report_pdf(request):
     if date_to:
         candidates_qs = candidates_qs.filter(created_at__date__lte=date_to)
 
-    # Time-to-Hire
     time_data = AnalyticsService.calculate_time_to_hire_data(candidates_qs, date_from, date_to)
     tth_statistics = AnalyticsService.calculate_statistics(time_data)
 
-    # HR Effectiveness
     hr_data = AnalyticsService.calculate_hr_effectiveness(candidates_qs)
     total_candidates = candidates_qs.count()
     total_offers = candidates_qs.filter(status='offer').count()
     overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
 
-    # Воронка
     funnel = AnalyticsService.calculate_funnel_data(candidates_qs, total_candidates, KANBAN_COLUMNS)
 
     analytics_data = {

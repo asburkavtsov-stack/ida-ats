@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Candidate, Vacancy, Organization, StatusHistory, EmailTemplate, SentEmail, Tag
+from .models import Candidate, Vacancy, Organization, StatusHistory, EmailTemplate, SentEmail, Tag, Interview
 
 
 class VacancySerializer(serializers.ModelSerializer):
@@ -30,12 +30,86 @@ class TagSerializer(serializers.ModelSerializer):
 
 
 class DuplicateCandidateSerializer(serializers.ModelSerializer):
-    """Легкий серіалізатор для відображення дублікатів."""
     vacancy_title = serializers.CharField(source='vacancy.title', read_only=True)
 
     class Meta:
         model = Candidate
         fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'vacancy_title', 'status', 'created_at']
+
+
+class InterviewerSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'full_name']
+
+    def get_full_name(self, obj):
+        return obj.get_full_name() or obj.username
+
+
+class InterviewSerializer(serializers.ModelSerializer):
+    interviewers = InterviewerSerializer(many=True, read_only=True)
+    interviewer_ids = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=User.objects.all(),
+        write_only=True, source='interviewers', required=False
+    )
+    candidate_name = serializers.SerializerMethodField()
+    candidate_email = serializers.SerializerMethodField()
+    vacancy_title = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Interview
+        fields = [
+            'id', 'organization',
+            'candidate', 'candidate_name', 'candidate_email',
+            'vacancy', 'vacancy_title',
+            'title', 'interview_type', 'status',
+            'scheduled_at', 'duration_minutes',
+            'location', 'notes',
+            'interviewers', 'interviewer_ids',
+            'google_event_id', 'google_meet_link', 'google_calendar_link',
+            'created_by', 'created_by_name',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'google_event_id', 'google_meet_link', 'google_calendar_link',
+            'created_by', 'created_at', 'updated_at',
+        ]
+
+    def get_candidate_name(self, obj):
+        return f"{obj.candidate.first_name} {obj.candidate.last_name}"
+
+    def get_candidate_email(self, obj):
+        return obj.candidate.email
+
+    def get_vacancy_title(self, obj):
+        return obj.vacancy.title if obj.vacancy else ''
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return obj.created_by.get_full_name() or obj.created_by.username
+        return ''
+
+    def create(self, validated_data):
+        interviewers = validated_data.pop('interviewers', [])
+        request = self.context.get('request')
+        interview = Interview.objects.create(
+            created_by=request.user if request else None,
+            **validated_data
+        )
+        interview.interviewers.set(interviewers)
+        return interview
+
+    def update(self, instance, validated_data):
+        interviewers = validated_data.pop('interviewers', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if interviewers is not None:
+            instance.interviewers.set(interviewers)
+        return instance
 
 
 class CandidateSerializer(serializers.ModelSerializer):
@@ -73,19 +147,16 @@ class CandidateSerializer(serializers.ModelSerializer):
         return obj.assigned_to.username if obj.assigned_to else None
 
     def get_duplicates(self, obj):
-        """Повертає знайдені дублікати при читанні."""
         dups = obj.check_duplicate()
         if dups.exists():
             return DuplicateCandidateSerializer(dups[:5], many=True).data
         return []
 
     def validate(self, data):
-        """Валідація дублікатів при створенні/оновленні."""
         request = self.context.get('request')
         if not request:
             return data
 
-        # Отримуємо організацію користувача
         org = None
         try:
             org = request.user.profile.organization
@@ -103,11 +174,9 @@ class CandidateSerializer(serializers.ModelSerializer):
 
         qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.all()
 
-        # Виключаємо поточний об'єкт при оновленні
         if self.instance:
             qs = qs.exclude(pk=self.instance.pk)
 
-        # Перевірка за email
         email_dup = qs.filter(email__iexact=email).first()
         if email_dup:
             raise serializers.ValidationError({
@@ -117,7 +186,6 @@ class CandidateSerializer(serializers.ModelSerializer):
                 'message': f'Кандидат з email {email} вже існує: {email_dup.first_name} {email_dup.last_name}'
             })
 
-        # Перевірка за телефоном
         if phone:
             phone_normalized = normalize_phone(phone)
             phone_dup = qs.filter(
