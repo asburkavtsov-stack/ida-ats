@@ -35,7 +35,7 @@ INSTALLED_APPS = [
     'django_filters',
 
     # Local apps
-    'apps.core',  # Замініть на назву вашого додатку
+    'candidates',  # Замініть на назву вашого додатку
 ]
 
 MIDDLEWARE = [
