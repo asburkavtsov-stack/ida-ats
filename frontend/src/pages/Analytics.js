@@ -1,6 +1,6 @@
 // Analytics.js
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import axios from '../axiosConfig';
 import { KANBAN_COLUMNS, SOURCE_CONFIG } from '../constants/statusColors';
 
 function Analytics() {

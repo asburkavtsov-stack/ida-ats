@@ -1,5 +1,5 @@
 // src/api/interviewsApi.js
-import axios from 'axios';
+import axios from '../api';
 
 const BASE = '/api/interviews/';
 
