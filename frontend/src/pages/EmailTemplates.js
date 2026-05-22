@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from '../api';
+import axios from '../axiosConfig';
 
 const TEMPLATE_TYPES = {
   interview: { label: "Запрошення на інтерв'ю", defaultSubject: "Запрошення на інтерв'ю — {{vacancy}}", defaultBody: 'Шановний(а) {{name}},\n\nДякуємо за вашу заявку на вакансію {{vacancy}}. Ми хотіли б запросити вас на інтерв\'ю.\n\nЗ повагою,\n{{hr_name}}' },

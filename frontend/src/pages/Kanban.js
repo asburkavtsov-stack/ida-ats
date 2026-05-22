@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from '../api';
+import axios from '../axiosConfig';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import Loader from '../components/Loader';
 import CandidateCardModal from '../components/CandidateCardModal';

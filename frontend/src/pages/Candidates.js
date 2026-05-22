@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from '../api';
+import axios from '../axiosConfig';
 import Loader from '../components/Loader';
 import CandidateCardModal from '../components/CandidateCardModal';
 import { STATUS_FILTERS, getStatusLabel, getStatusBg, getStatusText, getHrAvatarColor } from '../constants/statusColors';
