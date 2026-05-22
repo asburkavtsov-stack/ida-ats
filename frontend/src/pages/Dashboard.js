@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../api';
 import CandidateCardModal from '../components/CandidateCardModal';
 import { SOURCE_CONFIG, getSourceLabel, getSourceColor } from '../constants/statusColors';
 

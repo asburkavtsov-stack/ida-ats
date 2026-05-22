@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import axios from '../api';
 
 const inputStyle = (isMobile) => ({
   width: '100%', padding: isMobile ? '11px 14px' : '9px 12px', borderRadius: '8px',

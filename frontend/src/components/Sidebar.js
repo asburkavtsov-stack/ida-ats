@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../api';
 
 function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
   const [user, setUser] = useState(null);
