@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Candidate, Vacancy, Organization, StatusHistory, EmailTemplate, SentEmail, Tag, Interview
+from .models import Candidate, Vacancy, Organization, StatusHistory, EmailTemplate, SentEmail, Tag, Interview, UserProfile
 
 User = get_user_model()
 
@@ -112,7 +112,7 @@ class InterviewSerializer(serializers.ModelSerializer):
         instance.save()
         if interviewers is not None:
             instance.interviewers.set(interviewers)
-        return interview
+        return instance
 
 
 class CandidateSerializer(serializers.ModelSerializer):
@@ -269,4 +269,4 @@ class SentEmailSerializer(serializers.ModelSerializer):
     def get_template_type(self, obj):
         if obj.template:
             return obj.template.template_type
-        return interview
+        return None
