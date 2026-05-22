@@ -5,7 +5,7 @@ from django.db import models
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse, JsonResponse
 
-from rest_framework import status, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -329,26 +329,26 @@ class InterviewViewSet(viewsets.ModelViewSet):
         instance.delete()
 
     def _sync_google_create(self, interview):
-        from .utils.google_calendar import create_calendar_event
+        from .utils.google_calendar_service import create_calendar_event
         result = create_calendar_event(interview, self.request.user)
         if result:
             Interview.objects.filter(pk=interview.pk).update(**result)
 
     def _sync_google_update(self, interview):
-        from .utils.google_calendar import update_calendar_event
+        from .utils.google_calendar_service import update_calendar_event
         result = update_calendar_event(interview, self.request.user)
         if result:
             Interview.objects.filter(pk=interview.pk).update(**result)
 
     def _sync_google_delete(self, interview):
-        from .utils.google_calendar import delete_calendar_event
+        from .utils.google_calendar_service import delete_calendar_event
         delete_calendar_event(interview, self.request.user)
 
     @action(detail=True, methods=['post'], url_path='sync-google')
     def sync_google(self, request, pk=None):
         """POST /api/interviews/{id}/sync-google/ — примусова синхронізація з Google Calendar."""
         interview = self.get_object()
-        from .utils.google_calendar import update_calendar_event, create_calendar_event
+        from .utils.google_calendar_service import update_calendar_event, create_calendar_event
         if interview.google_event_id:
             result = update_calendar_event(interview, request.user)
         else:
