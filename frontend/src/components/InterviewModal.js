@@ -1,6 +1,6 @@
 // src/components/InterviewModal.jsx
 import React, { useState, useEffect } from 'react';
-import axios from '../api';
+import axios from '../axiosConfig';
 import { interviewsApi } from '../api/interviewsApi';
 
 const DURATION_OPTIONS = [30, 45, 60, 90, 120];

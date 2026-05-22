@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from '../api';
+import axios from '../axiosConfig';
 import { KANBAN_COLUMNS, getStatusLabel, getStatusBg, getStatusText, getHrAvatarColor } from '../constants/statusColors';
 import { SOURCE_CONFIG, getSourceLabel, getSourceBg, getSourceText } from '../constants/statusColors';
 

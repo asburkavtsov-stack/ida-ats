@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../api';
+import api from '../axiosConfig';
 import CSVImportModal from './CSVImportModal';
 
 function AddCandidateModal({ onClose, onAdded }) {
