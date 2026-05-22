@@ -31,5 +31,5 @@ urlpatterns = [
     path('api/auth/login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/test-email-config/', test_email_config, name='test_email_config'),
-    path('accounts/', include('allauth.urls')),
+
 ]
