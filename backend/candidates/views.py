@@ -34,7 +34,7 @@ from .utils.csv_handlers import CSVHandler, CSVImportResult
 from .constants import KANBAN_COLUMNS, SOURCE_CONFIG
 
 try:
-    from allauth.account.models import EmailAddress
+    from allauth.socialaccount.models import SocialAccount
     ALLAUTH_AVAILABLE = True
 except ImportError:
     ALLAUTH_AVAILABLE = False
