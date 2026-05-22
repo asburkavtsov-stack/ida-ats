@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import api from '../axiosConfig';
+import api from 'axiosConfig';
 
 function CSVImportModal({ onClose, onAdded }) {
   const [importFile, setImportFile] = useState(null);

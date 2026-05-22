@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from '../axiosConfig';
+import axios from 'axiosConfig';
 
 function AddVacancyModal({ onClose, onAdded }) {
   const [form, setForm] = useState({
@@ -96,3 +96,4 @@ function AddVacancyModal({ onClose, onAdded }) {
 }
 
 export default AddVacancyModal;
+

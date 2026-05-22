@@ -1,6 +1,6 @@
 // Vacancies.js
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from '../axiosConfig';
+import axios from 'axiosConfig';
 import AddVacancyModal from '../components/AddVacancyModal';
 import Loader from '../components/Loader';
 import CandidateCardModal from '../components/CandidateCardModal';

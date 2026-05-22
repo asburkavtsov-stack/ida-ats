@@ -1,5 +1,5 @@
 
-import axios from '../axiosConfig';
+import axios from 'axiosConfig';
 
 const BASE = '/api/interviews/';
 
@@ -25,3 +25,4 @@ export const interviewsApi = {
   syncGoogle: (id) =>
     axios.post(`${BASE}${id}/sync-google/`).then(r => r.data),
 };
+
