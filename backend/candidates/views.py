@@ -314,10 +314,7 @@ class InterviewViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         org = get_user_organization(self.request.user)
-        interview = serializer.save(
-            organization=org,
-            created_by=self.request.user,
-        )
+        interview = serializer.save(organization=org)
         self._sync_google_create(interview)
 
     def perform_update(self, serializer):
