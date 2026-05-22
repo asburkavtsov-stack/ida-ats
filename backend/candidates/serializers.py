@@ -269,4 +269,4 @@ class SentEmailSerializer(serializers.ModelSerializer):
     def get_template_type(self, obj):
         if obj.template:
             return obj.template.template_type
-        return None
+        return interview
