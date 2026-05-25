@@ -180,7 +180,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
 
     setSaving(true);
     setError('');
-    axios.patch(`/api/candidates/${candidateId}/update-status/`, { status: newStatus })
+    axios.patch(`/api/candidates/${candidateId}/`, { status: newStatus })
       .then(res => {
         const updated = res.data;
         setCandidate(updated);
