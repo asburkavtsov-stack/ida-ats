@@ -382,11 +382,8 @@ function InterviewCalendar() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         marginBottom: '20px', flexWrap: 'wrap', gap: '10px',
       }}>
-        <div>
-          <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>Календар інтерв'ю</div>
-          <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '2px' }}>
-            {totalScheduled} заплановано · {totalToday} сьогодні
-          </div>
+        <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+          {totalScheduled} заплановано · {totalToday} сьогодні
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {isMobile && (

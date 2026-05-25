@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
 
 const pageTitles = {
-  dashboard:  'Дашборд',
-  kanban:     'Канбан дошка',
-  candidates: 'Кандидати',
-  vacancies:  'Вакансії',
-  analytics:  'Аналітика',
+  dashboard:       'Дашборд',
+  kanban:          'Канбан дошка',
+  candidates:      'Кандидати',
+  vacancies:       'Вакансії',
+  analytics:       'Аналітика',
+  interviews:      "Інтерв'ю",
+  org_settings:    'Організація',
+  email_templates: 'Шаблони листів',
+  profile:         'Профіль',
+  users:           'Юзери системи',
+  admin:           'Адмін панель',
 };
 
 function Topbar({ currentPage, onAddCandidate, onSearch }) {

@@ -93,13 +93,7 @@ function Users() {
 
   return (
     <div style={{ padding: isMobile ? '16px' : '28px' }}>
-      <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-        <div>
-          <div style={{ fontSize: '1.3rem', fontWeight: 700 }}>Юзери системи</div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: '4px', fontFamily: 'DM Mono' }}>
-            Управління всіма користувачами
-          </div>
-        </div>
+      <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '12px' }}>
         <button onClick={() => setShowCreate(true)} style={{
           padding: isMobile ? '10px 16px' : '9px 18px', borderRadius: '8px', border: 'none',
           background: 'var(--accent)', color: '#fff', fontWeight: 600,

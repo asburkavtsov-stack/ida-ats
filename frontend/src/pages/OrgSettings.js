@@ -141,13 +141,6 @@ function OrgSettings() {
   return (
     <div style={{ padding: isMobile ? '16px' : '28px', maxWidth: '680px' }}>
 
-      <div style={{ marginBottom: '28px' }}>
-        <div style={{ fontSize: '1.3rem', fontWeight: 700 }}>Організація</div>
-        <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: '4px', fontFamily: 'DM Mono' }}>
-          Налаштування та команда
-        </div>
-      </div>
-
       <div style={{
         background: 'var(--surface)', border: '1px solid var(--border)',
         borderRadius: '14px', padding: isMobile ? '18px' : '24px', marginBottom: '24px',

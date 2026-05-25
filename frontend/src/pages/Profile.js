@@ -71,12 +71,6 @@ function Profile() {
 
   return (
     <div style={{ padding: isMobile ? '16px' : '28px', maxWidth: '600px' }}>
-      <div style={{ marginBottom: '28px' }}>
-        <div style={{ fontSize: '1.3rem', fontWeight: 700 }}>Мій профіль</div>
-        <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: '4px', fontFamily: 'DM Mono' }}>
-          Налаштування акаунту
-        </div>
-      </div>
 
       {/* Аватар */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '28px' }}>
