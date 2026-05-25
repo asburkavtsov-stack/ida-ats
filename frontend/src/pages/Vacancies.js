@@ -285,6 +285,111 @@ function Vacancies() {
           ))}
         </div>
 
+        {(selectedVacancy.description || selectedVacancy.requirements || selectedVacancy.city || selectedVacancy.employment_type) && (
+          <div style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: '12px',
+            marginBottom: '16px',
+          }}>
+            <div style={{
+              padding: isMobile ? '14px 16px' : '16px 20px',
+              borderBottom: '1px solid var(--border)',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+            }}>
+              Опис посади
+            </div>
+            <div style={{ padding: isMobile ? '16px' : '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+              {(selectedVacancy.city || selectedVacancy.employment_type) && (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {selectedVacancy.city && (
+                    <span style={{
+                      fontSize: '0.75rem',
+                      fontFamily: 'DM Mono',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      background: 'var(--bg)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text)',
+                    }}>
+                      📍 {selectedVacancy.city}
+                    </span>
+                  )}
+                  {selectedVacancy.employment_type && (
+                    <span style={{
+                      fontSize: '0.75rem',
+                      fontFamily: 'DM Mono',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      background: 'var(--bg)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text)',
+                    }}>
+                      {{
+                        full_time: '⏱ Повна зайнятість',
+                        part_time: '⏱ Часткова зайнятість',
+                        volunteer: '🤝 Волонтерство',
+                        contract: '📄 Контракт',
+                      }[selectedVacancy.employment_type] || selectedVacancy.employment_type}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {selectedVacancy.description && (
+                <div>
+                  <div style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    fontFamily: 'DM Mono',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    color: 'var(--muted)',
+                    marginBottom: '8px',
+                  }}>
+                    Опис
+                  </div>
+                  <div style={{
+                    fontSize: '0.88rem',
+                    lineHeight: 1.6,
+                    color: 'var(--text)',
+                    whiteSpace: 'pre-wrap',
+                  }}>
+                    {selectedVacancy.description}
+                  </div>
+                </div>
+              )}
+
+              {selectedVacancy.requirements && (
+                <div>
+                  <div style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    fontFamily: 'DM Mono',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    color: 'var(--muted)',
+                    marginBottom: '8px',
+                  }}>
+                    Вимоги
+                  </div>
+                  <div style={{
+                    fontSize: '0.88rem',
+                    lineHeight: 1.6,
+                    color: 'var(--text)',
+                    whiteSpace: 'pre-wrap',
+                  }}>
+                    {selectedVacancy.requirements}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+        )}
+
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px' }}>
           <div style={{ padding: isMobile ? '14px 16px' : '16px 20px', borderBottom: '1px solid var(--border)', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Кандидати на вакансію</span>
@@ -611,6 +716,10 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
   const [form, setForm] = useState({
     title: vacancy?.title || '',
     department: vacancy?.department || '',
+    description: vacancy?.description || '',
+    requirements: vacancy?.requirements || '',
+    city: vacancy?.city || '',
+    employment_type: vacancy?.employment_type || 'volunteer',
     is_active: vacancy?.is_active !== false,
   });
   const [saving, setSaving] = useState(false);
@@ -628,6 +737,10 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
       setForm({
         title: vacancy.title || '',
         department: vacancy.department || '',
+        description: vacancy.description || '',
+        requirements: vacancy.requirements || '',
+        city: vacancy.city || '',
+        employment_type: vacancy.employment_type || 'volunteer',
         is_active: vacancy.is_active !== false,
       });
     }
@@ -661,7 +774,8 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
   };
   const modal = {
     background: 'var(--surface)', borderRadius: '16px',
-    width: '100%', maxWidth: '440px', boxShadow: 'var(--shadow-lg)', zIndex: 1001,
+    width: '100%', maxWidth: '480px', boxShadow: 'var(--shadow-lg)', zIndex: 1001,
+    maxHeight: '90vh', display: 'flex', flexDirection: 'column',
   };
   const input = {
     width: '100%', padding: isMobile ? '11px 14px' : '9px 12px', border: '1px solid var(--border)',
@@ -691,7 +805,7 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
           </button>
         </div>
 
-        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto' }}>
           <div>
             <label style={label}>Назва вакансії</label>
             <input
@@ -709,6 +823,50 @@ function EditVacancyModal({ vacancy, onClose, onUpdated }) {
               name="department"
               value={form.department}
               placeholder="Engineering · Remote"
+              onChange={handleChange}
+            />
+          </div>
+          <div>
+            <label style={label}>Місто</label>
+            <input
+              style={input}
+              name="city"
+              value={form.city}
+              placeholder="Київ / Remote"
+              onChange={handleChange}
+            />
+          </div>
+          <div>
+            <label style={label}>Тип зайнятості</label>
+            <select
+              style={{ ...input, cursor: 'pointer' }}
+              name="employment_type"
+              value={form.employment_type}
+              onChange={handleChange}
+            >
+              <option value="full_time">Повна зайнятість</option>
+              <option value="part_time">Часткова зайнятість</option>
+              <option value="volunteer">Волонтерство</option>
+              <option value="contract">Контракт</option>
+            </select>
+          </div>
+          <div>
+            <label style={label}>Опис вакансії</label>
+            <textarea
+              style={{ ...input, minHeight: '100px', resize: 'vertical' }}
+              name="description"
+              value={form.description}
+              placeholder="Розкажіть про роль, команду, задачі..."
+              onChange={handleChange}
+            />
+          </div>
+          <div>
+            <label style={label}>Вимоги</label>
+            <textarea
+              style={{ ...input, minHeight: '100px', resize: 'vertical' }}
+              name="requirements"
+              value={form.requirements}
+              placeholder="Навички, досвід, освіта..."
               onChange={handleChange}
             />
           </div>
