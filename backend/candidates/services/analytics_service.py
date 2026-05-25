@@ -138,20 +138,6 @@ class AnalyticsService:
 
     @staticmethod
     def calculate_hr_effectiveness(queryset: QuerySet) -> List[Dict[str, Any]]:
-        """
-        Розраховує ефективність HR-менеджерів.
-
-        Повертає список з:
-        - hr_id, hr_name
-        - total_candidates (всього кандидатів)
-        - by_status (розподіл по статусах)
-        - conversion_rate (конверсія в оффер %)
-        - offers_count (кількість офферів)
-        - interviews_count (кількість співбесід)
-        - rejected_count (кількість відмов)
-        - active_candidates (активні кандидати, не rejected)
-        - time_to_hire_avg (середній час до офферу)
-        """
         from django.contrib.auth.models import User
 
         # Групуємо по assigned_to

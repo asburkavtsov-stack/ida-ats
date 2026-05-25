@@ -16,26 +16,15 @@ from .job_boards import dou_linkedin
 
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# XML ФІДИ  (публічні — без авторизації, за захищеним токеном в URL)
-# ---------------------------------------------------------------------------
-
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def vacancy_feed_rabota_ua(request):
-    """
-    GET /api/vacancies/feed/rabota-ua/?token=YOUR_FEED_TOKEN
-    Повертає XML-фід вакансій для rabota.ua.
-    Передайте цей URL менеджеру rabota.ua для автоімпорту.
-    """
     feed_token = request.query_params.get('token', '')
     from django.conf import settings
     expected = getattr(settings, 'JOB_BOARD_FEED_TOKEN', '')
     if expected and feed_token != expected:
         return HttpResponse(status=403)
 
-    # Фільтруємо по організації якщо передано org_slug
     org_slug = request.query_params.get('org', '')
     vacancies = Vacancy.objects.filter(is_active=True)
     if org_slug:
@@ -48,10 +37,6 @@ def vacancy_feed_rabota_ua(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def vacancy_feed_work_ua(request):
-    """
-    GET /api/vacancies/feed/work-ua/?token=YOUR_FEED_TOKEN
-    Повертає XML-фід вакансій для work.ua.
-    """
     feed_token = request.query_params.get('token', '')
     from django.conf import settings
     expected = getattr(settings, 'JOB_BOARD_FEED_TOKEN', '')
@@ -66,23 +51,10 @@ def vacancy_feed_work_ua(request):
     xml = workua_client.generate_xml_feed(vacancies)
     return HttpResponse(xml, content_type='application/xml; charset=utf-8')
 
-
-# ---------------------------------------------------------------------------
-# ПУБЛІКАЦІЯ / ЗНЯТТЯ З ПУБЛІКАЦІЇ
-# ---------------------------------------------------------------------------
-
 class VacancyJobBoardMixin:
-    """
-    Mixin для VacancyViewSet.
-    Додає actions: publish, unpublish, sync_applications.
-    """
-
     @action(detail=True, methods=['post'], url_path='publish')
     def publish(self, request, pk=None):
-        """
-        POST /api/vacancies/{id}/publish/
-        Body: {"platform": "rabota_ua"}  або  {"platform": "dou", "url": "https://..."}
-        """
+
         vacancy = self.get_object()
         serializer = VacancyPublishSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -94,7 +66,6 @@ class VacancyJobBoardMixin:
             result = rabota_ua_client.publish_vacancy(vacancy)
 
         elif platform == 'work_ua':
-            # work.ua не має прямого API — повертаємо XML-фід URL
             from django.conf import settings
             token = getattr(settings, 'JOB_BOARD_FEED_TOKEN', 'set_in_env')
             feed_url = request.build_absolute_uri(
@@ -138,10 +109,6 @@ class VacancyJobBoardMixin:
 
     @action(detail=True, methods=['post'], url_path='unpublish')
     def unpublish(self, request, pk=None):
-        """
-        POST /api/vacancies/{id}/unpublish/
-        Body: {"platform": "rabota_ua"}
-        """
         vacancy = self.get_object()
         platform = request.data.get('platform', '')
 
@@ -158,10 +125,6 @@ class VacancyJobBoardMixin:
 
     @action(detail=True, methods=['post'], url_path='sync-applications')
     def sync_applications(self, request, pk=None):
-        """
-        POST /api/vacancies/{id}/sync-applications/
-        Підтягує нові відгуки з rabota.ua і створює Candidate записи.
-        """
         vacancy = self.get_object()
         applications = rabota_ua_client.fetch_applications(vacancy)
 
@@ -200,25 +163,10 @@ class VacancyJobBoardMixin:
             'message': f'Додано {created_count} нових кандидатів',
         })
 
-
-# ---------------------------------------------------------------------------
-# ВЕБХУК від work.ua
-# ---------------------------------------------------------------------------
-
 @csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def work_ua_webhook(request):
-    """
-    POST /api/webhooks/work-ua/
-    Приймає відгуки від work.ua.
-
-    Налаштування в особистому кабінеті work.ua:
-      Налаштування → Інтеграції → Webhook URL → вказати цей ендпоінт
-
-    Для захисту від несанкціонованих запитів — перевіряємо секретний заголовок.
-    Додайте в .env: WORK_UA_WEBHOOK_SECRET=your_secret
-    """
     from django.conf import settings
     secret = getattr(settings, 'WORK_UA_WEBHOOK_SECRET', '')
     if secret:
@@ -234,7 +182,6 @@ def work_ua_webhook(request):
     if not app.get('email'):
         return Response({'status': 'skipped', 'reason': 'no email'})
 
-    # Знаходимо вакансію по external_vacancy_id (наш внутрішній id)
     vacancy = None
     ext_id = app.get('external_vacancy_id', '')
     if ext_id:
@@ -264,30 +211,10 @@ def work_ua_webhook(request):
         'candidate_id': candidate.id,
     })
 
-
-# ---------------------------------------------------------------------------
-# ВЕБХУК — загальний (для DOU, LinkedIn форм)
-# ---------------------------------------------------------------------------
-
 @csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def job_board_application_webhook(request):
-    """
-    POST /api/webhooks/job-application/
-    Загальний endpoint для прийому відгуків з будь-якої платформи.
-
-    Очікуваний payload:
-    {
-        "source": "dou" | "linkedin" | "work_ua" | "rabota_ua",
-        "first_name": "Іван",
-        "last_name": "Петренко",
-        "email": "ivan@example.com",
-        "phone": "+380501234567",
-        "vacancy_id": 42,
-        "cover_letter": "..."
-    }
-    """
     from django.conf import settings
     secret = getattr(settings, 'WEBHOOK_SECRET', '')
     if secret:

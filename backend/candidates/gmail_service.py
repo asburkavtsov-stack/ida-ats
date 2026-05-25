@@ -13,18 +13,10 @@ logger = logging.getLogger(__name__)
 
 
 class GmailService:
-    """Відправка email через Gmail API з використанням OAuth-токенів allauth."""
 
     @staticmethod
     def get_credentials(user):
-        """
-        Повертає актуальні Google Credentials для користувача.
-        Якщо токен прострочений — оновлює і зберігає в БД.
-        Повертає None якщо Google-акаунт не підключено.
-        """
-        # Імпортуємо тут щоб уникнути циклічних залежностей при старті
         from allauth.socialaccount.models import SocialAccount, SocialToken
-
         social_account = SocialAccount.objects.filter(
             user=user,
             provider='google',
@@ -38,7 +30,6 @@ class GmailService:
         if not social_token:
             return None
 
-        # В allauth: token = access_token, token_secret = refresh_token
         refresh_token = social_token.token_secret or None
 
         creds = Credentials(
@@ -49,7 +40,6 @@ class GmailService:
             client_secret=getattr(settings, 'GOOGLE_CLOUD_CLIENT_SECRET', ''),
         )
 
-        # Оновлюємо якщо прострочений і є refresh_token
         if creds.expired and creds.refresh_token:
             try:
                 creds.refresh(Request())
@@ -64,15 +54,6 @@ class GmailService:
 
     @staticmethod
     def send_email(user, to_email, subject, body, cc=None, bcc=None):
-        """
-        Відправляє HTML email через Gmail API від імені user.
-
-        Returns:
-            dict: {'success': True, 'message_id': str, 'from_email': str}
-
-        Raises:
-            Exception з описом помилки
-        """
         creds = GmailService.get_credentials(user)
         if not creds:
             raise Exception(

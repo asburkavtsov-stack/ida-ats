@@ -34,9 +34,7 @@ class VacancySerializer(serializers.ModelSerializer):
 
 
 class VacancyPublishSerializer(serializers.Serializer):
-    """Для ендпоінту POST /api/vacancies/{id}/publish/"""
     platform = serializers.ChoiceField(choices=['rabota_ua', 'work_ua', 'dou', 'linkedin'])
-    # Для DOU та LinkedIn — вручну вказується URL після публікації
     url = serializers.URLField(required=False, allow_blank=True)
 
 
