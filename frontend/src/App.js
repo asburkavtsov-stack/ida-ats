@@ -39,7 +39,6 @@ function App() {
         const role = res.data.role;
         setUserRole(role);
         if (role === 'superadmin') setCurrentPage('admin');
-        else if (role === 'admin') setCurrentPage('dashboard');
         else setCurrentPage('dashboard');
       })
       .catch(() => {});
@@ -71,27 +70,28 @@ function App() {
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'dashboard':    return <Dashboard />;
-      case 'kanban':       return <Kanban key={refreshKey} searchQuery={debouncedSearch} />;
-      case 'candidates':   return <Candidates key={refreshKey} searchQuery={debouncedSearch} />;
-      case 'vacancies':    return <Vacancies />;
-      case 'interviews':   return <InterviewCalendar />;
-      case 'analytics':    return <Analytics />;
+      case 'dashboard':       return <Dashboard />;
+      case 'kanban':          return <Kanban key={refreshKey} searchQuery={debouncedSearch} />;
+      case 'candidates':      return <Candidates key={refreshKey} searchQuery={debouncedSearch} />;
+      case 'vacancies':       return <Vacancies />;
+      case 'interviews':      return <InterviewCalendar />;
+      case 'analytics':       return <Analytics />;
       case 'email_templates': return <EmailTemplates />;
-      case 'org_settings': return <OrgSettings />;
-      case 'profile':      return <Profile />;
-      default:             return <Dashboard />;
+      case 'org_settings':    return <OrgSettings />;
+      case 'profile':         return <Profile />;
+      default:                return <Dashboard />;
     }
   };
 
   if (!isAuth) return <Login onLogin={handleLogin} />;
 
+  // ── Superadmin ──────────────────────────────────────────────────────────────
   if (userRole === 'superadmin') {
     const renderSuperadminPage = () => {
       if (viewOrgId) {
         return (
           <div>
-            <div style={{ padding: '16px 28px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ padding: '12px 28px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
               <button
                 onClick={() => setViewOrgId(null)}
                 style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Mono', fontSize: '0.78rem' }}
@@ -105,31 +105,27 @@ function App() {
         );
       }
       switch (currentPage) {
-        case 'users':          return <Users />;
-        case 'profile':        return <Profile />;
+        case 'users':           return <Users />;
+        case 'profile':         return <Profile />;
         case 'email_templates': return <EmailTemplates />;
-        case 'analytics':      return <Analytics />;
-        case 'vacancies':      return <Vacancies />;
-        case 'kanban':         return <Kanban key={refreshKey} searchQuery={debouncedSearch} />;
-        case 'candidates':     return <Candidates key={refreshKey} searchQuery={debouncedSearch} />;
-        default:               return <Admin onViewOrg={setViewOrgId} />;
+        case 'analytics':       return <Analytics />;
+        case 'vacancies':       return <Vacancies />;
+        case 'kanban':          return <Kanban key={refreshKey} searchQuery={debouncedSearch} />;
+        case 'candidates':      return <Candidates key={refreshKey} searchQuery={debouncedSearch} />;
+        default:                return <Admin onViewOrg={setViewOrgId} />;
       }
     };
-
-    const superadminShowTopbar = ['kanban', 'candidates', 'vacancies', 'analytics'].includes(currentPage) && !viewOrgId;
 
     return (
       <div className="app-layout">
         <Sidebar currentPage={currentPage} onNavigate={p => { setViewOrgId(null); setCurrentPage(p); }} onLogout={handleLogout} userRole={userRole} />
         <div className="main">
-          {superadminShowTopbar && (
-            <Topbar
-              currentPage={currentPage}
-              onAddCandidate={() => setShowModal(true)}
-              onSearch={setSearchQuery}
-            />
-          )}
-          <div className="content" style={superadminShowTopbar ? {} : { padding: 0 }}>
+          <Topbar
+            currentPage={viewOrgId ? 'kanban' : currentPage}
+            onAddCandidate={() => setShowModal(true)}
+            onSearch={setSearchQuery}
+          />
+          <div className="content">
             {renderSuperadminPage()}
           </div>
         </div>
@@ -140,20 +136,18 @@ function App() {
     );
   }
 
+  // ── Admin ───────────────────────────────────────────────────────────────────
   if (userRole === 'admin') {
-    const showTopbar = ['dashboard', 'kanban', 'candidates', 'vacancies', 'analytics'].includes(currentPage);
     return (
       <div className="app-layout">
         <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} onLogout={handleLogout} userRole={userRole} />
         <div className="main">
-          {showTopbar && (
-            <Topbar
-              currentPage={currentPage}
-              onAddCandidate={() => setShowModal(true)}
-              onSearch={setSearchQuery}
-            />
-          )}
-          <div className="content" style={showTopbar ? {} : { padding: 0 }}>
+          <Topbar
+            currentPage={currentPage}
+            onAddCandidate={() => setShowModal(true)}
+            onSearch={setSearchQuery}
+          />
+          <div className="content">
             {renderPage()}
           </div>
         </div>
@@ -164,6 +158,7 @@ function App() {
     );
   }
 
+  // ── HR ──────────────────────────────────────────────────────────────────────
   return (
     <div className="app-layout">
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} onLogout={handleLogout} userRole={userRole} />
