@@ -1,14 +1,43 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Candidate, Vacancy, Organization, StatusHistory, EmailTemplate, SentEmail, Tag, Interview, UserProfile
+from .models import (
+    Candidate, Vacancy, Organization, StatusHistory,
+    EmailTemplate, SentEmail, Tag, Interview, UserProfile,
+)
 
 User = get_user_model()
 
 
 class VacancySerializer(serializers.ModelSerializer):
+    published_boards = serializers.ReadOnlyField()
+
     class Meta:
         model = Vacancy
-        fields = ['id', 'title', 'department', 'is_active', 'created_at']
+        fields = [
+            'id', 'title', 'department', 'description', 'requirements',
+            'city', 'employment_type', 'salary_min', 'salary_max',
+            'is_active', 'created_at',
+            # Job board статуси (read)
+            'published_boards',
+            'published_rabota_ua', 'rabota_ua_vacancy_id', 'published_at_rabota_ua',
+            'published_work_ua', 'work_ua_vacancy_id', 'published_at_work_ua',
+            'published_dou', 'dou_vacancy_url', 'published_at_dou',
+            'published_linkedin', 'linkedin_vacancy_url', 'published_at_linkedin',
+        ]
+        read_only_fields = [
+            'published_boards',
+            'published_rabota_ua', 'rabota_ua_vacancy_id', 'published_at_rabota_ua',
+            'published_work_ua', 'work_ua_vacancy_id', 'published_at_work_ua',
+            'published_dou', 'published_at_dou',
+            'published_linkedin', 'published_at_linkedin',
+        ]
+
+
+class VacancyPublishSerializer(serializers.Serializer):
+    """Для ендпоінту POST /api/vacancies/{id}/publish/"""
+    platform = serializers.ChoiceField(choices=['rabota_ua', 'work_ua', 'dou', 'linkedin'])
+    # Для DOU та LinkedIn — вручну вказується URL після публікації
+    url = serializers.URLField(required=False, allow_blank=True)
 
 
 class StatusHistorySerializer(serializers.ModelSerializer):
@@ -176,7 +205,6 @@ class CandidateSerializer(serializers.ModelSerializer):
         from .models import normalize_phone
 
         qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.all()
-
         if self.instance:
             qs = qs.exclude(pk=self.instance.pk)
 
@@ -230,8 +258,11 @@ class EmailTemplateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EmailTemplate
-        fields = ['id', 'organization', 'organization_name', 'template_type', 'template_type_display', 'subject',
-                  'body', 'is_active', 'created_at', 'updated_at']
+        fields = [
+            'id', 'organization', 'organization_name', 'template_type',
+            'template_type_display', 'subject', 'body', 'is_active',
+            'created_at', 'updated_at',
+        ]
         read_only_fields = ['organization', 'organization_name', 'created_at', 'updated_at']
 
 
@@ -244,9 +275,9 @@ class SentEmailSerializer(serializers.ModelSerializer):
     class Meta:
         model = SentEmail
         fields = [
-            'id', 'candidate', 'candidate_name', 'template', 'template_type', 'template_type_display',
-            'recipient_email', 'subject', 'body', 'sent_by', 'sent_by_name',
-            'sent_at', 'status', 'error_message'
+            'id', 'candidate', 'candidate_name', 'template', 'template_type',
+            'template_type_display', 'recipient_email', 'subject', 'body',
+            'sent_by', 'sent_by_name', 'sent_at', 'status', 'error_message',
         ]
         read_only_fields = ['id', 'sent_at', 'status', 'error_message']
 
@@ -262,11 +293,7 @@ class SentEmailSerializer(serializers.ModelSerializer):
         return None
 
     def get_template_type_display(self, obj):
-        if obj.template:
-            return obj.template.get_template_type_display()
-        return None
+        return obj.template.get_template_type_display() if obj.template else None
 
     def get_template_type(self, obj):
-        if obj.template:
-            return obj.template.template_type
-        return None
+        return obj.template.template_type if obj.template else None

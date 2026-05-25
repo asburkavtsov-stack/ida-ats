@@ -17,6 +17,12 @@ from .views import (
     export_full_report_pdf,
     InterviewViewSet,
 )
+from .job_board_views import (
+    vacancy_feed_rabota_ua,
+    vacancy_feed_work_ua,
+    work_ua_webhook,
+    job_board_application_webhook,
+)
 
 router = DefaultRouter()
 router.register(r'candidates', CandidateViewSet, basename='candidate')
@@ -29,16 +35,28 @@ router.register(r'tags', TagViewSet, basename='tag')
 router.register(r'interviews', InterviewViewSet, basename='interview')
 
 urlpatterns = [
+    # --- Кандидати ---
     path('candidates/export/', CandidateExportCSVView.as_view(), name='candidates-export'),
     path('candidates/check-duplicate/', CandidateViewSet.as_view({'post': 'check_duplicate'}),
          name='candidate-check-duplicate'),
     path('candidates/import-csv/', CandidateViewSet.as_view({'post': 'import_csv'}), name='candidate-import-csv'),
+
+    # --- Job board XML фіди (публічні, захищені токеном) ---
+    path('vacancies/feed/rabota-ua/', vacancy_feed_rabota_ua, name='feed-rabota-ua'),
+    path('vacancies/feed/work-ua/', vacancy_feed_work_ua, name='feed-work-ua'),
+
+    # --- Вебхуки ---
+    path('webhooks/work-ua/', work_ua_webhook, name='webhook-work-ua'),
+    path('webhooks/job-application/', job_board_application_webhook, name='webhook-job-application'),
+
     path('', include(router.urls)),
     path('me/', current_user, name='current-user'),
     path('users-detail/<int:pk>/', UserListView.as_view({
         'patch': 'partial_update',
         'delete': 'destroy',
     }), name='user-detail'),
+
+    # --- Аналітика ---
     path('analytics/time-to-hire/', time_to_hire_analytics, name='time-to-hire'),
     path('analytics/time-to-hire/candidate/<int:candidate_id>/', candidate_time_to_hire_detail,
          name='time-to-hire-candidate'),
@@ -52,5 +70,6 @@ urlpatterns = [
     path('analytics/hr-effectiveness/export-pdf/', export_hr_effectiveness_pdf, name='hr-effectiveness-export-pdf'),
     path('analytics/export-full-excel/', export_full_report_excel, name='full-report-export-excel'),
     path('analytics/export-full-pdf/', export_full_report_pdf, name='full-report-export-pdf'),
+
     path('google-auth-status/', google_auth_status, name='google-auth-status'),
 ]

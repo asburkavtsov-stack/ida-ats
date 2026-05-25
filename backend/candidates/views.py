@@ -5,7 +5,7 @@ from django.db import models
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse, JsonResponse
 
-from rest_framework import serializers, status, viewsets
+from rest_framework import serializers, status, viewsets, permissions
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -33,15 +33,14 @@ from .utils.csv_handlers import CSVHandler, CSVImportResult
 
 from .constants import KANBAN_COLUMNS, SOURCE_CONFIG
 
+from .job_board_views import VacancyJobBoardMixin
+
 ALLAUTH_AVAILABLE = False
 SocialAccount = None
 
 logger = logging.getLogger(__name__)
 
-
-# ═══════════════════════════════════════════════════════════════
 # TAGS
-# ═══════════════════════════════════════════════════════════════
 
 class TagViewSet(viewsets.ModelViewSet):
     serializer_class = TagSerializer
@@ -62,44 +61,37 @@ class TagViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError({'error': "Користувач не прив'язаний до організації"})
         serializer.save(organization=org)
 
-
-# ═══════════════════════════════════════════════════════════════
 # VACANCIES
-# ═══════════════════════════════════════════════════════════════
 
-class VacancyViewSet(viewsets.ModelViewSet):
+class VacancyViewSet(VacancyJobBoardMixin, viewsets.ModelViewSet):
     serializer_class = VacancySerializer
-    permission_classes = [IsAuthenticated, IsOrgMember]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        role = get_user_role(self.request.user)
-        if role == 'superadmin':
-            org_id = self.request.query_params.get('organization')
-            qs = Vacancy.objects.all()
-            if org_id:
-                qs = qs.filter(organization_id=org_id)
-        else:
-            org = get_user_organization(self.request.user)
-            qs = Vacancy.objects.filter(organization=org) if org else Vacancy.objects.none()
-        return qs.order_by('-created_at')
+        user = self.request.user
+        try:
+            org = user.profile.organization
+            if user.profile.role == 'superadmin':
+                return Vacancy.objects.all()
+            return Vacancy.objects.filter(organization=org)
+        except Exception:
+            return Vacancy.objects.all()
 
     def perform_create(self, serializer):
-        serializer.save(organization=get_user_organization(self.request.user))
+        try:
+            org = self.request.user.profile.organization
+            serializer.save(organization=org)
+        except Exception:
+            serializer.save()
 
-
-# ═══════════════════════════════════════════════════════════════
 # ORGANIZATIONS
-# ═══════════════════════════════════════════════════════════════
 
 class OrganizationViewSet(viewsets.ModelViewSet):
     queryset = Organization.objects.all().order_by('id')
     serializer_class = OrganizationSerializer
     permission_classes = [IsAuthenticated, IsSuperAdmin]
 
-
-# ═══════════════════════════════════════════════════════════════
 # CANDIDATES
-# ═══════════════════════════════════════════════════════════════
 
 class CandidateViewSet(viewsets.ModelViewSet):
     serializer_class = CandidateSerializer
@@ -239,10 +231,7 @@ class CandidateViewSet(viewsets.ModelViewSet):
 
         return Response(result.to_dict())
 
-
-# ═══════════════════════════════════════════════════════════════
 # CANDIDATES CSV EXPORT
-# ═══════════════════════════════════════════════════════════════
 
 class CandidateExportCSVView(APIView):
     permission_classes = [IsAuthenticated, IsOrgMember]
@@ -271,10 +260,7 @@ class CandidateExportCSVView(APIView):
                    'Нотатки', 'Дата створення']
         return CSVHandler.export_queryset_to_csv(qs, 'candidates.csv', headers, extractor)
 
-
-# ═══════════════════════════════════════════════════════════════
 # INTERVIEWS
-# ═══════════════════════════════════════════════════════════════
 
 class InterviewViewSet(viewsets.ModelViewSet):
     serializer_class = InterviewSerializer
@@ -343,7 +329,6 @@ class InterviewViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='sync-google')
     def sync_google(self, request, pk=None):
-        """POST /api/interviews/{id}/sync-google/ — примусова синхронізація з Google Calendar."""
         interview = self.get_object()
         from .utils.google_calendar_service import update_calendar_event, create_calendar_event
         if interview.google_event_id:
@@ -371,10 +356,7 @@ class InterviewViewSet(viewsets.ModelViewSet):
         interview.save(update_fields=['status'])
         return Response(InterviewSerializer(interview, context={'request': request}).data)
 
-
-# ═══════════════════════════════════════════════════════════════
 # CURRENT USER
-# ═══════════════════════════════════════════════════════════════
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -389,10 +371,7 @@ def current_user(request):
                          'max_hr': org.max_hr} if org else None,
     })
 
-
-# ═══════════════════════════════════════════════════════════════
 # USERS
-# ═══════════════════════════════════════════════════════════════
 
 class UserListView(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
@@ -485,10 +464,7 @@ class UserListView(viewsets.ViewSet):
         except User.DoesNotExist:
             return Response({'error': 'Юзер не знайдений'}, status=status.HTTP_404_NOT_FOUND)
 
-
-# ═══════════════════════════════════════════════════════════════
 # EMAIL TEMPLATES
-# ═══════════════════════════════════════════════════════════════
 
 class EmailTemplateViewSet(viewsets.ModelViewSet):
     serializer_class = EmailTemplateSerializer
@@ -591,10 +567,7 @@ class SentEmailViewSet(viewsets.ReadOnlyModelViewSet):
             qs = SentEmail.objects.filter(candidate__organization=org) if org else SentEmail.objects.none()
         return qs.select_related('candidate', 'template', 'sent_by').order_by('-sent_at')
 
-
-# ═══════════════════════════════════════════════════════════════
 # GOOGLE AUTH
-# ═══════════════════════════════════════════════════════════════
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -612,10 +585,7 @@ def test_email_config(request):
                      'google_login_url': '/accounts/google/login/', 'current_user_email': request.user.email,
                      'email_backend_type': EmailService.get_email_backend_type()})
 
-
-# ═══════════════════════════════════════════════════════════════
 # TIME-TO-HIRE ANALYTICS
-# ═══════════════════════════════════════════════════════════════
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
@@ -735,10 +705,7 @@ def export_time_to_hire_csv(request):
                          row['offer_date'].strftime('%d.%m.%Y') if row['offer_date'] else '', row['days']])
     return response
 
-
-# ═══════════════════════════════════════════════════════════════
 # HR EFFECTIVENESS ANALYTICS
-# ═══════════════════════════════════════════════════════════════
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
@@ -822,10 +789,7 @@ def export_hr_effectiveness_csv(request):
 
     return response
 
-
-# ═══════════════════════════════════════════════════════════════
 # EXCEL / PDF EXPORT VIEWS
-# ═══════════════════════════════════════════════════════════════
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])

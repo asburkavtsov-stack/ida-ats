@@ -45,18 +45,64 @@ class Tag(models.Model):
 
 
 class Vacancy(models.Model):
+    EMPLOYMENT_TYPE_CHOICES = [
+        ('full_time', 'Повна зайнятість'),
+        ('part_time', 'Часткова зайнятість'),
+        ('volunteer', 'Волонтерство'),
+        ('contract', 'Контракт'),
+    ]
+
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, blank=True)
     title = models.CharField(max_length=200)
     department = models.CharField(max_length=100)
+    description = models.TextField(blank=True, verbose_name='Опис вакансії')
+    requirements = models.TextField(blank=True, verbose_name='Вимоги')
+    city = models.CharField(max_length=100, blank=True, verbose_name='Місто')
+    employment_type = models.CharField(
+        max_length=20, choices=EMPLOYMENT_TYPE_CHOICES,
+        default='volunteer', blank=True, verbose_name='Тип зайнятості'
+    )
+    salary_min = models.PositiveIntegerField(null=True, blank=True, verbose_name='Зарплата від')
+    salary_max = models.PositiveIntegerField(null=True, blank=True, verbose_name='Зарплата до')
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # --- Job board публікації ---
+    published_rabota_ua = models.BooleanField(default=False, verbose_name='rabota.ua')
+    rabota_ua_vacancy_id = models.CharField(max_length=50, blank=True)
+    published_at_rabota_ua = models.DateTimeField(null=True, blank=True)
+
+    published_work_ua = models.BooleanField(default=False, verbose_name='work.ua')
+    work_ua_vacancy_id = models.CharField(max_length=50, blank=True)
+    published_at_work_ua = models.DateTimeField(null=True, blank=True)
+
+    published_dou = models.BooleanField(default=False, verbose_name='DOU')
+    dou_vacancy_url = models.URLField(blank=True)
+    published_at_dou = models.DateTimeField(null=True, blank=True)
+
+    published_linkedin = models.BooleanField(default=False, verbose_name='LinkedIn')
+    linkedin_vacancy_url = models.URLField(blank=True)
+    published_at_linkedin = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.title
 
+    @property
+    def published_boards(self):
+        """Повертає список платформ де вакансія опублікована."""
+        boards = []
+        if self.published_rabota_ua:
+            boards.append('rabota_ua')
+        if self.published_work_ua:
+            boards.append('work_ua')
+        if self.published_dou:
+            boards.append('dou')
+        if self.published_linkedin:
+            boards.append('linkedin')
+        return boards
+
 
 def normalize_phone(phone):
-    """Нормалізує телефон: залишає тільки цифри."""
     if not phone:
         return ''
     return re.sub(r'\D', '', phone)
@@ -74,6 +120,8 @@ class Candidate(models.Model):
     SOURCE_CHOICES = [
         ('linkedin', 'LinkedIn'),
         ('dou', 'DOU'),
+        ('work_ua', 'work.ua'),
+        ('rabota_ua', 'rabota.ua'),
         ('recommendation', 'Рекомендація'),
         ('csv', 'CSV'),
         ('direct', 'Прямий відгук'),
@@ -96,7 +144,6 @@ class Candidate(models.Model):
         related_name='assigned_candidates',
         verbose_name='Призначений HR'
     )
-
     tags = models.ManyToManyField(Tag, blank=True, related_name='candidates')
 
     class Meta:
@@ -120,19 +167,14 @@ class Candidate(models.Model):
         if self.phone:
             phone_normalized = normalize_phone(self.phone)
             phone_q = Q(phone=phone_normalized) | Q(phone__iexact=self.phone)
-        duplicates = qs.filter(email_q | phone_q).distinct()
-        return duplicates
+        return qs.filter(email_q | phone_q).distinct()
 
 
 class StatusHistory(models.Model):
-    candidate = models.ForeignKey(
-        Candidate, on_delete=models.CASCADE, related_name='status_history'
-    )
+    candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE, related_name='status_history')
     old_status = models.CharField(max_length=20, blank=True, null=True)
     new_status = models.CharField(max_length=20)
-    changed_by = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True
-    )
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     changed_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -201,52 +243,26 @@ class Interview(models.Model):
         ('rescheduled', 'Перенесено'),
     ]
 
-    organization = models.ForeignKey(
-        Organization, on_delete=models.CASCADE,
-        related_name='interviews'
-    )
-    candidate = models.ForeignKey(
-        Candidate, on_delete=models.CASCADE,
-        related_name='interviews'
-    )
-    vacancy = models.ForeignKey(
-        Vacancy, on_delete=models.SET_NULL,
-        null=True, blank=True,
-        related_name='interviews'
-    )
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='interviews')
+    candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE, related_name='interviews')
+    vacancy = models.ForeignKey(Vacancy, on_delete=models.SET_NULL, null=True, blank=True, related_name='interviews')
 
     title = models.CharField(max_length=255)
-    interview_type = models.CharField(
-        max_length=10,
-        choices=INTERVIEW_TYPE_CHOICES,
-        default='online'
-    )
-    status = models.CharField(
-        max_length=15,
-        choices=STATUS_CHOICES,
-        default='scheduled'
-    )
+    interview_type = models.CharField(max_length=10, choices=INTERVIEW_TYPE_CHOICES, default='online')
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='scheduled')
 
     scheduled_at = models.DateTimeField()
     duration_minutes = models.PositiveIntegerField(default=60)
     location = models.CharField(max_length=500, blank=True)
     notes = models.TextField(blank=True)
 
-    interviewers = models.ManyToManyField(
-        User,
-        blank=True,
-        related_name='interviews_as_interviewer'
-    )
+    interviewers = models.ManyToManyField(User, blank=True, related_name='interviews_as_interviewer')
 
-    # Google Calendar
     google_event_id = models.CharField(max_length=255, blank=True)
     google_meet_link = models.URLField(blank=True)
     google_calendar_link = models.URLField(blank=True)
 
-    created_by = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='created_interviews'
-    )
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_interviews')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
