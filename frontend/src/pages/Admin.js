@@ -90,8 +90,6 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
         is_active: form.is_active,
       };
 
-      console.log('Sending payload:', JSON.stringify(payload));
-
       const req = org
         ? axios.patch(`/api/organizations/${org.id}/`, payload)
         : axios.post('/api/organizations/', payload);
@@ -101,12 +99,24 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
       onClose();
     } catch (err) {
       console.error('Помилка збереження організації:', err.response?.data || err);
-      const msg = err.response?.data?.detail ||
-                  err.response?.data?.name?.[0] ||
-                  err.response?.data?.slug?.[0] ||
-                  JSON.stringify(err.response?.data) ||
-                  'Не вдалося зберегти організацію';
-      setError(msg);
+      
+      let errorMessage = '';
+      
+      if (err.response?.data?.name) {
+        errorMessage = Array.isArray(err.response.data.name) 
+          ? err.response.data.name.join(', ') 
+          : err.response.data.name;
+      } else if (err.response?.data?.detail) {
+        errorMessage = err.response.data.detail;
+      } else if (err.response?.data?.slug?.[0]) {
+        errorMessage = err.response.data.slug[0];
+      } else if (typeof err.response?.data === 'string') {
+        errorMessage = err.response.data;
+      } else {
+        errorMessage = 'Не вдалося зберегти організацію';
+      }
+      
+      setError(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -132,7 +142,17 @@ function OrgModal({ org, onClose, onSave, isMobile }) {
         </div>
 
         {error && (
-          <div style={{ color: '#dc2626', fontSize: '0.82rem', marginBottom: '14px', padding: '8px', background: '#fee2e2', borderRadius: '6px' }}>
+          <div style={{ 
+            color: '#991b1b', 
+            fontSize: '0.82rem', 
+            marginBottom: '16px', 
+            padding: '12px', 
+            background: '#fee2e2', 
+            borderRadius: '8px',
+            borderLeft: '4px solid #dc2626',
+            fontFamily: 'DM Sans',
+          }}>
+            <div style={{ fontWeight: 600, marginBottom: '4px' }}>❌ Помилка</div>
             {error}
           </div>
         )}
@@ -537,7 +557,6 @@ function Blacklist({ isMobile }) {
 
   return (
     <div style={{ padding: isMobile ? '16px' : '28px' }}>
-      {/* Header */}
       <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Чорний список організацій</div>
@@ -553,7 +572,6 @@ function Blacklist({ isMobile }) {
         </button>
       </div>
 
-      {/* Search */}
       <div style={{ marginBottom: '16px' }}>
         <input
           value={search}
@@ -563,7 +581,6 @@ function Blacklist({ isMobile }) {
         />
       </div>
 
-      {/* List */}
       {loading ? (
         <div style={{ color: 'var(--muted)', fontFamily: 'DM Mono', fontSize: '0.82rem' }}>Завантаження...</div>
       ) : filtered.length === 0 ? (
@@ -602,7 +619,6 @@ function Blacklist({ isMobile }) {
         </div>
       )}
 
-      {/* Add Modal */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: isMobile ? '16px 16px 0 0' : '16px', padding: isMobile ? '20px' : '28px', width: '100%', maxWidth: '420px', border: '1px solid var(--border)' }}>
@@ -641,7 +657,6 @@ function Blacklist({ isMobile }) {
         </div>
       )}
 
-      {/* Delete confirm */}
       {confirmDel && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'var(--surface)', borderRadius: isMobile ? '16px 16px 0 0' : '16px', padding: isMobile ? '20px' : '28px', width: '100%', maxWidth: '360px', border: '1px solid var(--border)', textAlign: 'center' }}>
@@ -703,7 +718,6 @@ function Admin({ onViewOrg, currentPage, onNavigate }) {
     else console.warn('onViewOrg не передано як проп');
   };
 
-  // If the currentPage prop is 'blacklist', render Blacklist directly
   if (currentPage === 'blacklist') {
     return <Blacklist isMobile={isMobile} />;
   }
