@@ -512,7 +512,7 @@ function Blacklist({ isMobile }) {
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
   const handleAdd = async () => {
-    if (!form.name.trim()) { setError("Назва є обов\'язковою"); return; }
+    if (!form.name.trim()) { setError("Назва є обов'язковою"); return; }
     setSaving(true); setError('');
     try {
       await axios.post('/api/blacklist/', { name: form.name.trim(), reason: form.reason.trim() });
