@@ -1,9 +1,6 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 
-const Landing = () => {
-  const navigate = useNavigate();
-
+const Landing = ({ onLogin }) => {
   return (
     <div className="bg-zinc-50 text-zinc-900 min-h-screen font-sans">
       {/* Navbar */}
@@ -19,7 +16,7 @@ const Landing = () => {
             <a href="#pricing" className="hover:text-[#7a1a2e] transition-colors">Ціни</a>
             <a href="#for-who" className="hover:text-[#7a1a2e] transition-colors">Для кого</a>
             <button 
-              onClick={() => navigate('/demo')}
+              onClick={onLogin}
               className="hover:text-[#7a1a2e] transition-colors bg-transparent border-none cursor-pointer"
             >
               Демо
@@ -28,13 +25,13 @@ const Landing = () => {
 
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => navigate('/login')}
+              onClick={onLogin}
               className="text-sm font-medium px-6 py-2.5 rounded-full border hover:bg-zinc-50 transition"
             >
               Увійти
             </button>
             <button 
-              onClick={() => navigate('/login')}
+              onClick={onLogin}
               className="bg-[#7a1a2e] text-white px-6 py-2.5 rounded-full font-semibold hover:bg-[#5f1424] transition"
             >
               Почати безкоштовно
@@ -63,7 +60,7 @@ const Landing = () => {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button 
-              onClick={() => navigate('/login')}
+              onClick={onLogin}
               className="bg-white text-[#7a1a2e] font-semibold px-10 py-4 rounded-2xl text-lg hover:bg-zinc-100 transition text-center"
             >
               Почати безкоштовно — 14 днів
@@ -163,7 +160,7 @@ const Landing = () => {
           <h2 className="text-4xl font-bold mb-6">Готові оптимізувати свій рекрутинг?</h2>
           <p className="text-xl mb-10 text-red-100">14 днів повноцінного доступу безкоштовно</p>
           <button 
-            onClick={() => navigate('/login')}
+            onClick={onLogin}
             className="inline-block bg-white text-[#7a1a2e] font-semibold px-12 py-5 rounded-2xl text-lg hover:bg-zinc-100 transition"
           >
             Почати безкоштовний період
