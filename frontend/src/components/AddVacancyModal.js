@@ -1,7 +1,7 @@
 // AddVacancyModal.js — оновлена версія з підтримкою шаблонів
 import React, { useState, useEffect } from 'react';
 import axios from 'axiosConfig';
-import VacancyTemplateLibrary, { highlightPlaceholders, TEMPLATE_CATEGORIES } from './VacancyTemplateLibrary';
+import VacancyTemplateLibrary, { TEMPLATE_CATEGORIES } from './VacancyTemplateLibrary';
 
 // ─── Хелпер: заповнює {{змінні}} у тексті ────────────────────────────────────
 // Повертає рядок зі зміненими значеннями після того, як юзер заповнить плейсхолдери
