@@ -18,13 +18,15 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
     email_templates: (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>),
     profile:         (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>),
     admin:           (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>),
+    blacklist:       (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>),
     users:           (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>),
   };
 
   const navItems = userRole === 'superadmin' ? [
-    { key: 'admin',   label: 'Організації', badgeKey: null },
-    { key: 'users',   label: 'Юзери',       badgeKey: null },
-    { key: 'profile', label: 'Профіль',     badgeKey: null },
+    { key: 'admin',     label: 'Організації',   badgeKey: null },
+    { key: 'users',     label: 'Юзери',         badgeKey: null },
+    { key: 'blacklist', label: 'Чорний список', badgeKey: null },
+    { key: 'profile',   label: 'Профіль',       badgeKey: null },
   ] : userRole === 'admin' ? [
     { key: 'dashboard',       label: 'Дашборд',         badgeKey: null },
     { key: 'kanban',          label: 'Канбан',           badgeKey: 'kanban' },

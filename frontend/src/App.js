@@ -112,7 +112,7 @@ function App() {
         case 'vacancies':       return <Vacancies />;
         case 'kanban':          return <Kanban key={refreshKey} searchQuery={debouncedSearch} />;
         case 'candidates':      return <Candidates key={refreshKey} searchQuery={debouncedSearch} />;
-        default:                return <Admin onViewOrg={setViewOrgId} />;
+        default:                return <Admin onViewOrg={handleViewOrg} currentPage={currentPage} onNavigate={setCurrentPage} />;
       }
     };
 

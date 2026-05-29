@@ -484,7 +484,181 @@ function DeleteConfirmationModal({ org, onClose, onConfirm, isMobile }) {
   );
 }
 
-function Admin({ onViewOrg }) {
+
+// ─── BLACKLIST ─────────────────────────────────────────────────────────────────
+
+function Blacklist({ isMobile }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ name: '', reason: '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [confirmDel, setConfirmDel] = useState(null);
+
+  const fetchItems = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get('/api/blacklist/');
+      setItems(res.data.results ?? res.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  const handleAdd = async () => {
+    if (!form.name.trim()) { setError("Назва є обов\'язковою"); return; }
+    setSaving(true); setError('');
+    try {
+      await axios.post('/api/blacklist/', { name: form.name.trim(), reason: form.reason.trim() });
+      setShowModal(false);
+      setForm({ name: '', reason: '' });
+      fetchItems();
+    } catch (err) {
+      const msg = err.response?.data?.name?.[0] || err.response?.data?.detail || 'Помилка збереження';
+      setError(msg);
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await axios.delete(`/api/blacklist/${id}/`);
+      fetchItems();
+      setConfirmDel(null);
+    } catch (e) { console.error(e); }
+  };
+
+  const filtered = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div style={{ padding: isMobile ? '16px' : '28px' }}>
+      {/* Header */}
+      <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Чорний список організацій</div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '2px' }}>
+            Організації з цього списку не можуть бути створені в системі
+          </div>
+        </div>
+        <button
+          onClick={() => { setShowModal(true); setError(''); setForm({ name: '', reason: '' }); }}
+          style={{ padding: isMobile ? '10px 16px' : '9px 18px', borderRadius: '8px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'DM Sans' }}
+        >
+          + Додати в чорний список
+        </button>
+      </div>
+
+      {/* Search */}
+      <div style={{ marginBottom: '16px' }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Пошук за назвою..."
+          style={{ width: '100%', maxWidth: '360px', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '0.85rem', fontFamily: 'DM Sans', outline: 'none', boxSizing: 'border-box' }}
+        />
+      </div>
+
+      {/* List */}
+      {loading ? (
+        <div style={{ color: 'var(--muted)', fontFamily: 'DM Mono', fontSize: '0.82rem' }}>Завантаження...</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ color: 'var(--muted)', fontFamily: 'DM Mono', fontSize: '0.85rem', padding: '32px 0', textAlign: 'center' }}>
+          {search ? 'Нічого не знайдено' : 'Чорний список порожній'}
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: '10px' }}>
+          {filtered.map(item => (
+            <div key={item.id} style={{
+              background: 'var(--surface)', border: '1px solid var(--border)',
+              borderRadius: '10px', padding: isMobile ? '14px 16px' : '14px 20px',
+              display: 'flex', alignItems: isMobile ? 'flex-start' : 'center',
+              gap: '16px', flexDirection: isMobile ? 'column' : 'row',
+            }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626', fontSize: '1rem', flexShrink: 0 }}>
+                🚫
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: '0.92rem', wordBreak: 'break-word' }}>{item.name}</div>
+                {item.reason && (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '2px', wordBreak: 'break-word' }}>{item.reason}</div>
+                )}
+                <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '4px' }}>
+                  Додав: {item.added_by_username} · {new Date(item.created_at).toLocaleDateString('uk-UA')}
+                </div>
+              </div>
+              <button
+                onClick={() => setConfirmDel(item)}
+                style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono', flexShrink: 0 }}
+              >
+                🗑 Видалити
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add Modal */}
+      {showModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: isMobile ? '16px 16px 0 0' : '16px', padding: isMobile ? '20px' : '28px', width: '100%', maxWidth: '420px', border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '20px' }}>Додати в чорний список</div>
+            {error && (
+              <div style={{ color: '#dc2626', fontSize: '0.82rem', marginBottom: '14px', padding: '8px', background: '#fee2e2', borderRadius: '6px' }}>{error}</div>
+            )}
+            <div style={{ display: 'grid', gap: '14px' }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Назва організації *</div>
+                <input
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Назва..."
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '0.85rem', fontFamily: 'DM Sans', outline: 'none', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Причина (необов'язково)</div>
+                <textarea
+                  value={form.reason}
+                  onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
+                  placeholder="Причина блокування..."
+                  rows={3}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '0.85rem', fontFamily: 'DM Sans', outline: 'none', boxSizing: 'border-box', resize: 'vertical' }}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '24px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowModal(false)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans' }}>Скасувати</button>
+              <button onClick={handleAdd} disabled={saving} style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                {saving ? 'Збереження...' : 'Додати'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      {confirmDel && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: isMobile ? '16px 16px 0 0' : '16px', padding: isMobile ? '20px' : '28px', width: '100%', maxWidth: '360px', border: '1px solid var(--border)', textAlign: 'center' }}>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '10px' }}>Видалити з чорного списку?</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '24px' }}>«{confirmDel.name}» буде видалено з чорного списку.</div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button onClick={() => setConfirmDel(null)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans' }}>Скасувати</button>
+              <button onClick={() => handleDelete(confirmDel.id)} style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>Видалити</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Admin({ onViewOrg, currentPage, onNavigate }) {
   const [orgs, setOrgs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showOrgModal, setShowOrgModal] = useState(false);
@@ -528,6 +702,11 @@ function Admin({ onViewOrg }) {
     if (onViewOrg) onViewOrg(orgId);
     else console.warn('onViewOrg не передано як проп');
   };
+
+  // If the currentPage prop is 'blacklist', render Blacklist directly
+  if (currentPage === 'blacklist') {
+    return <Blacklist isMobile={isMobile} />;
+  }
 
   return (
     <div style={{ padding: isMobile ? '16px' : '28px' }}>
