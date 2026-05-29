@@ -3,6 +3,18 @@ import React from 'react';
 const Landing = ({ onLogin }) => {
   return (
     <div className="bg-zinc-50 text-zinc-900 min-h-screen font-sans">
+      <style>
+        {`
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+          body {
+            font-family: 'DM Sans', system-ui, sans-serif;
+          }
+          .mono {
+            font-family: 'DM Mono', monospace;
+          }
+        `}
+      </style>
+
       {/* Navbar */}
       <nav className="bg-white border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
@@ -15,12 +27,7 @@ const Landing = ({ onLogin }) => {
             <a href="#features" className="hover:text-[#7a1a2e] transition-colors">Функції</a>
             <a href="#pricing" className="hover:text-[#7a1a2e] transition-colors">Ціни</a>
             <a href="#for-who" className="hover:text-[#7a1a2e] transition-colors">Для кого</a>
-            <button 
-              onClick={onLogin}
-              className="hover:text-[#7a1a2e] transition-colors bg-transparent border-none cursor-pointer"
-            >
-              Демо
-            </button>
+            <a href="#demo" className="hover:text-[#7a1a2e] transition-colors">Демо</a>
           </div>
 
           <div className="flex items-center gap-4">
@@ -65,7 +72,10 @@ const Landing = ({ onLogin }) => {
             >
               Почати безкоштовно — 14 днів
             </button>
-            <button className="border border-white/50 hover:bg-white/10 font-medium px-10 py-4 rounded-2xl text-lg transition flex items-center justify-center gap-3">
+            <button 
+              onClick={() => window.open('#demo', '_self')}
+              className="border border-white/50 hover:bg-white/10 font-medium px-10 py-4 rounded-2xl text-lg transition flex items-center justify-center gap-3"
+            >
               <i className="fas fa-play"></i> Подивитись демо
             </button>
           </div>
@@ -88,7 +98,7 @@ const Landing = ({ onLogin }) => {
               <p className="text-zinc-600">Візуальне управління процесом найму. Перетягуй кандидатів між етапами.</p>
             </div>
 
-            <div className="bg-zinc-50 border border-zinc-100 rounded-3xl p-8 hover:border-[#7a1a2e]/30 transition-all group">
+            <div className="bg-zinc-50 border border-zinc-100 rounded-3xl p-10 hover:border-[#7a1a2e]/30 transition-all group">
               <div className="text-4xl mb-6">📅</div>
               <h3 className="text-2xl font-semibold mb-3">Інтерв'ю</h3>
               <p className="text-zinc-600">Планування, синхронізація з Google Calendar, Meet, історія співбесід.</p>
@@ -117,7 +127,12 @@ const Landing = ({ onLogin }) => {
                 <li className="flex items-center gap-3"><i className="fas fa-check text-green-600"></i> Google інтеграції</li>
               </ul>
               
-              <button className="w-full py-4 border border-zinc-300 rounded-2xl font-semibold hover:bg-zinc-50 transition">Обрати Starter</button>
+              <button 
+                onClick={onLogin}
+                className="w-full py-4 border border-zinc-300 rounded-2xl font-semibold hover:bg-zinc-50 transition"
+              >
+                Обрати Starter
+              </button>
             </div>
 
             {/* Growth */}
@@ -134,7 +149,12 @@ const Landing = ({ onLogin }) => {
                 <li className="flex items-center gap-3"><i className="fas fa-check"></i> Шаблони листів</li>
               </ul>
               
-              <button className="w-full bg-white text-[#7a1a2e] py-4 rounded-2xl font-semibold">Обрати Growth</button>
+              <button 
+                onClick={onLogin}
+                className="w-full bg-white text-[#7a1a2e] py-4 rounded-2xl font-semibold"
+              >
+                Обрати Growth
+              </button>
             </div>
 
             {/* Enterprise */}
@@ -148,7 +168,12 @@ const Landing = ({ onLogin }) => {
                 <li className="flex items-center gap-3"><i className="fas fa-check text-green-600"></i> Пріоритетна підтримка</li>
               </ul>
               
-              <button className="w-full py-4 border border-zinc-300 rounded-2xl font-semibold hover:bg-zinc-50 transition">Написати нам</button>
+              <button 
+                onClick={() => window.location.href = 'mailto:sales@ida.com'}
+                className="w-full py-4 border border-zinc-300 rounded-2xl font-semibold hover:bg-zinc-50 transition"
+              >
+                Написати нам
+              </button>
             </div>
           </div>
         </div>
