@@ -68,6 +68,10 @@ function App() {
 
   const handleAdded = () => setRefreshKey(k => k + 1);
 
+  const handleViewOrg = (orgId) => {
+    setViewOrgId(orgId);
+  };
+
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':       return <Dashboard />;
