@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    CandidateViewSet, VacancyViewSet, OrganizationViewSet,
+    CandidateViewSet, VacancyViewSet, VacancyTemplateViewSet, OrganizationViewSet,
     UserListView, current_user, CandidateExportCSVView,
     EmailTemplateViewSet, SentEmailViewSet, google_auth_status,
     TagViewSet, time_to_hire_analytics,
@@ -27,6 +27,7 @@ from .job_board_views import (
 router = DefaultRouter()
 router.register(r'candidates', CandidateViewSet, basename='candidate')
 router.register(r'vacancies', VacancyViewSet, basename='vacancy')
+router.register(r'vacancy-templates', VacancyTemplateViewSet, basename='vacancy-template')
 router.register(r'organizations', OrganizationViewSet, basename='organization')
 router.register(r'users', UserListView, basename='users')
 router.register(r'email-templates', EmailTemplateViewSet, basename='email-template')

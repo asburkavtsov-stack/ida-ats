@@ -102,6 +102,53 @@ class Vacancy(models.Model):
         return boards
 
 
+class VacancyTemplate(models.Model):
+    CATEGORY_CHOICES = [
+        ('it',         'IT'),
+        ('sales',      'Sales'),
+        ('marketing',  'Marketing'),
+        ('hr',         'HR'),
+        ('finance',    'Finance'),
+        ('operations', 'Operations'),
+        ('design',     'Design'),
+        ('other',      'Інше'),
+    ]
+
+    EMPLOYMENT_TYPE_CHOICES = [
+        ('full_time',  'Повна зайнятість'),
+        ('part_time',  'Часткова зайнятість'),
+        ('volunteer',  'Волонтерство'),
+        ('contract',   'Контракт'),
+    ]
+
+    organization    = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='vacancy_templates')
+    name            = models.CharField(max_length=200, verbose_name='Назва шаблону')
+    category        = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='other', verbose_name='Категорія')
+
+    # Поля вакансії — копіюються при створенні з шаблону
+    title           = models.CharField(max_length=200, verbose_name='Назва вакансії')
+    department      = models.CharField(max_length=100, blank=True, verbose_name='Відділ')
+    description     = models.TextField(blank=True, verbose_name='Опис вакансії')
+    requirements    = models.TextField(blank=True, verbose_name='Вимоги')
+    city            = models.CharField(max_length=100, blank=True, verbose_name='Місто')
+    employment_type = models.CharField(
+        max_length=20, choices=EMPLOYMENT_TYPE_CHOICES,
+        default='volunteer', blank=True, verbose_name='Тип зайнятості',
+    )
+
+    is_active  = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = 'Шаблон вакансії'
+        verbose_name_plural = 'Шаблони вакансій'
+        ordering            = ['category', 'name']
+
+    def __str__(self):
+        return f"[{self.get_category_display()}] {self.name}"
+
+
 def normalize_phone(phone):
     if not phone:
         return ''
@@ -186,7 +233,7 @@ class StatusHistory(models.Model):
 
 class EmailTemplate(models.Model):
     TEMPLATE_TYPES = [
-        ('interview', 'Запрошення на інтерв\'ю'),
+        ('interview', "Запрошення на інтерв'ю"),
         ('rejection', 'Відмова'),
         ('offer', 'Оффер'),
     ]

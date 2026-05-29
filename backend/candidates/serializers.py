@@ -1,12 +1,14 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import (
-    Candidate, Vacancy, Organization, StatusHistory,
+    Candidate, Vacancy, VacancyTemplate, Organization, StatusHistory,
     EmailTemplate, SentEmail, Tag, Interview, UserProfile,
 )
 
 User = get_user_model()
 
+
+# ─── Vacancy ──────────────────────────────────────────────────────────────────
 
 class VacancySerializer(serializers.ModelSerializer):
     published_boards = serializers.ReadOnlyField()
@@ -17,7 +19,6 @@ class VacancySerializer(serializers.ModelSerializer):
             'id', 'title', 'department', 'description', 'requirements',
             'city', 'employment_type', 'salary_min', 'salary_max',
             'is_active', 'created_at',
-            # Job board статуси (read)
             'published_boards',
             'published_rabota_ua', 'rabota_ua_vacancy_id', 'published_at_rabota_ua',
             'published_work_ua', 'work_ua_vacancy_id', 'published_at_work_ua',
@@ -38,6 +39,25 @@ class VacancyPublishSerializer(serializers.Serializer):
     url = serializers.URLField(required=False, allow_blank=True)
 
 
+# ─── VacancyTemplate ──────────────────────────────────────────────────────────
+
+class VacancyTemplateSerializer(serializers.ModelSerializer):
+    category_display        = serializers.CharField(source='get_category_display', read_only=True)
+    employment_type_display = serializers.CharField(source='get_employment_type_display', read_only=True)
+
+    class Meta:
+        model = VacancyTemplate
+        fields = [
+            'id', 'name', 'category', 'category_display',
+            'title', 'department', 'description', 'requirements',
+            'city', 'employment_type', 'employment_type_display',
+            'is_active', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+
+# ─── StatusHistory ────────────────────────────────────────────────────────────
+
 class StatusHistorySerializer(serializers.ModelSerializer):
     changed_by_name = serializers.SerializerMethodField()
 
@@ -52,11 +72,15 @@ class StatusHistorySerializer(serializers.ModelSerializer):
         return full or obj.changed_by.username
 
 
+# ─── Tag ──────────────────────────────────────────────────────────────────────
+
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = ['id', 'name', 'color', 'created_at']
 
+
+# ─── Duplicate helper ─────────────────────────────────────────────────────────
 
 class DuplicateCandidateSerializer(serializers.ModelSerializer):
     vacancy_title = serializers.CharField(source='vacancy.title', read_only=True)
@@ -65,6 +89,8 @@ class DuplicateCandidateSerializer(serializers.ModelSerializer):
         model = Candidate
         fields = ['id', 'first_name', 'last_name', 'email', 'phone', 'vacancy_title', 'status', 'created_at']
 
+
+# ─── Interview ────────────────────────────────────────────────────────────────
 
 class InterviewerSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
@@ -78,15 +104,15 @@ class InterviewerSerializer(serializers.ModelSerializer):
 
 
 class InterviewSerializer(serializers.ModelSerializer):
-    interviewers = InterviewerSerializer(many=True, read_only=True)
-    interviewer_ids = serializers.PrimaryKeyRelatedField(
+    interviewers     = InterviewerSerializer(many=True, read_only=True)
+    interviewer_ids  = serializers.PrimaryKeyRelatedField(
         many=True, queryset=User.objects.all(),
-        write_only=True, source='interviewers', required=False
+        write_only=True, source='interviewers', required=False,
     )
-    candidate_name = serializers.SerializerMethodField()
-    candidate_email = serializers.SerializerMethodField()
-    vacancy_title = serializers.SerializerMethodField()
-    created_by_name = serializers.SerializerMethodField()
+    candidate_name   = serializers.SerializerMethodField()
+    candidate_email  = serializers.SerializerMethodField()
+    vacancy_title    = serializers.SerializerMethodField()
+    created_by_name  = serializers.SerializerMethodField()
 
     class Meta:
         model = Interview
@@ -127,7 +153,7 @@ class InterviewSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         interview = Interview.objects.create(
             created_by=request.user if request else None,
-            **validated_data
+            **validated_data,
         )
         interview.interviewers.set(interviewers)
         return interview
@@ -142,18 +168,18 @@ class InterviewSerializer(serializers.ModelSerializer):
         return instance
 
 
+# ─── Candidate ────────────────────────────────────────────────────────────────
+
 class CandidateSerializer(serializers.ModelSerializer):
-    vacancy_title = serializers.CharField(source='vacancy.title', read_only=True)
-    assigned_to_name = serializers.SerializerMethodField()
+    vacancy_title        = serializers.CharField(source='vacancy.title', read_only=True)
+    assigned_to_name     = serializers.SerializerMethodField()
     assigned_to_username = serializers.SerializerMethodField()
-    status_history = StatusHistorySerializer(many=True, read_only=True)
-    source_display = serializers.CharField(source='get_source_display', read_only=True)
-    tags = TagSerializer(many=True, read_only=True)
-    tag_ids = serializers.ListField(
+    status_history       = StatusHistorySerializer(many=True, read_only=True)
+    source_display       = serializers.CharField(source='get_source_display', read_only=True)
+    tags                 = TagSerializer(many=True, read_only=True)
+    tag_ids              = serializers.ListField(
         child=serializers.IntegerField(),
-        write_only=True,
-        required=False,
-        allow_empty=True,
+        write_only=True, required=False, allow_empty=True,
     )
     duplicates = serializers.SerializerMethodField(read_only=True)
 
@@ -212,7 +238,7 @@ class CandidateSerializer(serializers.ModelSerializer):
                 'duplicate': True,
                 'duplicate_by': 'email',
                 'duplicate_candidate': DuplicateCandidateSerializer(email_dup).data,
-                'message': f'Кандидат з email {email} вже існує: {email_dup.first_name} {email_dup.last_name}'
+                'message': f'Кандидат з email {email} вже існує: {email_dup.first_name} {email_dup.last_name}',
             })
 
         if phone:
@@ -225,7 +251,7 @@ class CandidateSerializer(serializers.ModelSerializer):
                     'duplicate': True,
                     'duplicate_by': 'phone',
                     'duplicate_candidate': DuplicateCandidateSerializer(phone_dup).data,
-                    'message': f'Кандидат з телефоном {phone} вже існує: {phone_dup.first_name} {phone_dup.last_name}'
+                    'message': f'Кандидат з телефоном {phone} вже існує: {phone_dup.first_name} {phone_dup.last_name}',
                 })
 
         return data
@@ -237,6 +263,8 @@ class CandidateSerializer(serializers.ModelSerializer):
             candidate.tags.set(tag_ids)
         return candidate
 
+
+# ─── Organization ─────────────────────────────────────────────────────────────
 
 class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -250,9 +278,11 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+# ─── EmailTemplate / SentEmail ────────────────────────────────────────────────
+
 class EmailTemplateSerializer(serializers.ModelSerializer):
     template_type_display = serializers.CharField(source='get_template_type_display', read_only=True)
-    organization_name = serializers.CharField(source='organization.name', read_only=True)
+    organization_name     = serializers.CharField(source='organization.name', read_only=True)
 
     class Meta:
         model = EmailTemplate
@@ -265,10 +295,10 @@ class EmailTemplateSerializer(serializers.ModelSerializer):
 
 
 class SentEmailSerializer(serializers.ModelSerializer):
-    candidate_name = serializers.SerializerMethodField()
-    sent_by_name = serializers.SerializerMethodField()
+    candidate_name       = serializers.SerializerMethodField()
+    sent_by_name         = serializers.SerializerMethodField()
     template_type_display = serializers.SerializerMethodField()
-    template_type = serializers.SerializerMethodField()
+    template_type        = serializers.SerializerMethodField()
 
     class Meta:
         model = SentEmail
