@@ -11,7 +11,6 @@ import Admin from './pages/Admin';
 import Users from './pages/Users';
 import Profile from './pages/Profile';
 import OrgSettings from './pages/OrgSettings';
-import Login from './pages/Login';
 import Landing from './pages/Landing';          // ← Новий імпорт
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';

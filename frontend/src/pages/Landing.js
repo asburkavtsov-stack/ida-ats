@@ -18,7 +18,12 @@ const Landing = () => {
             <a href="#features" className="hover:text-[#7a1a2e] transition-colors">Функції</a>
             <a href="#pricing" className="hover:text-[#7a1a2e] transition-colors">Ціни</a>
             <a href="#for-who" className="hover:text-[#7a1a2e] transition-colors">Для кого</a>
-            <a href="#" className="hover:text-[#7a1a2e] transition-colors">Демо</a>
+            <button 
+              onClick={() => navigate('/demo')}
+              className="hover:text-[#7a1a2e] transition-colors bg-transparent border-none cursor-pointer"
+            >
+              Демо
+            </button>
           </div>
 
           <div className="flex items-center gap-4">
@@ -86,7 +91,7 @@ const Landing = () => {
               <p className="text-zinc-600">Візуальне управління процесом найму. Перетягуй кандидатів між етапами.</p>
             </div>
 
-            <div className="bg-zinc-50 border border-zinc-100 rounded-3xl p-10 hover:border-[#7a1a2e]/30 transition-all group">
+            <div className="bg-zinc-50 border border-zinc-100 rounded-3xl p-8 hover:border-[#7a1a2e]/30 transition-all group">
               <div className="text-4xl mb-6">📅</div>
               <h3 className="text-2xl font-semibold mb-3">Інтерв'ю</h3>
               <p className="text-zinc-600">Планування, синхронізація з Google Calendar, Meet, історія співбесід.</p>
