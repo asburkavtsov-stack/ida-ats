@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
+    BlacklistViewSet,
     CandidateViewSet, VacancyViewSet, VacancyTemplateViewSet, OrganizationViewSet,
     UserListView, current_user, CandidateExportCSVView,
     EmailTemplateViewSet, SentEmailViewSet, google_auth_status,
@@ -34,6 +35,7 @@ router.register(r'email-templates', EmailTemplateViewSet, basename='email-templa
 router.register(r'sent-emails', SentEmailViewSet, basename='sent-emails')
 router.register(r'tags', TagViewSet, basename='tag')
 router.register(r'interviews', InterviewViewSet, basename='interview')
+router.register(r'blacklist', BlacklistViewSet, basename='blacklist')
 
 urlpatterns = [
     # --- Кандидати ---

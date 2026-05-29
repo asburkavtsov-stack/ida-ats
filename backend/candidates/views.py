@@ -13,7 +13,8 @@ from rest_framework.views import APIView
 
 from .models import (
     Candidate, EmailTemplate, Organization,
-    SentEmail, Tag, User, UserProfile, Vacancy, VacancyTemplate, Interview
+    SentEmail, Tag, User, UserProfile, Vacancy, VacancyTemplate, Interview,
+    BlacklistedOrganization
 )
 from .serializers import (
     CandidateSerializer, EmailTemplateSerializer, OrganizationSerializer,
@@ -157,6 +158,46 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     queryset = Organization.objects.all().order_by('id')
     serializer_class = OrganizationSerializer
     permission_classes = [IsAuthenticated, IsSuperAdmin]
+
+    def perform_create(self, serializer):
+        name = serializer.validated_data.get('name', '')
+        if BlacklistedOrganization.objects.filter(name__iexact=name.strip()).exists():
+            raise serializers.ValidationError({
+                'name': f'Організація "{name}" знаходиться в чорному списку і не може бути створена.'
+            })
+        serializer.save()
+
+    def perform_update(self, serializer):
+        name = serializer.validated_data.get('name', serializer.instance.name)
+        if serializer.instance.name.lower() != name.strip().lower() and \
+                BlacklistedOrganization.objects.filter(name__iexact=name.strip()).exists():
+            raise serializers.ValidationError({
+                'name': f'Організація "{name}" знаходиться в чорному списку.'
+            })
+        serializer.save()
+
+
+# ─── BLACKLIST ─────────────────────────────────────────────────────────────────
+
+class BlacklistSerializer(serializers.ModelSerializer):
+    added_by_username = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BlacklistedOrganization
+        fields = ['id', 'name', 'reason', 'added_by', 'added_by_username', 'created_at']
+        read_only_fields = ['added_by', 'added_by_username', 'created_at']
+
+    def get_added_by_username(self, obj):
+        return obj.added_by.get_full_name() or obj.added_by.username if obj.added_by else '—'
+
+
+class BlacklistViewSet(viewsets.ModelViewSet):
+    queryset = BlacklistedOrganization.objects.all().order_by('-created_at')
+    serializer_class = BlacklistSerializer
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+
+    def perform_create(self, serializer):
+        serializer.save(added_by=self.request.user)
 
 # ─── CANDIDATES ───────────────────────────────────────────────────────────────
 

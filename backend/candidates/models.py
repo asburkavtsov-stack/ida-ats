@@ -320,3 +320,22 @@ class Interview(models.Model):
 
     def __str__(self):
         return f"{self.title} — {self.candidate} ({self.scheduled_at.strftime('%d.%m.%Y %H:%M')})"
+
+# ─── BLACKLIST ────────────────────────────────────────────────────────────────
+
+class BlacklistedOrganization(models.Model):
+    name = models.CharField(max_length=200, unique=True, verbose_name='Назва організації')
+    reason = models.TextField(blank=True, verbose_name='Причина блокування')
+    added_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='blacklisted_orgs', verbose_name='Додав'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата додавання')
+
+    class Meta:
+        verbose_name = 'Заблокована організація'
+        verbose_name_plural = 'Чорний список організацій'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"[BLACKLIST] {self.name}"

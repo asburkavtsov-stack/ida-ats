@@ -77,3 +77,17 @@ class SentEmailAdmin(admin.ModelAdmin):
     list_filter = ['status', 'sent_at']
     search_fields = ['subject', 'recipient_email', 'candidate__email']
     raw_id_fields = ['candidate', 'template', 'sent_by']
+
+
+from .models import BlacklistedOrganization
+
+@admin.register(BlacklistedOrganization)
+class BlacklistedOrganizationAdmin(admin.ModelAdmin):
+    list_display = ['name', 'added_by', 'reason', 'created_at']
+    search_fields = ['name']
+    readonly_fields = ['added_by', 'created_at']
+
+    def save_model(self, request, obj, form, change):
+        if not obj.pk:
+            obj.added_by = request.user
+        super().save_model(request, obj, form, change)
