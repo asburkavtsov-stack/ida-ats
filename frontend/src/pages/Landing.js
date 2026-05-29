@@ -2,44 +2,44 @@ import React from 'react';
 
 const Landing = ({ onLogin }) => {
   return (
-    <div className="bg-zinc-50 text-zinc-900 min-h-screen font-sans">
+    <div style={{ background: '#fafafa', color: '#18181b', minHeight: '100vh', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <style>
         {`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-          body {
-            font-family: 'DM Sans', system-ui, sans-serif;
-          }
-          .mono {
-            font-family: 'DM Mono', monospace;
-          }
+          body { margin: 0; padding: 0; font-family: 'DM Sans', system-ui, sans-serif; }
+          .mono { font-family: 'DM Mono', monospace; }
         `}
       </style>
 
       {/* Navbar */}
-      <nav className="bg-white border-b sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-[#7a1a2e] text-white font-bold text-2xl flex items-center justify-center rounded-2xl">I</div>
-            <span className="text-2xl font-semibold tracking-tighter">IDA</span>
+      <nav style={{ background: '#ffffff', borderBottom: '1px solid #e4e4e7', position: 'sticky', top: 0, zIndex: 50 }}>
+        <div style={{ maxWidth: '80rem', margin: '0 auto', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '36px', height: '36px', background: '#7a1a2e', color: 'white', fontWeight: 'bold', fontSize: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '16px' }}>I</div>
+            <span style={{ fontSize: '24px', fontWeight: 600, letterSpacing: '-0.025em' }}>IDA</span>
           </div>
           
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium">
-            <a href="#features" className="hover:text-[#7a1a2e] transition-colors">Функції</a>
-            <a href="#pricing" className="hover:text-[#7a1a2e] transition-colors">Ціни</a>
-            <a href="#for-who" className="hover:text-[#7a1a2e] transition-colors">Для кого</a>
-            <a href="#demo" className="hover:text-[#7a1a2e] transition-colors">Демо</a>
+          <div style={{ display: 'none', alignItems: 'center', gap: '32px', fontSize: '14px', fontWeight: 500 }}>
+            <a href="#features" style={{ color: '#18181b', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.target.style.color = '#7a1a2e'} onMouseOut={e => e.target.style.color = '#18181b'}>Функції</a>
+            <a href="#pricing" style={{ color: '#18181b', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.target.style.color = '#7a1a2e'} onMouseOut={e => e.target.style.color = '#18181b'}>Ціни</a>
+            <a href="#for-who" style={{ color: '#18181b', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.target.style.color = '#7a1a2e'} onMouseOut={e => e.target.style.color = '#18181b'}>Для кого</a>
+            <a href="#demo" style={{ color: '#18181b', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.target.style.color = '#7a1a2e'} onMouseOut={e => e.target.style.color = '#18181b'}>Демо</a>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <button 
               onClick={onLogin}
-              className="text-sm font-medium px-6 py-2.5 rounded-full border hover:bg-zinc-50 transition"
+              style={{ fontSize: '14px', fontWeight: 500, padding: '10px 24px', borderRadius: '9999px', border: '1px solid #d4d4d8', background: 'transparent', cursor: 'pointer', color: '#18181b', transition: 'background 0.2s' }}
+              onMouseOver={e => e.target.style.background = '#fafafa'}
+              onMouseOut={e => e.target.style.background = 'transparent'}
             >
               Увійти
             </button>
             <button 
               onClick={onLogin}
-              className="bg-[#7a1a2e] text-white px-6 py-2.5 rounded-full font-semibold hover:bg-[#5f1424] transition"
+              style={{ background: '#7a1a2e', color: 'white', padding: '10px 24px', borderRadius: '9999px', fontWeight: 600, border: 'none', cursor: 'pointer', transition: 'background 0.2s' }}
+              onMouseOver={e => e.target.style.background = '#5f1424'}
+              onMouseOut={e => e.target.style.background = '#7a1a2e'}
             >
               Почати безкоштовно
             </button>
@@ -48,129 +48,132 @@ const Landing = ({ onLogin }) => {
       </nav>
 
       {/* Hero */}
-      <section className="hero-bg text-white py-28" style={{
-        background: 'linear-gradient(135deg, #7a1a2e 0%, #4a0f1c 100%)'
-      }}>
-        <div className="max-w-5xl mx-auto px-6 text-center">
-          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-5 py-2 rounded-3xl mb-8">
-            <span className="text-yellow-300">●</span>
-            <span className="mono text-sm tracking-widest">Українська ATS</span>
+      <section style={{ background: 'linear-gradient(135deg, #7a1a2e 0%, #4a0f1c 100%)', color: 'white', padding: '112px 24px' }}>
+        <div style={{ maxWidth: '64rem', margin: '0 auto', textAlign: 'center' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(12px)', padding: '8px 20px', borderRadius: '24px', marginBottom: '32px' }}>
+            <span style={{ color: '#fde047' }}>●</span>
+            <span className="mono" style={{ fontSize: '14px', letterSpacing: '0.15em' }}>Українська ATS</span>
           </div>
           
-          <h1 className="text-6xl md:text-7xl font-bold leading-tight tracking-tighter mb-8">
-            Рекрутинг,<br />який <span className="text-[#e8a0b0]">працює</span> на тебе
+          <h1 style={{ fontSize: 'clamp(3rem, 6vw, 4.5rem)', fontWeight: 700, lineHeight: 1.1, letterSpacing: '-0.025em', marginBottom: '32px' }}>
+            Рекрутинг,<br />який <span style={{ color: '#e8a0b0' }}>працює</span> на тебе
           </h1>
           
-          <p className="text-xl md:text-2xl max-w-2xl mx-auto text-zinc-200 mb-12">
+          <p style={{ fontSize: 'clamp(1.125rem, 2.5vw, 1.5rem)', maxWidth: '42rem', margin: '0 auto 48px', color: '#e4e4e7', lineHeight: 1.6 }}>
             Сучасна українська система для найму. Кандидати, канбан, інтерв'ю, аналітика та шаблони листів — в одному інтерфейсі.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', justifyContent: 'center', alignItems: 'center' }}>
             <button 
               onClick={onLogin}
-              className="bg-white text-[#7a1a2e] font-semibold px-10 py-4 rounded-2xl text-lg hover:bg-zinc-100 transition text-center"
+              style={{ background: 'white', color: '#7a1a2e', fontWeight: 600, padding: '16px 40px', borderRadius: '16px', fontSize: '18px', border: 'none', cursor: 'pointer', transition: 'background 0.2s', textAlign: 'center' }}
+              onMouseOver={e => e.target.style.background = '#f4f4f5'}
+              onMouseOut={e => e.target.style.background = 'white'}
             >
               Почати безкоштовно — 14 днів
             </button>
             <button 
               onClick={() => window.open('#demo', '_self')}
-              className="border border-white/50 hover:bg-white/10 font-medium px-10 py-4 rounded-2xl text-lg transition flex items-center justify-center gap-3"
+              style={{ border: '1px solid rgba(255,255,255,0.5)', background: 'transparent', color: 'white', fontWeight: 500, padding: '16px 40px', borderRadius: '16px', fontSize: '18px', cursor: 'pointer', transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}
+              onMouseOver={e => e.target.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseOut={e => e.target.style.background = 'transparent'}
             >
-              <i className="fas fa-play"></i> Подивитись демо
+              <span>▶</span> Подивитись демо
             </button>
           </div>
         </div>
       </section>
 
       {/* Features */}
-      <section id="features" className="py-24 bg-white">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div className="bg-zinc-50 border border-zinc-100 rounded-3xl p-10 hover:border-[#7a1a2e]/30 transition-all group">
-              <div className="text-4xl mb-6">👥</div>
-              <h3 className="text-2xl font-semibold mb-3">Кандидати</h3>
-              <p className="text-zinc-600">Зручна база, фільтри, теги, історія змін статусів, масовий імпорт CSV.</p>
-            </div>
-
-            <div className="bg-zinc-50 border border-zinc-100 rounded-3xl p-10 hover:border-[#7a1a2e]/30 transition-all group">
-              <div className="text-4xl mb-6">📋</div>
-              <h3 className="text-2xl font-semibold mb-3">Канбан-дошка</h3>
-              <p className="text-zinc-600">Візуальне управління процесом найму. Перетягуй кандидатів між етапами.</p>
-            </div>
-
-            <div className="bg-zinc-50 border border-zinc-100 rounded-3xl p-10 hover:border-[#7a1a2e]/30 transition-all group">
-              <div className="text-4xl mb-6">📅</div>
-              <h3 className="text-2xl font-semibold mb-3">Інтерв'ю</h3>
-              <p className="text-zinc-600">Планування, синхронізація з Google Calendar, Meet, історія співбесід.</p>
-            </div>
+      <section id="features" style={{ padding: '96px 24px', background: 'white' }}>
+        <div style={{ maxWidth: '72rem', margin: '0 auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px' }}>
+            {[
+              { icon: '👥', title: 'Кандидати', desc: 'Зручна база, фільтри, теги, історія змін статусів, масовий імпорт CSV.' },
+              { icon: '📋', title: 'Канбан-дошка', desc: 'Візуальне управління процесом найму. Перетягуй кандидатів між етапами.' },
+              { icon: '📅', title: 'Інтерв\'ю', desc: 'Планування, синхронізація з Google Calendar, Meet, історія співбесід.' },
+            ].map((f, i) => (
+              <div key={i} style={{ background: '#fafafa', border: '1px solid #f4f4f5', borderRadius: '24px', padding: '40px', transition: 'border-color 0.3s', cursor: 'default' }}
+                onMouseOver={e => e.currentTarget.style.borderColor = 'rgba(122,26,46,0.3)'}
+                onMouseOut={e => e.currentTarget.style.borderColor = '#f4f4f5'}
+              >
+                <div style={{ fontSize: '40px', marginBottom: '24px' }}>{f.icon}</div>
+                <h3 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '12px' }}>{f.title}</h3>
+                <p style={{ color: '#52525b', lineHeight: 1.6 }}>{f.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="py-24 bg-zinc-100">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">Оберіть свій тариф</h2>
-            <p className="text-zinc-600">Прості та прозорі тарифи</p>
+      <section id="pricing" style={{ padding: '96px 24px', background: '#f4f4f5' }}>
+        <div style={{ maxWidth: '72rem', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '64px' }}>
+            <h2 style={{ fontSize: 'clamp(2rem, 4vw, 2.5rem)', fontWeight: 700, marginBottom: '16px' }}>Оберіть свій тариф</h2>
+            <p style={{ color: '#52525b' }}>Прості та прозорі тарифи</p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '32px', maxWidth: '64rem', margin: '0 auto' }}>
             {/* Starter */}
-            <div className="bg-white rounded-3xl p-8 border border-zinc-200 flex flex-col h-full">
-              <div className="mono text-sm font-medium text-zinc-500 mb-2">STARTER</div>
-              <div className="text-3xl font-semibold text-[#7a1a2e] mb-8">Базовий</div>
+            <div style={{ background: 'white', borderRadius: '24px', padding: '32px', border: '1px solid #e4e4e7', display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <div className="mono" style={{ fontSize: '14px', fontWeight: 500, color: '#71717a', marginBottom: '8px' }}>STARTER</div>
+              <div style={{ fontSize: '30px', fontWeight: 600, color: '#7a1a2e', marginBottom: '32px' }}>Базовий</div>
               
-              <ul className="space-y-4 mb-10 flex-1">
-                <li className="flex items-center gap-3"><i className="fas fa-check text-green-600"></i> 3 рекрутера</li>
-                <li className="flex items-center gap-3"><i className="fas fa-check text-green-600"></i> Базовий канбан та аналітика</li>
-                <li className="flex items-center gap-3"><i className="fas fa-check text-green-600"></i> Google інтеграції</li>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 40px 0', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><span style={{ color: '#16a34a' }}>✓</span> 3 рекрутера</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><span style={{ color: '#16a34a' }}>✓</span> Базовий канбан та аналітика</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><span style={{ color: '#16a34a' }}>✓</span> Google інтеграції</li>
               </ul>
               
               <button 
                 onClick={onLogin}
-                className="w-full py-4 border border-zinc-300 rounded-2xl font-semibold hover:bg-zinc-50 transition"
+                style={{ width: '100%', padding: '16px', border: '1px solid #d4d4d8', borderRadius: '16px', fontWeight: 600, background: 'transparent', cursor: 'pointer', transition: 'background 0.2s' }}
+                onMouseOver={e => e.target.style.background = '#fafafa'}
+                onMouseOut={e => e.target.style.background = 'transparent'}
               >
                 Обрати Starter
               </button>
             </div>
 
             {/* Growth */}
-            <div className="bg-[#7a1a2e] text-white rounded-3xl p-8 flex flex-col h-full relative scale-105 shadow-xl">
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-yellow-400 text-red-900 px-6 py-1 rounded-full text-xs font-bold mono">РЕКОМЕНДУЄМО</div>
+            <div style={{ background: '#7a1a2e', color: 'white', borderRadius: '24px', padding: '32px', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', transform: 'scale(1.05)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+              <div style={{ position: 'absolute', top: '-16px', left: '50%', transform: 'translateX(-50%)', background: '#facc15', color: '#7f1d1d', padding: '4px 24px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700 }} className="mono">РЕКОМЕНДУЄМО</div>
               
-              <div className="mono text-sm font-medium opacity-75 mb-2">GROWTH</div>
-              <div className="text-3xl font-semibold mb-8">Розширений</div>
+              <div className="mono" style={{ fontSize: '14px', fontWeight: 500, opacity: 0.75, marginBottom: '8px' }}>GROWTH</div>
+              <div style={{ fontSize: '30px', fontWeight: 600, marginBottom: '32px' }}>Розширений</div>
               
-              <ul className="space-y-4 mb-10 flex-1">
-                <li className="flex items-center gap-3"><i className="fas fa-check"></i> До 10 HR</li>
-                <li className="flex items-center gap-3"><i className="fas fa-check"></i> Необмежені вакансії</li>
-                <li className="flex items-center gap-3"><i className="fas fa-check"></i> Повна аналітика</li>
-                <li className="flex items-center gap-3"><i className="fas fa-check"></i> Шаблони листів</li>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 40px 0', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>✓ До 10 HR</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>✓ Необмежені вакансії</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>✓ Повна аналітика</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>✓ Шаблони листів</li>
               </ul>
               
               <button 
                 onClick={onLogin}
-                className="w-full bg-white text-[#7a1a2e] py-4 rounded-2xl font-semibold"
+                style={{ width: '100%', background: 'white', color: '#7a1a2e', padding: '16px', borderRadius: '16px', fontWeight: 600, border: 'none', cursor: 'pointer' }}
               >
                 Обрати Growth
               </button>
             </div>
 
             {/* Enterprise */}
-            <div className="bg-white rounded-3xl p-8 border border-zinc-200 flex flex-col h-full">
-              <div className="mono text-sm font-medium text-zinc-500 mb-2">ENTERPRISE</div>
-              <div className="text-3xl font-semibold mb-8">Індивідуальний</div>
+            <div style={{ background: 'white', borderRadius: '24px', padding: '32px', border: '1px solid #e4e4e7', display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <div className="mono" style={{ fontSize: '14px', fontWeight: 500, color: '#71717a', marginBottom: '8px' }}>ENTERPRISE</div>
+              <div style={{ fontSize: '30px', fontWeight: 600, marginBottom: '32px' }}>Індивідуальний</div>
               
-              <ul className="space-y-4 mb-10 flex-1">
-                <li className="flex items-center gap-3"><i className="fas fa-check text-green-600"></i> Необмежена кількість HR</li>
-                <li className="flex items-center gap-3"><i className="fas fa-check text-green-600"></i> Кастомізація системи</li>
-                <li className="flex items-center gap-3"><i className="fas fa-check text-green-600"></i> Пріоритетна підтримка</li>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 40px 0', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><span style={{ color: '#16a34a' }}>✓</span> Необмежена кількість HR</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><span style={{ color: '#16a34a' }}>✓</span> Кастомізація системи</li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><span style={{ color: '#16a34a' }}>✓</span> Пріоритетна підтримка</li>
               </ul>
               
               <button 
                 onClick={() => window.location.href = 'mailto:sales@ida.com'}
-                className="w-full py-4 border border-zinc-300 rounded-2xl font-semibold hover:bg-zinc-50 transition"
+                style={{ width: '100%', padding: '16px', border: '1px solid #d4d4d8', borderRadius: '16px', fontWeight: 600, background: 'transparent', cursor: 'pointer', transition: 'background 0.2s' }}
+                onMouseOver={e => e.target.style.background = '#fafafa'}
+                onMouseOut={e => e.target.style.background = 'transparent'}
               >
                 Написати нам
               </button>
@@ -180,13 +183,15 @@ const Landing = ({ onLogin }) => {
       </section>
 
       {/* CTA */}
-      <section className="py-20 bg-[#7a1a2e] text-white text-center">
-        <div className="max-w-3xl mx-auto px-6">
-          <h2 className="text-4xl font-bold mb-6">Готові оптимізувати свій рекрутинг?</h2>
-          <p className="text-xl mb-10 text-red-100">14 днів повноцінного доступу безкоштовно</p>
+      <section style={{ padding: '80px 24px', background: '#7a1a2e', color: 'white', textAlign: 'center' }}>
+        <div style={{ maxWidth: '48rem', margin: '0 auto' }}>
+          <h2 style={{ fontSize: 'clamp(2rem, 4vw, 2.5rem)', fontWeight: 700, marginBottom: '24px' }}>Готові оптимізувати свій рекрутинг?</h2>
+          <p style={{ fontSize: '20px', marginBottom: '40px', color: '#fecaca' }}>14 днів повноцінного доступу безкоштовно</p>
           <button 
             onClick={onLogin}
-            className="inline-block bg-white text-[#7a1a2e] font-semibold px-12 py-5 rounded-2xl text-lg hover:bg-zinc-100 transition"
+            style={{ display: 'inline-block', background: 'white', color: '#7a1a2e', fontWeight: 600, padding: '20px 48px', borderRadius: '16px', fontSize: '18px', border: 'none', cursor: 'pointer', transition: 'background 0.2s' }}
+            onMouseOver={e => e.target.style.background = '#f4f4f5'}
+            onMouseOut={e => e.target.style.background = 'white'}
           >
             Почати безкоштовний період
           </button>
@@ -194,14 +199,14 @@ const Landing = ({ onLogin }) => {
       </section>
 
       {/* Footer */}
-      <footer className="bg-zinc-900 text-zinc-400 py-16">
-        <div className="max-w-7xl mx-auto px-6 text-center">
-          <div className="flex justify-center items-center gap-3 mb-6">
-            <div className="w-9 h-9 bg-[#7a1a2e] text-white font-bold text-3xl flex items-center justify-center rounded-2xl">I</div>
-            <span className="text-3xl font-semibold text-white">IDA</span>
+      <footer style={{ background: '#18181b', color: '#a1a1aa', padding: '64px 24px' }}>
+        <div style={{ maxWidth: '80rem', margin: '0 auto', textAlign: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+            <div style={{ width: '36px', height: '36px', background: '#7a1a2e', color: 'white', fontWeight: 'bold', fontSize: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '16px' }}>I</div>
+            <span style={{ fontSize: '30px', fontWeight: 600, color: 'white' }}>IDA</span>
           </div>
-          <p className="mono text-sm">Сучасна українська ATS-система</p>
-          <div className="text-xs mt-12 opacity-50">© 2026 IDA Systems. Усі права захищені.</div>
+          <p className="mono" style={{ fontSize: '14px' }}>Сучасна українська ATS-система</p>
+          <div style={{ fontSize: '12px', marginTop: '48px', opacity: 0.5 }}>© 2026 IDA Systems. Усі права захищені.</div>
         </div>
       </footer>
     </div>
