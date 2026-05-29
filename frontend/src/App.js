@@ -12,6 +12,7 @@ import Users from './pages/Users';
 import Profile from './pages/Profile';
 import OrgSettings from './pages/OrgSettings';
 import Login from './pages/Login';
+import Landing from './pages/Landing';          // ← Новий імпорт
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import AddCandidateModal from './components/AddCandidateModal';
@@ -87,7 +88,10 @@ function App() {
     }
   };
 
-  if (!isAuth) return <Login onLogin={handleLogin} />;
+  // ── Неавторизований користувач → показуємо лендінг ─────────────────────
+  if (!isAuth) {
+    return <Landing onLogin={handleLogin} />;
+  }
 
   // ── Superadmin ──────────────────────────────────────────────────────────────
   if (userRole === 'superadmin') {
