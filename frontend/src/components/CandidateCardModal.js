@@ -62,6 +62,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Fetch initial data
   useEffect(() => {
     if (!candidateId) return;
 
@@ -104,17 +105,26 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
       .finally(() => setLoading(false));
   }, [candidateId]);
 
-  useEffect(() => {
+  // Fetch stages when candidate or vacancy changes
+  const fetchStages = useCallback(async () => {
     if (!candidate) return;
     const params = candidate.vacancy
       ? { vacancy: candidate.vacancy }
       : { org_template: true };
-    axios.get('/api/vacancy-stages/', { params })
-      .then(res => setStages(res.data.results ?? res.data))
-      .catch(() => {});
-  }, [candidate?.vacancy]);
+    try {
+      const res = await axios.get('/api/vacancy-stages/', { params });
+      setStages(res.data.results ?? res.data);
+    } catch (err) {
+      // Silent fail
+    }
+  }, [candidate]);
+
+  useEffect(() => {
+    fetchStages();
+  }, [fetchStages]);
 
   const fetchEmailHistory = useCallback(async () => {
+    if (!candidateId) return;
     setLoadingHistory(true);
     try {
       const res = await axios.get(`/api/sent-emails/?candidate=${candidateId}`);
