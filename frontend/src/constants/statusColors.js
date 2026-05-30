@@ -1,4 +1,4 @@
-// statusColors.js
+// statusColors.js — оновлена версія з підтримкою динамічних стейджів
 // KANBAN_COLUMNS і STATUS_CONFIG тепер dynamic — беруться з API /api/vacancy-stages/
 // Статичні значення залишені як fallback для місць де ще не підключено dynamic stages
 
@@ -37,7 +37,7 @@ export const KANBAN_COLUMNS = [
  * stages: [{ id, name, color, system_key, order, ... }]
  */
 export const stagesToStatusConfig = (stages) => {
-  const config = { ...STATUS_CONFIG };  // починаємо з fallback
+  const config = { ...STATUS_CONFIG };
   stages.forEach(stage => {
     const key = stage.system_key || `stage_${stage.id}`;
     config[key] = {
@@ -66,24 +66,29 @@ export const stagesToKanbanColumns = (stages) =>
 
 // ─── Статичні хелпери (залишені для сумісності) ───────────────────────────────
 export const getStatusLabel = (status, stages) => {
-  if (stages) {
-    const stage = stages.find(s => s.system_key === status || String(s.id) === String(status));
+  if (stages && stages.length > 0) {
+    // спочатку шукаємо за system_key
+    let stage = stages.find(s => s.system_key === status);
+    // потім за id (як рядок або число)
+    if (!stage) stage = stages.find(s => String(s.id) === String(status));
     if (stage) return stage.name;
   }
   return STATUS_CONFIG[status]?.label || status;
 };
 
 export const getStatusBg = (status, stages) => {
-  if (stages) {
-    const stage = stages.find(s => s.system_key === status || String(s.id) === String(status));
+  if (stages && stages.length > 0) {
+    let stage = stages.find(s => s.system_key === status);
+    if (!stage) stage = stages.find(s => String(s.id) === String(status));
     if (stage) return hex2rgba(stage.color, 0.12);
   }
   return STATUS_CONFIG[status]?.bg || '#f5f5f5';
 };
 
 export const getStatusText = (status, stages) => {
-  if (stages) {
-    const stage = stages.find(s => s.system_key === status || String(s.id) === String(status));
+  if (stages && stages.length > 0) {
+    let stage = stages.find(s => s.system_key === status);
+    if (!stage) stage = stages.find(s => String(s.id) === String(status));
     if (stage) return stage.color;
   }
   return STATUS_CONFIG[status]?.text || '#757575';
