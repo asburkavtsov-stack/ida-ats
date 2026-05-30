@@ -3,6 +3,7 @@ import axios from 'axiosConfig';
 import Loader from '../components/Loader';
 import CandidateCardModal from '../components/CandidateCardModal';
 import {
+  STATUS_FILTERS,
   SOURCE_FILTERS, getSourceLabel, getSourceBg, getSourceText,
   getHrAvatarColor,
 } from '../constants/statusColors';
