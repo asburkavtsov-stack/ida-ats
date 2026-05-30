@@ -3,17 +3,18 @@ import api from 'axiosConfig';
 import CSVImportModal from './CSVImportModal';
 
 function AddCandidateModal({ onClose, onAdded }) {
-  const [vacancies, setVacancies] = useState([]);
+  const [vacancies,     setVacancies]     = useState([]);
   const [availableTags, setAvailableTags] = useState([]);
-  const [selectedTags, setSelectedTags] = useState([]);
-  const [error, setError] = useState('');
-  const [isMobile, setIsMobile] = useState(false);
+  const [selectedTags,  setSelectedTags]  = useState([]);
+  const [stages,        setStages]        = useState([]);
+  const [error,         setError]         = useState('');
+  const [isMobile,      setIsMobile]      = useState(false);
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
-  const [duplicateWarning, setDuplicateWarning] = useState(null);
+  const [duplicateWarning,    setDuplicateWarning]    = useState(null);
   const [showCSVImport, setShowCSVImport] = useState(false);
   const [form, setForm] = useState({
     first_name: '', last_name: '', email: '',
-    phone: '', vacancy: '', status: 'new', notes: '',
+    phone: '', vacancy: '', stage_id: '', notes: '',
   });
 
   useEffect(() => {
@@ -38,6 +39,24 @@ function AddCandidateModal({ onClose, onAdded }) {
       .catch(err => console.error('Помилка завантаження тегів:', err));
   }, []);
 
+  // При зміні вакансії — завантажуємо її стейджі
+  useEffect(() => {
+    const params = form.vacancy
+      ? { vacancy: form.vacancy }
+      : { org_template: true };
+
+    api.get('/api/vacancy-stages/', { params })
+      .then(res => {
+        const data = res.data.results ?? res.data;
+        setStages(data);
+        // Автоматично обираємо перший стейдж
+        if (data.length > 0) {
+          setForm(f => ({ ...f, stage_id: String(data[0].id) }));
+        }
+      })
+      .catch(() => {});
+  }, [form.vacancy]);
+
   const handleChange = e => {
     setForm({ ...form, [e.target.name]: e.target.value });
     if (e.target.name === 'email' || e.target.name === 'phone') {
@@ -48,21 +67,12 @@ function AddCandidateModal({ onClose, onAdded }) {
   const checkDuplicate = async () => {
     const email = form.email.trim();
     const phone = form.phone.trim();
-
-    if (!email && !phone) {
-      return null;
-    }
+    if (!email && !phone) return null;
 
     setIsCheckingDuplicate(true);
     try {
-      const response = await api.post('/api/candidates/check_duplicate/', {
-        email: email,
-        phone: phone,
-      });
-      
-      if (response.data.has_duplicate) {
-        return response.data;
-      }
+      const response = await api.post('/api/candidates/check_duplicate/', { email, phone });
+      if (response.data.has_duplicate) return response.data;
       return null;
     } catch (err) {
       console.error('Помилка перевірки дубліката:', err);
@@ -77,38 +87,49 @@ function AddCandidateModal({ onClose, onAdded }) {
     if (field === 'email' || field === 'phone') {
       const email = form.email.trim();
       const phone = form.phone.trim();
-      
       if (email || phone) {
         const duplicateData = await checkDuplicate();
-        if (duplicateData) {
-          setDuplicateWarning(duplicateData);
-        } else {
-          setDuplicateWarning(null);
-        }
+        setDuplicateWarning(duplicateData || null);
       }
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (skipDupCheck = false) => {
     if (!form.first_name.trim()) { setError("Ім'я обов'язкове"); return; }
-    if (!form.last_name.trim()) { setError("Прізвище обов'язкове"); return; }
-    if (!form.email.trim()) { setError("Email обов'язковий"); return; }
-    if (!form.vacancy) { setError("Оберіть вакансію"); return; }
+    if (!form.last_name.trim())  { setError("Прізвище обов'язкове"); return; }
+    if (!form.email.trim())      { setError("Email обов'язковий"); return; }
+    if (!form.vacancy)           { setError("Оберіть вакансію"); return; }
 
-    const duplicateData = await checkDuplicate();
-    if (duplicateData) {
-      setDuplicateWarning(duplicateData);
-      setError(`Знайдено дублікат! Кандидат з таким ${duplicateData.duplicates[0]?.matched_by === 'email' ? 'email' : 'телефоном'} вже існує.`);
-      return;
+    if (!skipDupCheck) {
+      const duplicateData = await checkDuplicate();
+      if (duplicateData) {
+        setDuplicateWarning(duplicateData);
+        const matchedBy = duplicateData.duplicate_candidate
+          ? 'даними'
+          : duplicateData.duplicate_by === 'email' ? 'email' : 'телефоном';
+        setError(`Знайдено дублікат! Кандидат з таким ${matchedBy} вже існує.`);
+        return;
+      }
     }
 
-    api.post('/api/candidates/', { ...form, tag_ids: selectedTags })
+    const payload = {
+      first_name: form.first_name,
+      last_name:  form.last_name,
+      email:      form.email,
+      phone:      form.phone,
+      vacancy:    form.vacancy,
+      notes:      form.notes,
+      tag_ids:    selectedTags,
+      ...(form.stage_id ? { stage: Number(form.stage_id) } : {}),
+    };
+
+    api.post('/api/candidates/', payload)
       .then(() => { onAdded(); onClose(); })
       .catch(err => {
         if (err.response?.data?.duplicate) {
           setDuplicateWarning({
             has_duplicate: true,
-            duplicates: [err.response.data.duplicate_candidate],
+            duplicate_candidate: err.response.data.duplicate_candidate,
           });
           setError(err.response.data.message || 'Кандидат з такими даними вже існує');
         } else {
@@ -121,13 +142,7 @@ function AddCandidateModal({ onClose, onAdded }) {
   const ignoreDuplicateAndSubmit = () => {
     setDuplicateWarning(null);
     setError('');
-    
-    api.post('/api/candidates/', { ...form, tag_ids: selectedTags })
-      .then(() => { onAdded(); onClose(); })
-      .catch(err => {
-        console.error(err);
-        setError('Помилка при створенні кандидата');
-      });
+    handleSubmit(true);
   };
 
   const handleCSVAdded = () => {
@@ -143,13 +158,14 @@ function AddCandidateModal({ onClose, onAdded }) {
   const modal = {
     background: 'var(--surface)', borderRadius: isMobile ? '16px 16px 0 0' : '16px',
     width: '100%', maxWidth: '480px',
-    maxHeight: isMobile ? '85vh' : '90vh',
+    maxHeight: isMobile ? '90vh' : '90vh',
     overflowY: 'auto',
     boxShadow: 'var(--shadow-lg)',
   };
   const input = {
-    width: '100%', padding: isMobile ? '11px 14px' : '9px 12px', border: '1px solid var(--border)',
-    borderRadius: '8px', fontSize: isMobile ? '0.9rem' : '0.85rem', fontFamily: 'DM Sans',
+    width: '100%', padding: isMobile ? '11px 14px' : '9px 12px',
+    border: '1px solid var(--border)', borderRadius: '8px',
+    fontSize: isMobile ? '0.9rem' : '0.85rem', fontFamily: 'DM Sans',
     background: 'var(--bg)', outline: 'none',
   };
   const label = {
@@ -177,6 +193,7 @@ function AddCandidateModal({ onClose, onAdded }) {
       <div style={overlay} onClick={onClose}>
         <div style={modal} onClick={e => e.stopPropagation()}>
 
+          {/* Header */}
           <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontWeight: 700, fontSize: '1rem' }}>Новий кандидат</div>
             <div style={{ display: 'flex', gap: '8px' }}>
@@ -184,16 +201,7 @@ function AddCandidateModal({ onClose, onAdded }) {
                 onClick={() => setShowCSVImport(true)}
                 aria-label="Імпорт з CSV"
                 type="button"
-                style={{ 
-                  background: 'transparent', 
-                  border: '1px solid var(--border)', 
-                  borderRadius: '6px',
-                  padding: '4px 10px',
-                  fontSize: '0.75rem',
-                  cursor: 'pointer',
-                  fontFamily: 'DM Mono',
-                  color: 'var(--muted)'
-                }}
+                style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', padding: '4px 10px', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono', color: 'var(--muted)' }}
               >
                 📂 CSV імпорт
               </button>
@@ -209,49 +217,35 @@ function AddCandidateModal({ onClose, onAdded }) {
           </div>
 
           <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            
-            {duplicateWarning && duplicateWarning.duplicates?.length > 0 && (
+
+            {/* Duplicate warning */}
+            {duplicateWarning && (
               <div style={warningBox}>
                 <div style={{ fontWeight: 600, color: '#f59e0b', marginBottom: '8px' }}>
                   ⚠️ Знайдено можливий дублікат!
                 </div>
-                {duplicateWarning.duplicates.map((dup, idx) => (
-                  <div key={idx} style={duplicateItem}>
-                    <div><strong>{dup.first_name} {dup.last_name}</strong></div>
+                {duplicateWarning.duplicate_candidate && (
+                  <div style={duplicateItem}>
+                    <div><strong>{duplicateWarning.duplicate_candidate.first_name} {duplicateWarning.duplicate_candidate.last_name}</strong></div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>
-                      {dup.email && <span>📧 {dup.email}</span>}
-                      {dup.phone && <span> 📞 {dup.phone}</span>}
+                      {duplicateWarning.duplicate_candidate.email && <span>📧 {duplicateWarning.duplicate_candidate.email}</span>}
+                      {duplicateWarning.duplicate_candidate.phone && <span> 📞 {duplicateWarning.duplicate_candidate.phone}</span>}
                     </div>
                     <div style={{ fontSize: '0.7rem', marginTop: '4px' }}>
-                      Статус: {dup.status} | Вакансія: {dup.vacancy_title || '—'}
+                      Статус: {duplicateWarning.duplicate_candidate.stage_name || duplicateWarning.duplicate_candidate.status} | Вакансія: {duplicateWarning.duplicate_candidate.vacancy_title || '—'}
                     </div>
                   </div>
-                ))}
+                )}
                 <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                   <button
                     onClick={ignoreDuplicateAndSubmit}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      border: '1px solid #f59e0b',
-                      background: 'transparent',
-                      color: '#f59e0b',
-                      cursor: 'pointer',
-                      fontSize: '0.75rem',
-                    }}
+                    style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #f59e0b', background: 'transparent', color: '#f59e0b', cursor: 'pointer', fontSize: '0.75rem' }}
                   >
                     Все одно додати
                   </button>
                   <button
                     onClick={() => setDuplicateWarning(null)}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      background: 'var(--border)',
-                      cursor: 'pointer',
-                      fontSize: '0.75rem',
-                    }}
+                    style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: 'var(--border)', cursor: 'pointer', fontSize: '0.75rem' }}
                   >
                     Скасувати
                   </button>
@@ -259,6 +253,7 @@ function AddCandidateModal({ onClose, onAdded }) {
               </div>
             )}
 
+            {/* Ім'я + Прізвище */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
               <div>
                 <label style={label}>Ім'я</label>
@@ -269,42 +264,82 @@ function AddCandidateModal({ onClose, onAdded }) {
                 <input style={input} name="last_name" placeholder="Семенова" onChange={handleChange} />
               </div>
             </div>
+
             <div>
               <label style={label}>Email</label>
-              <input 
-                style={{ ...input, borderColor: duplicateWarning ? '#f59e0b' : 'var(--border)' }} 
-                name="email" 
-                placeholder="email@gmail.com" 
+              <input
+                style={{ ...input, borderColor: duplicateWarning ? '#f59e0b' : 'var(--border)' }}
+                name="email"
+                placeholder="email@gmail.com"
                 onChange={handleChange}
                 onBlur={handleBlur}
               />
             </div>
+
             <div>
               <label style={label}>Телефон</label>
-              <input 
-                style={{ ...input, borderColor: duplicateWarning ? '#f59e0b' : 'var(--border)' }} 
-                name="phone" 
-                placeholder="+380 XX XXX XX XX" 
+              <input
+                style={{ ...input, borderColor: duplicateWarning ? '#f59e0b' : 'var(--border)' }}
+                name="phone"
+                placeholder="+380 XX XXX XX XX"
                 onChange={handleChange}
                 onBlur={handleBlur}
               />
             </div>
+
             <div>
               <label style={label}>Вакансія</label>
-              <select style={input} name="vacancy" onChange={handleChange}>
+              <select style={input} name="vacancy" value={form.vacancy} onChange={handleChange}>
                 <option value="">— Обери вакансію —</option>
                 {vacancies.map(v => (
                   <option key={v.id} value={v.id}>{v.title}</option>
                 ))}
               </select>
             </div>
+
+            {/* Стейдж — динамічний */}
+            {stages.length > 0 && (
+              <div>
+                <label style={label}>Початковий етап</label>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {stages.map(stage => {
+                    const isActive = form.stage_id === String(stage.id);
+                    const r = parseInt(stage.color.slice(1,3), 16);
+                    const g = parseInt(stage.color.slice(3,5), 16);
+                    const b = parseInt(stage.color.slice(5,7), 16);
+                    return (
+                      <button
+                        key={stage.id}
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, stage_id: String(stage.id) }))}
+                        style={{
+                          padding: '6px 12px', borderRadius: '20px', fontSize: '0.78rem',
+                          border: `1px solid ${isActive ? stage.color : 'var(--border)'}`,
+                          background: isActive ? `rgba(${r},${g},${b},0.15)` : 'var(--bg)',
+                          color: isActive ? stage.color : 'var(--muted)',
+                          cursor: 'pointer', fontFamily: 'DM Sans',
+                          fontWeight: isActive ? 600 : 400,
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {isActive && <span style={{ marginRight: '4px' }}>●</span>}{stage.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Теги */}
             <div>
               <label style={label}>Теги</label>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 {availableTags.map(tag => (
                   <button
                     key={tag.id}
-                    onClick={() => setSelectedTags(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
+                    onClick={() => setSelectedTags(prev =>
+                      prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id]
+                    )}
                     type="button"
                     style={{
                       padding: '5px 12px', borderRadius: '20px', fontSize: '0.78rem',
@@ -319,38 +354,41 @@ function AddCandidateModal({ onClose, onAdded }) {
                 ))}
               </div>
             </div>
+
             <div>
               <label style={label}>Нотатки</label>
-              <textarea style={{ ...input, minHeight: '70px', resize: 'vertical' }} name="notes" placeholder="Коментар..." onChange={handleChange} />
+              <textarea
+                style={{ ...input, minHeight: '70px', resize: 'vertical' }}
+                name="notes"
+                placeholder="Коментар..."
+                onChange={handleChange}
+              />
             </div>
+
           </div>
 
-          <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
-            <button onClick={onClose} style={{ padding: isMobile ? '10px 16px' : '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: '0.82rem' }}>
-              Скасувати
-            </button>
+          {/* Footer */}
+          <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {error && (
-              <div style={{ color: '#dc2626', fontSize: '0.78rem', fontFamily: 'DM Mono', marginBottom: '8px', width: '100%' }}>
+              <div style={{ color: '#dc2626', fontSize: '0.78rem', fontFamily: 'DM Mono' }}>
                 ⚠ {error}
               </div>
             )}
-            <button 
-              onClick={handleSubmit} 
-              disabled={isCheckingDuplicate}
-              style={{ 
-                padding: isMobile ? '10px 16px' : '8px 16px', 
-                borderRadius: '8px', 
-                border: 'none', 
-                background: 'var(--accent)', 
-                color: '#fff', 
-                cursor: isCheckingDuplicate ? 'not-allowed' : 'pointer', 
-                fontSize: '0.82rem', 
-                fontWeight: 600,
-                opacity: isCheckingDuplicate ? 0.6 : 1,
-              }}
-            >
-              {isCheckingDuplicate ? 'Перевірка...' : 'Зберегти'}
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                onClick={onClose}
+                style={{ padding: isMobile ? '10px 16px' : '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', fontSize: '0.82rem' }}
+              >
+                Скасувати
+              </button>
+              <button
+                onClick={() => handleSubmit(false)}
+                disabled={isCheckingDuplicate}
+                style={{ padding: isMobile ? '10px 16px' : '8px 16px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', cursor: isCheckingDuplicate ? 'not-allowed' : 'pointer', fontSize: '0.82rem', fontWeight: 600, opacity: isCheckingDuplicate ? 0.6 : 1 }}
+              >
+                {isCheckingDuplicate ? 'Перевірка...' : 'Зберегти'}
+              </button>
+            </div>
           </div>
 
         </div>
