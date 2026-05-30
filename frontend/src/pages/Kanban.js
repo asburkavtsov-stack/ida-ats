@@ -1,5 +1,5 @@
 // Kanban.js — динамічні колонки з редактором стейджів
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axiosConfig';
 
 // ─── Палітра кольорів для стейджів ───────────────────────────────────────────
@@ -150,7 +150,6 @@ function KanbanColumn({
 }) {
   const [dragOver, setDragOver] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
-  const ref = useRef();
 
   const count = candidates.length;
 
