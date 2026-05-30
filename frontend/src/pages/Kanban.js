@@ -1,7 +1,7 @@
 // Kanban.js — повністю адаптована версія з фільтрами
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axiosConfig';
-import CandidateCardModal from './components/CandidateCardModal';
+import CandidateCardModal from '../components/CandidateCardModal'; 
 
 // ─── Палітра кольорів для стейджів ───────────────────────────────────────────
 const STAGE_COLORS = [
