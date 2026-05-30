@@ -1,5 +1,8 @@
 from django.contrib import admin
-from .models import Organization, UserProfile, Vacancy, Candidate, EmailTemplate, SentEmail
+from .models import (
+    Organization, UserProfile, Vacancy, VacancyStage,
+    Candidate, EmailTemplate, SentEmail, BlacklistedOrganization,
+)
 
 
 @admin.register(Organization)
@@ -56,10 +59,18 @@ class VacancyAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(VacancyStage)
+class VacancyStageAdmin(admin.ModelAdmin):
+    list_display  = ['name', 'organization', 'vacancy', 'color', 'order', 'system_key', 'is_terminal']
+    list_filter   = ['organization', 'system_key', 'is_terminal']
+    search_fields = ['name']
+    ordering      = ['organization', 'vacancy', 'order']
+
+
 @admin.register(Candidate)
 class CandidateAdmin(admin.ModelAdmin):
-    list_display = ['first_name', 'last_name', 'email', 'organization', 'status', 'source', 'assigned_to', 'created_at']
-    list_filter = ['status', 'source', 'assigned_to', 'organization']
+    list_display  = ['first_name', 'last_name', 'email', 'organization', 'stage', 'source', 'assigned_to', 'created_at']
+    list_filter   = ['stage__system_key', 'source', 'assigned_to', 'organization']
     raw_id_fields = ['assigned_to']
     search_fields = ['first_name', 'last_name', 'email']
 
@@ -67,24 +78,22 @@ class CandidateAdmin(admin.ModelAdmin):
 @admin.register(EmailTemplate)
 class EmailTemplateAdmin(admin.ModelAdmin):
     list_display = ['organization', 'template_type', 'subject', 'is_active']
-    list_filter = ['organization', 'template_type', 'is_active']
+    list_filter  = ['organization', 'template_type', 'is_active']
     search_fields = ['subject', 'body']
 
 
 @admin.register(SentEmail)
 class SentEmailAdmin(admin.ModelAdmin):
-    list_display = ['subject', 'candidate', 'recipient_email', 'sent_by', 'sent_at', 'status']
-    list_filter = ['status', 'sent_at']
+    list_display  = ['subject', 'candidate', 'recipient_email', 'sent_by', 'sent_at', 'status']
+    list_filter   = ['status', 'sent_at']
     search_fields = ['subject', 'recipient_email', 'candidate__email']
     raw_id_fields = ['candidate', 'template', 'sent_by']
 
 
-from .models import BlacklistedOrganization
-
 @admin.register(BlacklistedOrganization)
 class BlacklistedOrganizationAdmin(admin.ModelAdmin):
-    list_display = ['name', 'added_by', 'reason', 'created_at']
-    search_fields = ['name']
+    list_display    = ['name', 'added_by', 'reason', 'created_at']
+    search_fields   = ['name']
     readonly_fields = ['added_by', 'created_at']
 
     def save_model(self, request, obj, form, change):

@@ -14,12 +14,12 @@ from rest_framework.views import APIView
 from .models import (
     Candidate, EmailTemplate, Organization,
     SentEmail, Tag, User, UserProfile, Vacancy, VacancyTemplate, Interview,
-    BlacklistedOrganization
+    BlacklistedOrganization, VacancyStage, StatusHistory
 )
 from .serializers import (
     CandidateSerializer, EmailTemplateSerializer, OrganizationSerializer,
     SentEmailSerializer, TagSerializer, VacancySerializer, VacancyTemplateSerializer,
-    DuplicateCandidateSerializer, InterviewSerializer
+    DuplicateCandidateSerializer, InterviewSerializer, VacancyStageSerializer
 )
 from .pagination import StandardPagination
 from .permissions import IsSuperAdmin, IsOrgMember
@@ -61,6 +61,93 @@ class TagViewSet(viewsets.ModelViewSet):
         if not org:
             raise serializers.ValidationError({'error': "Користувач не прив'язаний до організації"})
         serializer.save(organization=org)
+
+
+# ─── VACANCY STAGES (CUSTOM KANBAN COLUMNS) ───────────────────────────────────
+
+class VacancyStageViewSet(viewsets.ModelViewSet):
+    """
+    CRUD для кастомних колонок канбану.
+
+    GET    /api/vacancy-stages/?vacancy=<id>      — стейджі вакансії (або шаблон орг)
+    GET    /api/vacancy-stages/?org_template=true — шаблон організації
+    POST   /api/vacancy-stages/                   — створити стейдж
+    PATCH  /api/vacancy-stages/<id>/              — редагувати
+    DELETE /api/vacancy-stages/<id>/              — видалити
+    POST   /api/vacancy-stages/reorder/           — змінити порядок
+    POST   /api/vacancy-stages/reset_to_org/      — скинути вакансію до шаблону орг
+    """
+    serializer_class = VacancyStageSerializer
+    permission_classes = [IsAuthenticated, IsOrgMember]
+
+    def get_queryset(self):
+        org = get_user_organization(self.request.user)
+        role = get_user_role(self.request.user)
+        if role == 'superadmin':
+            qs = VacancyStage.objects.all()
+        else:
+            qs = VacancyStage.objects.filter(organization=org)
+
+        vacancy_id = self.request.query_params.get('vacancy')
+        org_template = self.request.query_params.get('org_template')
+
+        if vacancy_id:
+            vacancy = Vacancy.objects.filter(pk=vacancy_id).first()
+            if vacancy:
+                return VacancyStage.get_for_vacancy(vacancy)
+        elif org_template:
+            return qs.filter(vacancy=None)
+
+        return qs.order_by('order', 'id')
+
+    def perform_create(self, serializer):
+        org = get_user_organization(self.request.user)
+        if not org:
+            raise serializers.ValidationError({'error': "Користувач не прив'язаний до організації"})
+        serializer.save(organization=org)
+
+    @action(detail=False, methods=['post'], url_path='reorder')
+    def reorder(self, request):
+        """
+        POST /api/vacancy-stages/reorder/
+        Body: { "ordered_ids": [3, 1, 5, 2, 4] }
+        """
+        ordered_ids = request.data.get('ordered_ids', [])
+        if not ordered_ids:
+            return Response({'error': 'ordered_ids required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        org = get_user_organization(request.user)
+        stages = VacancyStage.objects.filter(id__in=ordered_ids, organization=org)
+        stage_map = {s.id: s for s in stages}
+
+        for order, stage_id in enumerate(ordered_ids):
+            if stage_id in stage_map:
+                stage_map[stage_id].order = order
+                stage_map[stage_id].save(update_fields=['order'])
+
+        return Response({'ok': True})
+
+    @action(detail=False, methods=['post'], url_path='reset_to_org')
+    def reset_to_org(self, request):
+        """
+        POST /api/vacancy-stages/reset_to_org/
+        Body: { "vacancy_id": 5 }
+        Видаляє override вакансії і повертає до шаблону організації.
+        """
+        vacancy_id = request.data.get('vacancy_id')
+        if not vacancy_id:
+            return Response({'error': 'vacancy_id required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        org = get_user_organization(request.user)
+        VacancyStage.objects.filter(vacancy_id=vacancy_id, organization=org).delete()
+
+        vacancy = Vacancy.objects.filter(pk=vacancy_id, organization=org).first()
+        if not vacancy:
+            return Response({'error': 'Vacancy not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        stages = VacancyStage.get_for_vacancy(vacancy)
+        return Response(VacancyStageSerializer(stages, many=True).data)
+
 
 # ─── VACANCIES ────────────────────────────────────────────────────────────────
 
@@ -117,6 +204,25 @@ class VacancyViewSet(VacancyJobBoardMixin, viewsets.ModelViewSet):
         )
         return Response(VacancyTemplateSerializer(template).data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=['get'], url_path='stages')
+    def stages(self, request, pk=None):
+        """GET /api/vacancies/<id>/stages/ — стейджі для конкретної вакансії."""
+        vacancy = self.get_object()
+        stages = VacancyStage.get_for_vacancy(vacancy)
+        return Response(VacancyStageSerializer(stages, many=True).data)
+
+    @action(detail=True, methods=['post'], url_path='copy_org_stages')
+    def copy_org_stages(self, request, pk=None):
+        """
+        POST /api/vacancies/<id>/copy_org_stages/
+        Копіює шаблон організації як override для цієї вакансії.
+        """
+        vacancy = self.get_object()
+        VacancyStage.copy_org_template_to_vacancy(vacancy)
+        stages = VacancyStage.objects.filter(vacancy=vacancy).order_by('order', 'id')
+        return Response(VacancyStageSerializer(stages, many=True).data, status=status.HTTP_201_CREATED)
+
+
 # ─── VACANCY TEMPLATES ────────────────────────────────────────────────────────
 
 class VacancyTemplateViewSet(viewsets.ModelViewSet):
@@ -151,6 +257,7 @@ class VacancyTemplateViewSet(viewsets.ModelViewSet):
         if not org:
             raise serializers.ValidationError({'error': "Користувач не прив'язаний до організації"})
         serializer.save(organization=org)
+
 
 # ─── ORGANIZATIONS ────────────────────────────────────────────────────────────
 
@@ -198,6 +305,7 @@ class BlacklistViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(added_by=self.request.user)
+
 
 # ─── CANDIDATES ───────────────────────────────────────────────────────────────
 
@@ -247,11 +355,43 @@ class CandidateViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['patch'], url_path='update_status')
     def update_status(self, request, pk=None):
         candidate = self.get_object()
-        new_status = request.data.get('status')
-        if not new_status:
-            return Response({'error': 'Status required'}, status=status.HTTP_400_BAD_REQUEST)
-        CandidateService.update_candidate_status(candidate, new_status, request.user)
-        return Response(CandidateSerializer(candidate).data)
+        stage_id = request.data.get('stage_id')
+        system_key = request.data.get('status')  # підтримка старого поля status
+
+        if stage_id:
+            new_stage = VacancyStage.objects.filter(pk=stage_id).first()
+            if not new_stage:
+                return Response({'error': 'Stage not found'}, status=status.HTTP_404_NOT_FOUND)
+        elif system_key:
+            # Знайти стейдж по system_key для вакансії кандидата
+            if candidate.vacancy:
+                stages = VacancyStage.get_for_vacancy(candidate.vacancy)
+                new_stage = stages.filter(system_key=system_key).first()
+            else:
+                org = get_user_organization(request.user)
+                new_stage = VacancyStage.objects.filter(
+                    organization=org, system_key=system_key, vacancy=None
+                ).first()
+            if not new_stage:
+                return Response({'error': f'Stage with system_key={system_key} not found'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            return Response({'error': 'stage_id or status required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        old_stage = candidate.stage
+
+        # Створити запис історії змін статусу
+        StatusHistory.objects.create(
+            candidate=candidate,
+            old_stage=old_stage,
+            new_stage=new_stage,
+            old_status=old_stage.name if old_stage else '',
+            new_status=new_stage.name,
+            changed_by=request.user,
+        )
+
+        candidate.stage = new_stage
+        candidate.save(update_fields=['stage'])
+        return Response(CandidateSerializer(candidate, context={'request': request}).data)
 
     @action(detail=True, methods=['patch'], url_path='assign')
     def assign(self, request, pk=None):
@@ -339,6 +479,7 @@ class CandidateViewSet(viewsets.ModelViewSet):
 
         return Response(result.to_dict())
 
+
 # ─── CANDIDATES CSV EXPORT ────────────────────────────────────────────────────
 
 class CandidateExportCSVView(APIView):
@@ -367,6 +508,7 @@ class CandidateExportCSVView(APIView):
         headers = ['ID', "Ім'я", 'Прізвище', 'Email', 'Телефон', 'Вакансія', 'Організація', 'Статус', 'Джерело',
                    'Теги', 'Нотатки', 'Дата створення']
         return CSVHandler.export_queryset_to_csv(qs, 'candidates.csv', headers, extractor)
+
 
 # ─── INTERVIEWS ───────────────────────────────────────────────────────────────
 
@@ -462,6 +604,7 @@ class InterviewViewSet(viewsets.ModelViewSet):
         interview.save(update_fields=['status'])
         return Response(InterviewSerializer(interview, context={'request': request}).data)
 
+
 # ─── CURRENT USER ─────────────────────────────────────────────────────────────
 
 @api_view(['GET'])
@@ -476,6 +619,7 @@ def current_user(request):
         'organization': {'id': org.id, 'name': org.name, 'max_vacancies': org.max_vacancies,
                          'max_hr': org.max_hr} if org else None,
     })
+
 
 # ─── USERS ────────────────────────────────────────────────────────────────────
 
@@ -569,6 +713,7 @@ class UserListView(viewsets.ViewSet):
             return Response({'success': True})
         except User.DoesNotExist:
             return Response({'error': 'Юзер не знайдений'}, status=status.HTTP_404_NOT_FOUND)
+
 
 # ─── EMAIL TEMPLATES ──────────────────────────────────────────────────────────
 
@@ -673,6 +818,7 @@ class SentEmailViewSet(viewsets.ReadOnlyModelViewSet):
             qs = SentEmail.objects.filter(candidate__organization=org) if org else SentEmail.objects.none()
         return qs.select_related('candidate', 'template', 'sent_by').order_by('-sent_at')
 
+
 # ─── GOOGLE AUTH ──────────────────────────────────────────────────────────────
 
 @api_view(['GET'])
@@ -690,6 +836,7 @@ def test_email_config(request):
     return Response({'gmail_api': 'active' if ALLAUTH_AVAILABLE else 'inactive', 'has_google_account': has_google,
                      'google_login_url': '/accounts/google/login/', 'current_user_email': request.user.email,
                      'email_backend_type': EmailService.get_email_backend_type()})
+
 
 # ─── TIME-TO-HIRE ANALYTICS ───────────────────────────────────────────────────
 
@@ -810,6 +957,7 @@ def export_time_to_hire_csv(request):
                          row['offer_date'].strftime('%d.%m.%Y') if row['offer_date'] else '', row['days']])
     return response
 
+
 # ─── HR EFFECTIVENESS ANALYTICS ───────────────────────────────────────────────
 
 @api_view(['GET'])
@@ -886,6 +1034,7 @@ def export_hr_effectiveness_csv(request):
             hr['by_status']['rejected'],
         ])
     return response
+
 
 # ─── EXCEL / PDF EXPORTS ──────────────────────────────────────────────────────
 
