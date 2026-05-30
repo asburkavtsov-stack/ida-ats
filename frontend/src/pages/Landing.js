@@ -18,13 +18,6 @@ const Landing = ({ onLogin }) => {
             <div style={{ width: '36px', height: '36px', background: '#7a1a2e', color: 'white', fontWeight: 'bold', fontSize: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '16px' }}>I</div>
             <span style={{ fontSize: '24px', fontWeight: 600, letterSpacing: '-0.025em' }}>IDA</span>
           </div>
-          
-          <div style={{ display: 'none', alignItems: 'center', gap: '32px', fontSize: '14px', fontWeight: 500 }}>
-            <a href="#features" style={{ color: '#18181b', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.target.style.color = '#7a1a2e'} onMouseOut={e => e.target.style.color = '#18181b'}>Функції</a>
-            <a href="#pricing" style={{ color: '#18181b', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.target.style.color = '#7a1a2e'} onMouseOut={e => e.target.style.color = '#18181b'}>Ціни</a>
-            <a href="#for-who" style={{ color: '#18181b', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.target.style.color = '#7a1a2e'} onMouseOut={e => e.target.style.color = '#18181b'}>Для кого</a>
-            <a href="#demo" style={{ color: '#18181b', textDecoration: 'none', transition: 'color 0.2s' }} onMouseOver={e => e.target.style.color = '#7a1a2e'} onMouseOut={e => e.target.style.color = '#18181b'}>Демо</a>
-          </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <button 
@@ -36,7 +29,7 @@ const Landing = ({ onLogin }) => {
               Увійти
             </button>
             <button 
-              onClick={onLogin}
+              onClick={() => alert('Функція доступна після входу в систему')}
               style={{ background: '#7a1a2e', color: 'white', padding: '10px 24px', borderRadius: '9999px', fontWeight: 600, border: 'none', cursor: 'pointer', transition: 'background 0.2s' }}
               onMouseOver={e => e.target.style.background = '#5f1424'}
               onMouseOut={e => e.target.style.background = '#7a1a2e'}
@@ -65,7 +58,7 @@ const Landing = ({ onLogin }) => {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', justifyContent: 'center', alignItems: 'center' }}>
             <button 
-              onClick={onLogin}
+              onClick={() => alert('Функція доступна після входу в систему')}
               style={{ background: 'white', color: '#7a1a2e', fontWeight: 600, padding: '16px 40px', borderRadius: '16px', fontSize: '18px', border: 'none', cursor: 'pointer', transition: 'background 0.2s', textAlign: 'center' }}
               onMouseOver={e => e.target.style.background = '#f4f4f5'}
               onMouseOut={e => e.target.style.background = 'white'}
@@ -73,7 +66,7 @@ const Landing = ({ onLogin }) => {
               Почати безкоштовно — 14 днів
             </button>
             <button 
-              onClick={() => window.open('#demo', '_self')}
+              onClick={() => alert('Функція доступна після входу в систему')}
               style={{ border: '1px solid rgba(255,255,255,0.5)', background: 'transparent', color: 'white', fontWeight: 500, padding: '16px 40px', borderRadius: '16px', fontSize: '18px', cursor: 'pointer', transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}
               onMouseOver={e => e.target.style.background = 'rgba(255,255,255,0.1)'}
               onMouseOut={e => e.target.style.background = 'transparent'}
@@ -127,7 +120,7 @@ const Landing = ({ onLogin }) => {
               </ul>
               
               <button 
-                onClick={onLogin}
+                onClick={() => alert('Функція доступна після входу в систему')}
                 style={{ width: '100%', padding: '16px', border: '1px solid #d4d4d8', borderRadius: '16px', fontWeight: 600, background: 'transparent', cursor: 'pointer', transition: 'background 0.2s' }}
                 onMouseOver={e => e.target.style.background = '#fafafa'}
                 onMouseOut={e => e.target.style.background = 'transparent'}
@@ -151,7 +144,7 @@ const Landing = ({ onLogin }) => {
               </ul>
               
               <button 
-                onClick={onLogin}
+                onClick={() => alert('Функція доступна після входу в систему')}
                 style={{ width: '100%', background: 'white', color: '#7a1a2e', padding: '16px', borderRadius: '16px', fontWeight: 600, border: 'none', cursor: 'pointer' }}
               >
                 Обрати Growth
@@ -170,7 +163,7 @@ const Landing = ({ onLogin }) => {
               </ul>
               
               <button 
-                onClick={() => window.location.href = 'mailto:sales@ida.com'}
+                onClick={() => alert('Функція доступна після входу в систему')}
                 style={{ width: '100%', padding: '16px', border: '1px solid #d4d4d8', borderRadius: '16px', fontWeight: 600, background: 'transparent', cursor: 'pointer', transition: 'background 0.2s' }}
                 onMouseOver={e => e.target.style.background = '#fafafa'}
                 onMouseOut={e => e.target.style.background = 'transparent'}
@@ -188,7 +181,7 @@ const Landing = ({ onLogin }) => {
           <h2 style={{ fontSize: 'clamp(2rem, 4vw, 2.5rem)', fontWeight: 700, marginBottom: '24px' }}>Готові оптимізувати свій рекрутинг?</h2>
           <p style={{ fontSize: '20px', marginBottom: '40px', color: '#fecaca' }}>14 днів повноцінного доступу безкоштовно</p>
           <button 
-            onClick={onLogin}
+            onClick={() => alert('Функція доступна після входу в систему')}
             style={{ display: 'inline-block', background: 'white', color: '#7a1a2e', fontWeight: 600, padding: '20px 48px', borderRadius: '16px', fontSize: '18px', border: 'none', cursor: 'pointer', transition: 'background 0.2s' }}
             onMouseOver={e => e.target.style.background = '#f4f4f5'}
             onMouseOut={e => e.target.style.background = 'white'}

@@ -11,7 +11,8 @@ import Admin from './pages/Admin';
 import Users from './pages/Users';
 import Profile from './pages/Profile';
 import OrgSettings from './pages/OrgSettings';
-import Landing from './pages/Landing';          // ← Новий імпорт
+import Landing from './pages/Landing';
+import Login from './pages/Login';          // ← компонент логіну
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import AddCandidateModal from './components/AddCandidateModal';
@@ -27,6 +28,7 @@ function App() {
   const [isAuth, setIsAuth] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [viewOrgId, setViewOrgId] = useState(null);
+  const [showLogin, setShowLogin] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
@@ -53,9 +55,16 @@ function App() {
     }
   }, []);
 
-  const handleLogin = () => {
+  // Функція, яка викликається після успішного логіну
+  const handleLoginSuccess = () => {
     setIsAuth(true);
+    setShowLogin(false);
     fetchRole();
+  };
+
+  // Функція, яка показує форму логіну
+  const handleShowLogin = () => {
+    setShowLogin(true);
   };
 
   const handleLogout = () => {
@@ -64,6 +73,7 @@ function App() {
     delete axios.defaults.headers.common['Authorization'];
     setIsAuth(false);
     setUserRole(null);
+    setShowLogin(false);
   };
 
   const handleAdded = () => setRefreshKey(k => k + 1);
@@ -87,9 +97,14 @@ function App() {
     }
   };
 
+  // ── Показуємо форму логіну якщо натиснули "Увійти" ─────────────────────
+  if (showLogin) {
+    return <Login onLogin={handleLoginSuccess} />;
+  }
+
   // ── Неавторизований користувач → показуємо лендінг ─────────────────────
   if (!isAuth) {
-    return <Landing onLogin={handleLogin} />;
+    return <Landing onLogin={handleShowLogin} />;
   }
 
   // ── Superadmin ──────────────────────────────────────────────────────────────
