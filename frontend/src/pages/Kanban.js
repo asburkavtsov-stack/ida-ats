@@ -1,7 +1,7 @@
-// Kanban.js — повністю адаптована версія з фільтрами
+// Kanban.js — оновлена версія з фільтрами
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axiosConfig';
-import CandidateCardModal from '../components/CandidateCardModal'; 
+import CandidateCardModal from '../components/CandidateCardModal'; // ← додаємо імпорт
 
 // ─── Палітра кольорів для стейджів ───────────────────────────────────────────
 const STAGE_COLORS = [
@@ -27,7 +27,7 @@ const getHrAvatarColor = (userId) => {
 
 // ─── Редактор одного стейджу ──────────────────────────────────────────────────
 function StageEditor({ stage, onSave, onDelete, onClose }) {
-  const [name, setName] = useState(stage?.name || '');
+  const [name,  setName]  = useState(stage?.name  || '');
   const [color, setColor] = useState(stage?.color || '#7a1a2e');
   const [isTerminal, setIsTerminal] = useState(stage?.is_terminal || false);
   const isNew = !stage?.id;
@@ -37,7 +37,7 @@ function StageEditor({ stage, onSave, onDelete, onClose }) {
       position:'absolute', top:'100%', left:0, zIndex:200,
       background:'var(--surface)', border:'1px solid var(--border)',
       borderRadius:'12px', padding:'16px', width:'240px',
-      boxShadow:'0 8px 24px rgba(0,0,0,0.2)', marginTop:'4px',
+      boxShadow:'var(--shadow-lg)', marginTop:'4px',
     }}>
       <div style={{fontWeight:700, fontSize:'0.85rem', marginBottom:'12px'}}>
         {isNew ? 'Новий етап' : 'Редагувати етап'}
@@ -56,6 +56,7 @@ function StageEditor({ stage, onSave, onDelete, onClose }) {
         autoFocus
       />
 
+      {/* Палітра */}
       <div style={{display:'flex', flexWrap:'wrap', gap:'6px', marginBottom:'10px'}}>
         {STAGE_COLORS.map(c => (
           <button key={c} onClick={() => setColor(c)} style={{
@@ -120,7 +121,7 @@ function CandidateCard({ candidate, onOpen, isDragging }) {
         opacity: isDragging ? 0.5 : 1,
         userSelect: 'none',
       }}
-      onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
+      onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-lg)'}
       onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
     >
       <div style={{fontWeight:600, fontSize:'0.85rem', marginBottom:'4px'}}>
@@ -159,131 +160,7 @@ function CandidateCard({ candidate, onOpen, isDragging }) {
   );
 }
 
-// ─── Колонка канбану ──────────────────────────────────────────────────────────
-function KanbanColumn({
-  stage, candidates, onDropCandidate, onOpenCandidate,
-  onEditStage, onAddStage, isFirst, isLast,
-  onMoveLeft, onMoveRight, isMobile, isTerminal,
-}) {
-  const [dragOver, setDragOver] = useState(false);
-  const [showEditor, setShowEditor] = useState(false);
-
-  const count = candidates.length;
-  const canDrop = !isTerminal;  // terminal stages не можна дропати
-
-  return (
-    <div style={{
-      minWidth: isMobile ? '85vw' : '260px',
-      maxWidth: isMobile ? '85vw' : '300px',
-      flex: '0 0 auto',
-      display:'flex', flexDirection:'column',
-      background: dragOver && canDrop ? hex2rgba(stage.color, 0.07) : 'transparent',
-      border: dragOver && canDrop ? `2px dashed ${stage.color}` : '2px solid transparent',
-      borderRadius:'12px', transition:'background 0.15s, border 0.15s',
-      padding:'4px',
-      position:'relative',
-      opacity: isTerminal ? 0.9 : 1,
-    }}
-      onDragOver={e => { 
-        e.preventDefault(); 
-        if (canDrop) setDragOver(true);
-      }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={e => {
-        e.preventDefault(); 
-        setDragOver(false);
-        if (!canDrop) return;
-        const id = parseInt(e.dataTransfer.getData('candidateId'));
-        if (id) onDropCandidate(id, stage.id);
-      }}
-    >
-      {/* Заголовок */}
-      <div style={{
-        display:'flex', alignItems:'center', justifyContent:'space-between',
-        padding:'8px 10px', marginBottom:'8px',
-        borderRadius:'8px',
-        background: hex2rgba(stage.color, 0.1),
-      }}>
-        <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
-          <span style={{
-            width:'10px', height:'10px', borderRadius:'50%',
-            background: stage.color, flexShrink:0,
-          }}/>
-          <span style={{fontWeight:700, fontSize:'0.82rem'}}>{stage.name}</span>
-          <span style={{
-            fontSize:'0.68rem', fontFamily:'DM Mono',
-            background: hex2rgba(stage.color, 0.2),
-            color: stage.color, padding:'1px 7px', borderRadius:'10px',
-          }}>{count}</span>
-          {isTerminal && (
-            <span style={{
-              fontSize:'0.6rem', fontFamily:'DM Mono',
-              background:'#fee2e2', color:'#dc2626',
-              padding:'1px 5px', borderRadius:'4px',
-            }}>Фінал</span>
-          )}
-        </div>
-
-        <div style={{display:'flex', gap:'2px', position:'relative'}}>
-          {!isFirst && (
-            <button onClick={onMoveLeft} title="Перемістити ліворуч" style={{
-              background:'none', border:'none', cursor:'pointer',
-              color:'var(--muted)', fontSize:'0.75rem', padding:'2px 4px',
-            }}>←</button>
-          )}
-          {!isLast && (
-            <button onClick={onMoveRight} title="Перемістити праворуч" style={{
-              background:'none', border:'none', cursor:'pointer',
-              color:'var(--muted)', fontSize:'0.75rem', padding:'2px 4px',
-            }}>→</button>
-          )}
-          <button
-            onClick={() => setShowEditor(v => !v)}
-            title="Редагувати етап"
-            style={{
-              background:'none', border:'none', cursor:'pointer',
-              color:'var(--muted)', fontSize:'0.9rem', padding:'2px 5px',
-              borderRadius:'5px',
-            }}
-          >⋯</button>
-
-          {showEditor && (
-            <StageEditor
-              stage={stage}
-              onSave={s => { onEditStage(s); setShowEditor(false); }}
-              onDelete={id => { onEditStage({...stage, _delete:true}); setShowEditor(false); }}
-              onClose={() => setShowEditor(false)}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Картки */}
-      <div style={{
-        flex:1, overflowY:'auto', display:'flex', flexDirection:'column',
-        gap:'8px', padding:'0 2px', minHeight:'80px', maxHeight:'calc(100vh - 200px)',
-      }}>
-        {candidates.map(c => (
-          <CandidateCard
-            key={c.id}
-            candidate={c}
-            onOpen={onOpenCandidate}
-          />
-        ))}
-        {count === 0 && (
-          <div style={{
-            textAlign:'center', padding:'24px 0',
-            color:'var(--muted)', fontSize:'0.75rem', fontFamily:'DM Mono',
-          }}>
-            Немає кандидатів
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Фільтри канбану ──────────────────────────────────────────────────────────
+// ─── КОМПОНЕНТ ФІЛЬТРІВ (НОВИЙ) ───────────────────────────────────────────────
 function KanbanFilters({ filters, onFilterChange, vacancies, hrUsers, isMobile }) {
   const { vacancyId, assignedTo, searchQuery } = filters;
 
@@ -297,7 +174,7 @@ function KanbanFilters({ filters, onFilterChange, vacancies, hrUsers, isMobile }
       background: 'var(--surface)',
       border: '1px solid var(--border)',
       borderRadius: '12px',
-      alignItems: 'center',
+      alignItems: 'flex-end',
     }}>
       {/* Фільтр по вакансії */}
       <div style={{ minWidth: isMobile ? '100%' : '180px' }}>
@@ -388,7 +265,6 @@ function KanbanFilters({ filters, onFilterChange, vacancies, hrUsers, isMobile }
             cursor: 'pointer',
             fontSize: '0.72rem',
             fontFamily: 'DM Mono',
-            marginTop: isMobile ? 0 : '18px',
           }}
         >
           ✕ Скинути фільтри
@@ -398,22 +274,145 @@ function KanbanFilters({ filters, onFilterChange, vacancies, hrUsers, isMobile }
   );
 }
 
+// ─── КОЛОНКА КАНБАНУ (оновлена з isTerminal) ──────────────────────────────────
+function KanbanColumn({
+  stage, candidates, onDropCandidate, onOpenCandidate,
+  onEditStage, onAddStage, isFirst, isLast,
+  onMoveLeft, onMoveRight, isMobile,
+}) {
+  const [dragOver, setDragOver] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
+  const count = candidates.length;
+  const canDrop = !stage.is_terminal;  // terminal stages не можна дропати
+
+  return (
+    <div style={{
+      minWidth: isMobile ? '85vw' : '240px',
+      maxWidth: isMobile ? '85vw' : '280px',
+      flex: '0 0 auto',
+      display:'flex', flexDirection:'column',
+      background: dragOver && canDrop ? hex2rgba(stage.color, 0.07) : 'transparent',
+      border: dragOver && canDrop ? `2px dashed ${stage.color}` : '2px solid transparent',
+      borderRadius:'12px', transition:'background 0.15s, border 0.15s',
+      padding:'4px',
+      position:'relative',
+      opacity: stage.is_terminal ? 0.9 : 1,
+    }}
+      onDragOver={e => { 
+        e.preventDefault(); 
+        if (canDrop) setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={e => {
+        e.preventDefault(); 
+        setDragOver(false);
+        if (!canDrop) return;
+        const id = parseInt(e.dataTransfer.getData('candidateId'));
+        if (id) onDropCandidate(id, stage.id);
+      }}
+    >
+      {/* Заголовок */}
+      <div style={{
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+        padding:'8px 10px', marginBottom:'8px',
+        borderRadius:'8px',
+        background: hex2rgba(stage.color, 0.1),
+      }}>
+        <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+          <span style={{
+            width:'10px', height:'10px', borderRadius:'50%',
+            background: stage.color, flexShrink:0,
+          }}/>
+          <span style={{fontWeight:700, fontSize:'0.82rem'}}>{stage.name}</span>
+          <span style={{
+            fontSize:'0.68rem', fontFamily:'DM Mono',
+            background: hex2rgba(stage.color, 0.2),
+            color: stage.color, padding:'1px 7px', borderRadius:'10px',
+          }}>{count}</span>
+          {stage.is_terminal && (
+            <span style={{
+              fontSize:'0.6rem', fontFamily:'DM Mono',
+              background:'#fee2e2', color:'#dc2626',
+              padding:'1px 5px', borderRadius:'4px',
+            }}>Фінал</span>
+          )}
+        </div>
+
+        <div style={{display:'flex', gap:'2px', position:'relative'}}>
+          {!isFirst && (
+            <button onClick={onMoveLeft} title="Перемістити ліворуч" style={{
+              background:'none', border:'none', cursor:'pointer',
+              color:'var(--muted)', fontSize:'0.75rem', padding:'2px 4px',
+            }}>←</button>
+          )}
+          {!isLast && (
+            <button onClick={onMoveRight} title="Перемістити праворуч" style={{
+              background:'none', border:'none', cursor:'pointer',
+              color:'var(--muted)', fontSize:'0.75rem', padding:'2px 4px',
+            }}>→</button>
+          )}
+          <button
+            onClick={() => setShowEditor(v => !v)}
+            title="Редагувати етап"
+            style={{
+              background:'none', border:'none', cursor:'pointer',
+              color:'var(--muted)', fontSize:'0.9rem', padding:'2px 5px',
+              borderRadius:'5px',
+            }}
+          >⋯</button>
+
+          {showEditor && (
+            <StageEditor
+              stage={stage}
+              onSave={s => { onEditStage(s); setShowEditor(false); }}
+              onDelete={id => { onEditStage({...stage, _delete:true}); setShowEditor(false); }}
+              onClose={() => setShowEditor(false)}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Картки */}
+      <div style={{
+        flex:1, overflowY:'auto', display:'flex', flexDirection:'column',
+        gap:'8px', padding:'0 2px', minHeight:'80px', maxHeight:'calc(100vh - 280px)',
+      }}>
+        {candidates.map(c => (
+          <CandidateCard
+            key={c.id}
+            candidate={c}
+            onOpen={onOpenCandidate}
+          />
+        ))}
+        {count === 0 && (
+          <div style={{
+            textAlign:'center', padding:'24px 0',
+            color:'var(--muted)', fontSize:'0.75rem', fontFamily:'DM Mono',
+          }}>
+            Немає кандидатів
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── ГОЛОВНИЙ КОМПОНЕНТ ───────────────────────────────────────────────────────
-function Kanban({ vacancyId: initialVacancyId, onCandidateMoved }) {
-  const [stages, setStages] = useState([]);
-  const [candidates, setCandidates] = useState([]);
-  const [vacancies, setVacancies] = useState([]);
-  const [hrUsers, setHrUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+function Kanban({ vacancyId, candidates: propCandidates, onCandidateMoved }) {
+  const [stages,      setStages]     = useState([]);
+  const [candidates,  setCandidates] = useState(propCandidates || []);
+  const [vacancies,   setVacancies]  = useState([]);
+  const [hrUsers,     setHrUsers]    = useState([]);
+  const [loading,     setLoading]    = useState(true);
+  const [saving,      setSaving]     = useState(false);
   const [showAddStage, setShowAddStage] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile,    setIsMobile]   = useState(false);
   const [isOrgTemplate, setIsOrgTemplate] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   
-  // Фільтри
+  // Фільтри (НОВІ)
   const [filters, setFilters] = useState({
-    vacancyId: initialVacancyId || null,
+    vacancyId: vacancyId || null,
     assignedTo: null,
     searchQuery: '',
   });
@@ -425,31 +424,44 @@ function Kanban({ vacancyId: initialVacancyId, onCandidateMoved }) {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // Завантаження даних
-  const loadData = useCallback(async () => {
+  useEffect(() => {
+    if (propCandidates) setCandidates(propCandidates);
+  }, [propCandidates]);
+
+  // ── Завантаження стейджів ──────────────────────────────────────────────────
+  const loadStages = useCallback(async () => {
     setLoading(true);
     try {
-      const [stagesRes, vacanciesRes, usersRes] = await Promise.all([
-        axios.get('/api/vacancy-stages/', { params: filters.vacancyId ? { vacancy: filters.vacancyId } : { org_template: true } }),
-        axios.get('/api/vacancies/'),
-        axios.get('/api/users/'),
-      ]);
-
-      const stagesData = stagesRes.data.results ?? stagesRes.data;
-      setStages(stagesData);
-      setIsOrgTemplate(stagesData.every(s => !s.vacancy));
-
-      setVacancies(vacanciesRes.data.results ?? vacanciesRes.data);
-      setHrUsers(usersRes.data.results ?? usersRes.data);
+      const params = filters.vacancyId ? { vacancy: filters.vacancyId } : { org_template: true };
+      const res = await axios.get('/api/vacancy-stages/', { params });
+      const data = res.data.results ?? res.data;
+      setStages(data);
+      setIsOrgTemplate(data.every(s => !s.vacancy));
     } catch (err) {
-      console.error('Помилка завантаження:', err);
+      console.error('Помилка завантаження стейджів:', err);
     } finally {
       setLoading(false);
     }
   }, [filters.vacancyId]);
 
-  // Завантаження кандидатів з фільтрами
-  const loadCandidates = useCallback(async () => {
+  // ── Завантаження вакансій та HR (для фільтрів) ─────────────────────────────
+  const loadMetadata = useCallback(async () => {
+    try {
+      const [vacRes, usersRes] = await Promise.all([
+        axios.get('/api/vacancies/'),
+        axios.get('/api/users/'),
+      ]);
+      setVacancies(vacRes.data.results ?? vacRes.data);
+      setHrUsers(usersRes.data.results ?? usersRes.data);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  // ── Завантаження кандидатів з фільтрами (якщо не використовуємо propCandidates)
+  const loadFilteredCandidates = useCallback(async () => {
+    if (propCandidates) return; // якщо передані ззовні — не завантажуємо самі
+    
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -465,24 +477,25 @@ function Kanban({ vacancyId: initialVacancyId, onCandidateMoved }) {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, propCandidates]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadStages();
+    loadMetadata();
+  }, [loadStages, loadMetadata]);
 
   useEffect(() => {
-    loadCandidates();
-  }, [loadCandidates]);
+    loadFilteredCandidates();
+  }, [loadFilteredCandidates]);
 
-  // Drop кандидата в колонку
+  // ── Drop кандидата в колонку ───────────────────────────────────────────────
   const handleDrop = async (candidateId, stageId) => {
     const candidate = candidates.find(c => c.id === candidateId);
     if (!candidate || candidate.stage === stageId) return;
 
     // Перевірка: чи не terminal stage
     const targetStage = stages.find(s => s.id === stageId);
-    if (targetStage?.is_terminal && candidate.stage === stageId) return;
+    if (targetStage?.is_terminal) return;
 
     // Оптимістичний update
     setCandidates(prev => prev.map(c =>
@@ -494,11 +507,11 @@ function Kanban({ vacancyId: initialVacancyId, onCandidateMoved }) {
       onCandidateMoved?.();
     } catch (err) {
       console.error(err);
-      loadCandidates(); // reload on error
+      loadFilteredCandidates();
     }
   };
 
-  // Редагувати/видалити стейдж
+  // ── Редагувати/видалити стейдж ─────────────────────────────────────────────
   const handleEditStage = async (stageData) => {
     setSaving(true);
     try {
@@ -529,7 +542,7 @@ function Kanban({ vacancyId: initialVacancyId, onCandidateMoved }) {
     }
   };
 
-  // Зміна порядку колонок
+  // ── Зміна порядку колонок ──────────────────────────────────────────────────
   const handleReorder = async (fromIdx, toIdx) => {
     const reordered = [...stages];
     const [moved] = reordered.splice(fromIdx, 1);
@@ -542,11 +555,11 @@ function Kanban({ vacancyId: initialVacancyId, onCandidateMoved }) {
       });
     } catch (err) {
       console.error('Помилка reorder:', err);
-      loadData();
+      loadStages();
     }
   };
 
-  // Скопіювати шаблон орг для вакансії
+  // ── Скопіювати шаблон орг для вакансії ────────────────────────────────────
   const handleCopyOrgTemplate = async () => {
     if (!filters.vacancyId) return;
     try {
@@ -558,7 +571,7 @@ function Kanban({ vacancyId: initialVacancyId, onCandidateMoved }) {
     }
   };
 
-  // Скинути до шаблону орг
+  // ── Скинути до шаблону орг ─────────────────────────────────────────────────
   const handleResetToOrg = async () => {
     if (!filters.vacancyId) return;
     if (!window.confirm('Скинути до шаблону організації? Кастомні стейджі цієї вакансії буде видалено.')) return;
@@ -571,18 +584,32 @@ function Kanban({ vacancyId: initialVacancyId, onCandidateMoved }) {
     }
   };
 
-  // Функція зміни фільтрів
+  // ── Зміна фільтрів ─────────────────────────────────────────────────────────
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
-  // Отримати кандидатів для стейджу
+  // ── Кандидати по стейджах ──────────────────────────────────────────────────
   const getCandidatesForStage = (stageId) =>
     candidates.filter(c => (c.stage === stageId || c.stage_id === stageId));
 
-  // Відкрити картку кандидата
+  // ── Відкриття картки кандидата ─────────────────────────────────────────────
   const handleOpenCandidate = (candidate) => {
     setSelectedCandidate(candidate);
+  };
+
+  // ── Оновлення після зміни статусу в модалі ─────────────────────────────────
+  const handleStatusChange = (id, newStageId) => {
+    setCandidates(prev => prev.map(c =>
+      c.id === id ? { ...c, stage: newStageId, stage_id: newStageId } : c
+    ));
+    onCandidateMoved?.();
+  };
+
+  // ── Видалення кандидата ────────────────────────────────────────────────────
+  const handleDeleteCandidate = (id) => {
+    setCandidates(prev => prev.filter(c => c.id !== id));
+    onCandidateMoved?.();
   };
 
   if (loading && stages.length === 0) return (
@@ -594,7 +621,7 @@ function Kanban({ vacancyId: initialVacancyId, onCandidateMoved }) {
   return (
     <div style={{display:'flex', flexDirection:'column', gap:'12px', height:'100%'}}>
 
-      {/* ── Фільтри ── */}
+      {/* ── Фільтри (НОВІ) ── */}
       <KanbanFilters
         filters={filters}
         onFilterChange={handleFilterChange}
@@ -671,7 +698,7 @@ function Kanban({ vacancyId: initialVacancyId, onCandidateMoved }) {
         </div>
       </div>
 
-      {/* ── Колонки (горизонтальний скрол) ── */}
+      {/* ── Колонки ── */}
       <div style={{
         display:'flex', gap:'12px', overflowX:'auto',
         flex:1, paddingBottom:'8px',
@@ -691,7 +718,6 @@ function Kanban({ vacancyId: initialVacancyId, onCandidateMoved }) {
               onMoveLeft={() => handleReorder(idx, idx - 1)}
               onMoveRight={() => handleReorder(idx, idx + 1)}
               isMobile={isMobile}
-              isTerminal={stage.is_terminal}
             />
           </div>
         ))}
@@ -709,23 +735,13 @@ function Kanban({ vacancyId: initialVacancyId, onCandidateMoved }) {
         )}
       </div>
 
-      {/* Модаль картки кандидата */}
+      {/* ── Модаль картки кандидата ── */}
       {selectedCandidate && (
         <CandidateCardModal
           candidateId={selectedCandidate.id}
           onClose={() => setSelectedCandidate(null)}
-          onStatusChange={(id, status) => {
-            // Оновлюємо кандидата в списку
-            setCandidates(prev => prev.map(c =>
-              c.id === id ? { ...c, status, stage: status } : c
-            ));
-            onCandidateMoved?.();
-          }}
-          onDelete={(id) => {
-            setCandidates(prev => prev.filter(c => c.id !== id));
-            setSelectedCandidate(null);
-            onCandidateMoved?.();
-          }}
+          onStatusChange={handleStatusChange}
+          onDelete={handleDeleteCandidate}
         />
       )}
     </div>
