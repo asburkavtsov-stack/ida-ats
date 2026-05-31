@@ -16,6 +16,7 @@ from .views import (
     export_full_report_excel,
     export_full_report_pdf,
     InterviewViewSet,
+    BlacklistViewSet,
 )
 from .job_board_views import (
     vacancy_feed_rabota_ua,
@@ -35,6 +36,7 @@ router.register(r'email-templates',   EmailTemplateViewSet,   basename='email-te
 router.register(r'sent-emails',       SentEmailViewSet,       basename='sent-emails')
 router.register(r'tags',              TagViewSet,             basename='tag')
 router.register(r'interviews',        InterviewViewSet,       basename='interview')
+router.register(r'blacklist', BlacklistViewSet, basename='blacklist')
 
 urlpatterns = [
     path('candidates/export/',          CandidateExportCSVView.as_view(),                         name='candidates-export'),
