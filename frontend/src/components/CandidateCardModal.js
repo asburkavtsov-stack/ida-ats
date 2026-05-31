@@ -182,7 +182,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
     setSaving(true);
     setError('');
     try {
-      const res = await axios.post(`/api/candidates/${candidateId}/update_status/`, { stage_id: stageId });
+      const res = await axios.patch(`/api/candidates/${candidateId}/update_status/`, { stage_id: stageId });
       const updated = res.data;
       setCandidate(updated);
       if (onStatusChange) onStatusChange(candidateId, stageId);
