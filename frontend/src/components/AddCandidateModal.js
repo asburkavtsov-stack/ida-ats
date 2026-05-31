@@ -71,7 +71,7 @@ function AddCandidateModal({ onClose, onAdded }) {
 
     setIsCheckingDuplicate(true);
     try {
-      const response = await api.post('/api/candidates/check_duplicate/', { email, phone });
+      const response = await api.post('/api/candidates/check-duplicate/', { email, phone });
       if (response.data.has_duplicate) return response.data;
       return null;
     } catch (err) {
