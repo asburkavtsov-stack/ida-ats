@@ -4,6 +4,7 @@ from datetime import datetime
 from django.db import models
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse, JsonResponse
+from django.utils import timezone
 
 from rest_framework import serializers, status, viewsets, permissions
 from rest_framework.decorators import action, api_view, permission_classes
@@ -14,12 +15,15 @@ from rest_framework.views import APIView
 from .models import (
     Candidate, EmailTemplate, Organization,
     SentEmail, Tag, User, UserProfile, Vacancy, VacancyTemplate, Interview,
-    BlacklistedOrganization, VacancyStage, StatusHistory
+    BlacklistedOrganization, VacancyStage, StatusHistory,
+    HolidayTheme, PricingConfig, PromoCode, PromoCodeUsage
 )
 from .serializers import (
     CandidateSerializer, EmailTemplateSerializer, OrganizationSerializer,
     SentEmailSerializer, TagSerializer, VacancySerializer, VacancyTemplateSerializer,
-    DuplicateCandidateSerializer, InterviewSerializer, VacancyStageSerializer
+    DuplicateCandidateSerializer, InterviewSerializer, VacancyStageSerializer,
+    HolidayThemeSerializer, HolidayThemeActivateSerializer, PricingConfigSerializer,
+    PromoCodeSerializer, PromoCodeVerifySerializer, PromoCodeApplySerializer
 )
 from .pagination import StandardPagination
 from .permissions import IsSuperAdmin, IsOrgMember
@@ -40,6 +44,7 @@ ALLAUTH_AVAILABLE = False
 SocialAccount = None
 
 logger = logging.getLogger(__name__)
+
 
 # ─── TAGS ─────────────────────────────────────────────────────────────────────
 
@@ -68,14 +73,6 @@ class TagViewSet(viewsets.ModelViewSet):
 class VacancyStageViewSet(viewsets.ModelViewSet):
     """
     CRUD для кастомних колонок канбану.
-
-    GET    /api/vacancy-stages/?vacancy=<id>      — стейджі вакансії (або шаблон орг)
-    GET    /api/vacancy-stages/?org_template=true — шаблон організації
-    POST   /api/vacancy-stages/                   — створити стейдж
-    PATCH  /api/vacancy-stages/<id>/              — редагувати
-    DELETE /api/vacancy-stages/<id>/              — видалити
-    POST   /api/vacancy-stages/reorder/           — змінити порядок
-    POST   /api/vacancy-stages/reset_to_org/      — скинути вакансію до шаблону орг
     """
     serializer_class = VacancyStageSerializer
     permission_classes = [IsAuthenticated, IsOrgMember]
@@ -108,10 +105,6 @@ class VacancyStageViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='reorder')
     def reorder(self, request):
-        """
-        POST /api/vacancy-stages/reorder/
-        Body: { "ordered_ids": [3, 1, 5, 2, 4] }
-        """
         ordered_ids = request.data.get('ordered_ids', [])
         if not ordered_ids:
             return Response({'error': 'ordered_ids required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -129,11 +122,6 @@ class VacancyStageViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='reset_to_org')
     def reset_to_org(self, request):
-        """
-        POST /api/vacancy-stages/reset_to_org/
-        Body: { "vacancy_id": 5 }
-        Видаляє override вакансії і повертає до шаблону організації.
-        """
         vacancy_id = request.data.get('vacancy_id')
         if not vacancy_id:
             return Response({'error': 'vacancy_id required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -174,11 +162,6 @@ class VacancyViewSet(VacancyJobBoardMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='save_as_template')
     def save_as_template(self, request, pk=None):
-        """
-        POST /api/vacancies/{id}/save_as_template/
-        Body: { "name": "Назва шаблону", "category": "it" }
-        Зберігає існуючу вакансію як шаблон.
-        """
         vacancy = self.get_object()
         name = request.data.get('name', '').strip()
         category = request.data.get('category', 'other')
@@ -206,17 +189,12 @@ class VacancyViewSet(VacancyJobBoardMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path='stages')
     def stages(self, request, pk=None):
-        """GET /api/vacancies/<id>/stages/ — стейджі для конкретної вакансії."""
         vacancy = self.get_object()
         stages = VacancyStage.get_for_vacancy(vacancy)
         return Response(VacancyStageSerializer(stages, many=True).data)
 
     @action(detail=True, methods=['post'], url_path='copy_org_stages')
     def copy_org_stages(self, request, pk=None):
-        """
-        POST /api/vacancies/<id>/copy_org_stages/
-        Копіює шаблон організації як override для цієї вакансії.
-        """
         vacancy = self.get_object()
         VacancyStage.copy_org_template_to_vacancy(vacancy)
         stages = VacancyStage.objects.filter(vacancy=vacancy).order_by('order', 'id')
@@ -226,14 +204,6 @@ class VacancyViewSet(VacancyJobBoardMixin, viewsets.ModelViewSet):
 # ─── VACANCY TEMPLATES ────────────────────────────────────────────────────────
 
 class VacancyTemplateViewSet(viewsets.ModelViewSet):
-    """
-    CRUD для шаблонів вакансій.
-    GET    /api/vacancy-templates/              — список (фільтр ?category=it)
-    POST   /api/vacancy-templates/              — створити шаблон вручну
-    GET    /api/vacancy-templates/{id}/         — деталі
-    PATCH  /api/vacancy-templates/{id}/         — оновити
-    DELETE /api/vacancy-templates/{id}/         — видалити
-    """
     serializer_class = VacancyTemplateSerializer
     permission_classes = [IsAuthenticated, IsOrgMember]
 
@@ -356,14 +326,13 @@ class CandidateViewSet(viewsets.ModelViewSet):
     def update_status(self, request, pk=None):
         candidate = self.get_object()
         stage_id = request.data.get('stage_id')
-        system_key = request.data.get('status')  # підтримка старого поля status
+        system_key = request.data.get('status')
 
         if stage_id:
             new_stage = VacancyStage.objects.filter(pk=stage_id).first()
             if not new_stage:
                 return Response({'error': 'Stage not found'}, status=status.HTTP_404_NOT_FOUND)
         elif system_key:
-            # Знайти стейдж по system_key для вакансії кандидата
             if candidate.vacancy:
                 stages = VacancyStage.get_for_vacancy(candidate.vacancy)
                 new_stage = stages.filter(system_key=system_key).first()
@@ -379,7 +348,6 @@ class CandidateViewSet(viewsets.ModelViewSet):
 
         old_stage = candidate.stage
 
-        # Створити запис історії змін статусу
         StatusHistory.objects.create(
             candidate=candidate,
             old_stage=old_stage,
@@ -531,10 +499,10 @@ class InterviewViewSet(viewsets.ModelViewSet):
             'candidate', 'vacancy', 'organization', 'created_by'
         ).prefetch_related('interviewers')
         candidate_id = self.request.query_params.get('candidate')
-        vacancy_id   = self.request.query_params.get('vacancy')
-        status_f     = self.request.query_params.get('status')
-        date_from    = self.request.query_params.get('date_from')
-        date_to      = self.request.query_params.get('date_to')
+        vacancy_id = self.request.query_params.get('vacancy')
+        status_f = self.request.query_params.get('status')
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
         if candidate_id:
             qs = qs.filter(candidate_id=candidate_id)
         if vacancy_id:
@@ -688,8 +656,8 @@ class UserListView(viewsets.ViewSet):
         except User.DoesNotExist:
             return Response({'error': 'Юзер не знайдений'}, status=status.HTTP_404_NOT_FOUND)
         user.first_name = request.data.get('first_name', user.first_name)
-        user.last_name  = request.data.get('last_name', user.last_name)
-        user.email      = request.data.get('email', user.email)
+        user.last_name = request.data.get('last_name', user.last_name)
+        user.email = request.data.get('email', user.email)
         if request.data.get('password'):
             user.set_password(request.data['password'])
         user.save()
@@ -1185,10 +1153,10 @@ def export_full_report_excel(request):
         org = get_user_organization(request.user)
         candidates_qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
 
-    vacancy_filter    = request.query_params.get('vacancy')
+    vacancy_filter = request.query_params.get('vacancy')
     assigned_to_filter = request.query_params.get('assigned_to')
-    date_from         = request.query_params.get('date_from')
-    date_to           = request.query_params.get('date_to')
+    date_from = request.query_params.get('date_from')
+    date_to = request.query_params.get('date_to')
 
     if vacancy_filter:
         candidates_qs = candidates_qs.filter(vacancy_id=vacancy_filter)
@@ -1206,7 +1174,7 @@ def export_full_report_excel(request):
         org = get_user_organization(request.user)
         vacancies_qs = Vacancy.objects.filter(organization=org) if org else Vacancy.objects.none()
 
-    time_data    = AnalyticsService.calculate_time_to_hire_data(candidates_qs, date_from, date_to)
+    time_data = AnalyticsService.calculate_time_to_hire_data(candidates_qs, date_from, date_to)
     tth_statistics = AnalyticsService.calculate_statistics(time_data)
 
     period = request.query_params.get('period', 'month')
@@ -1230,9 +1198,9 @@ def export_full_report_excel(request):
             'offers_to_date': len(cumulative_times),
         })
 
-    hr_data          = AnalyticsService.calculate_hr_effectiveness(candidates_qs)
+    hr_data = AnalyticsService.calculate_hr_effectiveness(candidates_qs)
     total_candidates = candidates_qs.count()
-    total_offers     = candidates_qs.filter(status='offer').count()
+    total_offers = candidates_qs.filter(status='offer').count()
     overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
 
     hr_effectiveness = {
@@ -1276,10 +1244,10 @@ def export_full_report_pdf(request):
         org = get_user_organization(request.user)
         candidates_qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
 
-    vacancy_filter    = request.query_params.get('vacancy')
+    vacancy_filter = request.query_params.get('vacancy')
     assigned_to_filter = request.query_params.get('assigned_to')
-    date_from         = request.query_params.get('date_from')
-    date_to           = request.query_params.get('date_to')
+    date_from = request.query_params.get('date_from')
+    date_to = request.query_params.get('date_to')
 
     if vacancy_filter:
         candidates_qs = candidates_qs.filter(vacancy_id=vacancy_filter)
@@ -1290,13 +1258,13 @@ def export_full_report_pdf(request):
     if date_to:
         candidates_qs = candidates_qs.filter(created_at__date__lte=date_to)
 
-    time_data      = AnalyticsService.calculate_time_to_hire_data(candidates_qs, date_from, date_to)
+    time_data = AnalyticsService.calculate_time_to_hire_data(candidates_qs, date_from, date_to)
     tth_statistics = AnalyticsService.calculate_statistics(time_data)
-    hr_data        = AnalyticsService.calculate_hr_effectiveness(candidates_qs)
+    hr_data = AnalyticsService.calculate_hr_effectiveness(candidates_qs)
     total_candidates = candidates_qs.count()
-    total_offers   = candidates_qs.filter(status='offer').count()
+    total_offers = candidates_qs.filter(status='offer').count()
     overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
-    funnel         = AnalyticsService.calculate_funnel_data(candidates_qs, total_candidates, KANBAN_COLUMNS)
+    funnel = AnalyticsService.calculate_funnel_data(candidates_qs, total_candidates, KANBAN_COLUMNS)
 
     analytics_data = {
         'time_to_hire': tth_statistics,
@@ -1316,3 +1284,177 @@ def export_full_report_pdf(request):
     except Exception as e:
         logger.error(f"Full report PDF export failed: {e}")
         return JsonResponse({'error': 'PDF export failed, try Excel'}, status=500)
+
+
+# ==============================================================================
+# HOLIDAY THEMES (LED-теми)
+# ==============================================================================
+
+class HolidayThemeViewSet(viewsets.ModelViewSet):
+    """CRUD для тематичних оформлень (тільки супер-адмін)"""
+    serializer_class = HolidayThemeSerializer
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+    queryset = HolidayTheme.objects.all()
+
+    @action(detail=False, methods=['get'], url_path='active', permission_classes=[])
+    def get_active(self, request):
+        """Отримати активну тему (публічний ендпоінт)"""
+        theme = HolidayTheme.get_active_theme()
+        return Response(HolidayThemeSerializer(theme).data)
+
+    @action(detail=False, methods=['post'], url_path='activate')
+    def activate_theme(self, request):
+        """Активувати тему за ID"""
+        serializer = HolidayThemeActivateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        theme_id = serializer.validated_data['theme_id']
+        theme = get_object_or_404(HolidayTheme, id=theme_id)
+
+        theme.is_active = True
+        theme.save()
+
+        return Response(HolidayThemeSerializer(theme).data)
+
+    @action(detail=False, methods=['post'], url_path='schedule')
+    def schedule_themes(self, request):
+        """Автоматичне планування тем за датами"""
+        now = timezone.now()
+
+        expired = HolidayTheme.objects.filter(end_date__lt=now, is_active=True)
+        for theme in expired:
+            theme.is_active = False
+            theme.save()
+
+        to_activate = HolidayTheme.objects.filter(
+            start_date__lte=now, end_date__gte=now, is_active=False
+        )
+        for theme in to_activate:
+            theme.is_active = True
+            theme.save()
+
+        return Response({
+            'activated': to_activate.count(),
+            'deactivated': expired.count(),
+            'active_theme': HolidayThemeSerializer(HolidayTheme.get_active_theme()).data
+        })
+
+
+# ==============================================================================
+# PRICING CONFIG
+# ==============================================================================
+
+class PricingConfigViewSet(viewsets.ModelViewSet):
+    """CRUD для конфігурації цін (тільки супер-адмін)"""
+    serializer_class = PricingConfigSerializer
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+    queryset = PricingConfig.objects.all()
+
+
+@api_view(['GET'])
+@permission_classes([])
+def public_pricing(request):
+    """Публічний API для отримання цін (без авторизації)"""
+    return Response(PricingConfig.get_all_prices())
+
+
+# ==============================================================================
+# PROMO CODES
+# ==============================================================================
+
+class PromoCodeViewSet(viewsets.ModelViewSet):
+    """CRUD для промо-кодів (тільки супер-адмін)"""
+    serializer_class = PromoCodeSerializer
+    permission_classes = [IsAuthenticated, IsSuperAdmin]
+    queryset = PromoCode.objects.all()
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            qs = qs.filter(is_active=is_active.lower() == 'true')
+        return qs
+
+    @action(detail=False, methods=['post'], url_path='verify', permission_classes=[])
+    def verify_code(self, request):
+        """Перевірка промо-коду (публічний)"""
+        serializer = PromoCodeVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        promo = serializer.validated_data['code']
+        is_valid, message = promo.is_valid(plan=request.data.get('plan'))
+
+        return Response({
+            'valid': is_valid,
+            'message': message,
+            'discount_type': promo.discount_type,
+            'discount_value': promo.discount_value,
+            'code': promo.code,
+        })
+
+    @action(detail=False, methods=['post'], url_path='apply')
+    def apply_code(self, request):
+        """Застосувати промо-код (потребує авторизації)"""
+        if not request.user.is_authenticated:
+            return Response({'error': 'Необхідна авторизація'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        serializer = PromoCodeApplySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        promo_code = PromoCode.objects.filter(code__iexact=serializer.validated_data['code']).first()
+        if not promo_code:
+            return Response({'error': 'Промо-код не знайдено'}, status=status.HTTP_404_NOT_FOUND)
+
+        user_usage_count = PromoCodeUsage.objects.filter(
+            promo_code=promo_code, user=request.user
+        ).count()
+
+        if user_usage_count >= promo_code.max_uses_per_user:
+            return Response({'error': 'Ви вже використали цей промо-код'}, status=status.HTTP_400_BAD_REQUEST)
+
+        is_valid, message = promo_code.is_valid(plan=serializer.validated_data['plan'])
+        if not is_valid:
+            return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
+
+        original_price = float(serializer.validated_data['price'])
+        final_price = promo_code.apply_discount(original_price)
+        discount_amount = original_price - final_price
+
+        PromoCodeUsage.objects.create(
+            promo_code=promo_code, user=request.user,
+            applied_to_plan=serializer.validated_data['plan'],
+            original_price=original_price, discount_amount=discount_amount, final_price=final_price,
+            ip_address=request.META.get('REMOTE_ADDR'),
+        )
+
+        promo_code.used_count += 1
+        promo_code.save(update_fields=['used_count'])
+
+        return Response({
+            'success': True,
+            'original_price': original_price,
+            'discount_amount': float(discount_amount),
+            'final_price': float(final_price),
+            'code': promo_code.code,
+        })
+
+    @action(detail=True, methods=['get'], url_path='stats')
+    def usage_stats(self, request, pk=None):
+        """Статистика використання промо-коду"""
+        promo = self.get_object()
+        usages = promo.usages.select_related('user').order_by('-used_at')
+
+        return Response({
+            'total_uses': promo.used_count,
+            'remaining_uses': promo.max_uses - promo.used_count,
+            'recent_usages': [
+                {
+                    'user_email': u.user.email,
+                    'user_name': u.user.get_full_name(),
+                    'plan': u.applied_to_plan,
+                    'discount': float(u.discount_amount),
+                    'used_at': u.used_at,
+                }
+                for u in usages[:20]
+            ]
+        })

@@ -4,19 +4,13 @@ from .views import (
     CandidateViewSet, VacancyViewSet, VacancyTemplateViewSet, VacancyStageViewSet,
     OrganizationViewSet, UserListView, current_user, CandidateExportCSVView,
     EmailTemplateViewSet, SentEmailViewSet, google_auth_status,
-    TagViewSet, time_to_hire_analytics,
-    candidate_time_to_hire_detail,
-    export_time_to_hire_csv,
-    hr_effectiveness_analytics,
-    export_hr_effectiveness_csv,
-    export_time_to_hire_excel,
-    export_time_to_hire_pdf,
-    export_hr_effectiveness_excel,
-    export_hr_effectiveness_pdf,
-    export_full_report_excel,
-    export_full_report_pdf,
-    InterviewViewSet,
-    BlacklistViewSet,
+    TagViewSet, time_to_hire_analytics, candidate_time_to_hire_detail,
+    export_time_to_hire_csv, hr_effectiveness_analytics, export_hr_effectiveness_csv,
+    export_time_to_hire_excel, export_time_to_hire_pdf, export_hr_effectiveness_excel,
+    export_hr_effectiveness_pdf, export_full_report_excel, export_full_report_pdf,
+    InterviewViewSet, BlacklistViewSet,
+    HolidayThemeViewSet, PricingConfigViewSet, PromoCodeViewSet,
+    public_pricing
 )
 from .job_board_views import (
     vacancy_feed_rabota_ua,
@@ -37,6 +31,10 @@ router.register(r'sent-emails',       SentEmailViewSet,       basename='sent-ema
 router.register(r'tags',              TagViewSet,             basename='tag')
 router.register(r'interviews',        InterviewViewSet,       basename='interview')
 router.register(r'blacklist', BlacklistViewSet, basename='blacklist')
+router.register(r'holiday-themes', HolidayThemeViewSet)
+router.register(r'pricing-config', PricingConfigViewSet)
+router.register(r'promo-codes', PromoCodeViewSet)
+
 
 urlpatterns = [
     path('candidates/export/',          CandidateExportCSVView.as_view(),                         name='candidates-export'),
@@ -64,6 +62,7 @@ urlpatterns = [
     path('analytics/hr-effectiveness/export-pdf/',           export_hr_effectiveness_pdf,      name='hr-effectiveness-export-pdf'),
     path('analytics/export-full-excel/',                     export_full_report_excel,         name='full-report-export-excel'),
     path('analytics/export-full-pdf/',                       export_full_report_pdf,           name='full-report-export-pdf'),
+    path('public/pricing/', public_pricing, name='public_pricing'),
 
     path('google-auth-status/', google_auth_status, name='google-auth-status'),
 ]
