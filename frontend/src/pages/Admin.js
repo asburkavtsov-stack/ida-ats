@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axiosConfig';
+import ThemeManager from './ThemeManager';
+import PricingManager from './PricingManager';
+import PromoCodeManager from './PromoCodeManager';
 
 const inputStyle = (isMobile) => ({
   width: '100%', padding: isMobile ? '11px 14px' : '9px 12px', borderRadius: '8px',
@@ -673,6 +676,8 @@ function Blacklist({ isMobile }) {
   );
 }
 
+// ─── ОСНОВНА ФУНКЦІЯ ADMIN ─────────────────────────────────────────────────────
+
 function Admin({ onViewOrg, currentPage, onNavigate }) {
   const [orgs, setOrgs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -681,6 +686,7 @@ function Admin({ onViewOrg, currentPage, onNavigate }) {
   const [usersOrg, setUsersOrg] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [activeTab, setActiveTab] = useState('organizations'); // organizations, themes, pricing, promocodes, blacklist
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -718,113 +724,164 @@ function Admin({ onViewOrg, currentPage, onNavigate }) {
     else console.warn('onViewOrg не передано як проп');
   };
 
-  if (currentPage === 'blacklist') {
-    return <Blacklist isMobile={isMobile} />;
-  }
+  // Вкладки для супер-адмінки
+  const tabs = [
+    { id: 'organizations', label: '🏢 Організації', icon: '🏢' },
+    { id: 'themes', label: '🎨 LED-теми', icon: '🎨' },
+    { id: 'pricing', label: '💰 Ціни та знижки', icon: '💰' },
+    { id: 'promocodes', label: '🎫 Промо-коди', icon: '🎫' },
+    { id: 'blacklist', label: '🚫 Чорний список', icon: '🚫' },
+  ];
 
   return (
     <div style={{ padding: isMobile ? '16px' : '28px' }}>
-      <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '12px' }}>
-        <button onClick={() => { setEditOrg(null); setShowOrgModal(true); }} style={{
-          padding: isMobile ? '10px 16px' : '9px 18px', borderRadius: '8px', border: 'none',
-          background: 'var(--accent)', color: '#fff', fontWeight: 600,
-          fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'DM Sans',
-        }}>
-          <span aria-hidden="true">+</span> Нова організація
-        </button>
+      {/* Вкладки навігації */}
+      <div style={{
+        display: 'flex',
+        gap: isMobile ? '8px' : '16px',
+        marginBottom: '24px',
+        borderBottom: '1px solid var(--border)',
+        flexWrap: 'wrap',
+        paddingBottom: '8px',
+      }}>
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: isMobile ? '8px 12px' : '10px 20px',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: activeTab === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
+              color: activeTab === tab.id ? 'var(--accent)' : 'var(--muted)',
+              fontWeight: activeTab === tab.id ? 600 : 400,
+              fontSize: isMobile ? '0.8rem' : '0.85rem',
+              cursor: 'pointer',
+              fontFamily: 'DM Sans',
+              transition: 'all 0.2s',
+            }}
+          >
+            <span>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
       </div>
 
-      {loading ? (
-        <div style={{ color: 'var(--muted)', fontFamily: 'DM Mono', fontSize: '0.82rem' }}>Завантаження...</div>
-      ) : (
-        <div style={{ display: 'grid', gap: '16px' }}>
-          {orgs.map(org => (
-            <div key={org.id} style={{
-              background: 'var(--surface)', border: '1px solid var(--border)',
-              borderRadius: '12px', padding: isMobile ? '16px' : '20px 24px',
-              display: 'flex', alignItems: isMobile ? 'flex-start' : 'center',
-              gap: isMobile ? '12px' : '20px',
-              flexDirection: isMobile ? 'column' : 'row',
+      {/* Контент в залежності від активної вкладки */}
+      {activeTab === 'organizations' && (
+        <>
+          <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '12px' }}>
+            <button onClick={() => { setEditOrg(null); setShowOrgModal(true); }} style={{
+              padding: isMobile ? '10px 16px' : '9px 18px', borderRadius: '8px', border: 'none',
+              background: 'var(--accent)', color: '#fff', fontWeight: 600,
+              fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'DM Sans',
             }}>
-              <div style={{
-                width: '44px', height: '44px', borderRadius: '10px',
-                background: 'var(--accent)', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', color: '#fff', fontWeight: 700,
-                fontSize: '1rem', flexShrink: 0,
-              }}>
-                {org.name[0]}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: '0.95rem', wordBreak: 'break-word' }}>{org.name}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '2px', wordBreak: 'break-word' }}>{org.slug}</div>
-              </div>
-              <div style={{
-                display: 'flex', gap: isMobile ? '12px' : '24px',
-                textAlign: 'center',
-                width: isMobile ? '100%' : 'auto',
-                justifyContent: isMobile ? 'flex-start' : 'center',
-              }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '1rem' }}>{org.max_hr ?? 0}</div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>HR ліміт</div>
+              <span aria-hidden="true">+</span> Нова організація
+            </button>
+          </div>
+
+          {loading ? (
+            <div style={{ color: 'var(--muted)', fontFamily: 'DM Mono', fontSize: '0.82rem' }}>Завантаження...</div>
+          ) : (
+            <div style={{ display: 'grid', gap: '16px' }}>
+              {orgs.map(org => (
+                <div key={org.id} style={{
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: '12px', padding: isMobile ? '16px' : '20px 24px',
+                  display: 'flex', alignItems: isMobile ? 'flex-start' : 'center',
+                  gap: isMobile ? '12px' : '20px',
+                  flexDirection: isMobile ? 'column' : 'row',
+                }}>
+                  <div style={{
+                    width: '44px', height: '44px', borderRadius: '10px',
+                    background: 'var(--accent)', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', color: '#fff', fontWeight: 700,
+                    fontSize: '1rem', flexShrink: 0,
+                  }}>
+                    {org.name[0]}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.95rem', wordBreak: 'break-word' }}>{org.name}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '2px', wordBreak: 'break-word' }}>{org.slug}</div>
+                  </div>
+                  <div style={{
+                    display: 'flex', gap: isMobile ? '12px' : '24px',
+                    textAlign: 'center',
+                    width: isMobile ? '100%' : 'auto',
+                    justifyContent: isMobile ? 'flex-start' : 'center',
+                  }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '1rem' }}>{org.max_hr ?? 0}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>HR ліміт</div>
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '1rem' }}>{org.max_vacancies ?? 0}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>Вакансій</div>
+                    </div>
+                  </div>
+                  <div style={{
+                    padding: '4px 12px', borderRadius: '20px',
+                    fontSize: '0.72rem', fontFamily: 'DM Mono', fontWeight: 600,
+                    background: org.is_active ? '#dcfce7' : '#fee2e2',
+                    color: org.is_active ? '#16a34a' : '#dc2626',
+                    flexShrink: 0,
+                  }}>
+                    {org.is_active ? 'Активна' : 'Неактивна'}
+                  </div>
+                  <div style={{
+                    display: 'flex', gap: '8px',
+                    flexWrap: 'wrap',
+                    width: isMobile ? '100%' : 'auto',
+                  }}>
+                    <button
+                      onClick={() => handleViewOrg(org.id)}
+                      aria-label={`Переглянути ATS організації ${org.name}`}
+                      type="button"
+                      style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
+                    >
+                      <span aria-hidden="true">🖥</span> ATS
+                    </button>
+                    <button
+                      onClick={() => setUsersOrg(org)}
+                      aria-label={`Користувачі організації ${org.name}`}
+                      type="button"
+                      style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
+                    >
+                      <span aria-hidden="true">👥</span> Юзери
+                    </button>
+                    <button
+                      onClick={() => { setEditOrg(org); setShowOrgModal(true); }}
+                      aria-label={`Редагувати організацію ${org.name}`}
+                      type="button"
+                      style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
+                    >
+                      <span aria-hidden="true">✏️</span> Змінити
+                    </button>
+                    <button
+                      onClick={() => setConfirmDelete(org)}
+                      aria-label={`Видалити організацію ${org.name}`}
+                      type="button"
+                      style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
+                    >
+                      <span aria-hidden="true">🗑</span> Видалити
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '1rem' }}>{org.max_vacancies ?? 0}</div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>Вакансій</div>
-                </div>
-              </div>
-              <div style={{
-                padding: '4px 12px', borderRadius: '20px',
-                fontSize: '0.72rem', fontFamily: 'DM Mono', fontWeight: 600,
-                background: org.is_active ? '#dcfce7' : '#fee2e2',
-                color: org.is_active ? '#16a34a' : '#dc2626',
-                flexShrink: 0,
-              }}>
-                {org.is_active ? 'Активна' : 'Неактивна'}
-              </div>
-              <div style={{
-                display: 'flex', gap: '8px',
-                flexWrap: 'wrap',
-                width: isMobile ? '100%' : 'auto',
-              }}>
-                <button
-                  onClick={() => handleViewOrg(org.id)}
-                  aria-label={`Переглянути ATS організації ${org.name}`}
-                  type="button"
-                  style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
-                >
-                  <span aria-hidden="true">🖥</span> ATS
-                </button>
-                <button
-                  onClick={() => setUsersOrg(org)}
-                  aria-label={`Користувачі організації ${org.name}`}
-                  type="button"
-                  style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
-                >
-                  <span aria-hidden="true">👥</span> Юзери
-                </button>
-                <button
-                  onClick={() => { setEditOrg(org); setShowOrgModal(true); }}
-                  aria-label={`Редагувати організацію ${org.name}`}
-                  type="button"
-                  style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
-                >
-                  <span aria-hidden="true">✏️</span> Змінити
-                </button>
-                <button
-                  onClick={() => setConfirmDelete(org)}
-                  aria-label={`Видалити організацію ${org.name}`}
-                  type="button"
-                  style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
-                >
-                  <span aria-hidden="true">🗑</span> Видалити
-                </button>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
+      {activeTab === 'themes' && <ThemeManager isMobile={isMobile} />}
+      {activeTab === 'pricing' && <PricingManager isMobile={isMobile} />}
+      {activeTab === 'promocodes' && <PromoCodeManager isMobile={isMobile} />}
+      {activeTab === 'blacklist' && <Blacklist isMobile={isMobile} />}
+
+      {/* Модальні вікна */}
       {showOrgModal && (
         <OrgModal
           org={editOrg}
