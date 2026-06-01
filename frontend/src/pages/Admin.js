@@ -559,7 +559,7 @@ function Blacklist({ isMobile }) {
   const filtered = items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div style={{ padding: isMobile ? '16px' : '28px' }}>
+    <div>
       <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Чорний список організацій</div>
@@ -726,11 +726,11 @@ function Admin({ onViewOrg, currentPage, onNavigate }) {
 
   // Вкладки для супер-адмінки
   const tabs = [
-    { id: 'organizations', label: '🏢 Організації', icon: '🏢' },
-    { id: 'themes', label: '🎨 LED-теми', icon: '🎨' },
-    { id: 'pricing', label: '💰 Ціни та знижки', icon: '💰' },
-    { id: 'promocodes', label: '🎫 Промо-коди', icon: '🎫' },
-    { id: 'blacklist', label: '🚫 Чорний список', icon: '🚫' },
+    { id: 'organizations', label: 'Організації', icon: '🏢' },
+    { id: 'themes', label: 'LED-теми', icon: '🎨' },
+    { id: 'pricing', label: 'Ціни та знижки', icon: '💰' },
+    { id: 'promocodes', label: 'Промо-коди', icon: '🎫' },
+    { id: 'blacklist', label: 'Чорний список', icon: '🚫' },
   ];
 
   return (
@@ -773,7 +773,13 @@ function Admin({ onViewOrg, currentPage, onNavigate }) {
       {/* Контент в залежності від активної вкладки */}
       {activeTab === 'organizations' && (
         <>
-          <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>🏢 Організації</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '2px' }}>
+                Керування організаціями та їх користувачами
+              </div>
+            </div>
             <button onClick={() => { setEditOrg(null); setShowOrgModal(true); }} style={{
               padding: isMobile ? '10px 16px' : '9px 18px', borderRadius: '8px', border: 'none',
               background: 'var(--accent)', color: '#fff', fontWeight: 600,

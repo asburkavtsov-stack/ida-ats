@@ -103,13 +103,13 @@ const PromoCodeManager = ({ isMobile }) => {
 
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '500px' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '500px', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '20px' }}>{editingCode ? 'Редагувати промо-код' : 'Новий промо-код'}</div>
             <div style={{ display: 'grid', gap: '14px' }}>
-              <input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="PROMO2026" style={{ padding: '9px 12px', borderRadius: '8px', fontFamily: 'DM Mono' }} />
-              <input type="number" placeholder="Значення знижки" value={form.discount_value} onChange={e => setForm(f => ({ ...f, discount_value: parseInt(e.target.value) || 0 }))} style={{ padding: '9px 12px', borderRadius: '8px' }} />
-              <input type="number" placeholder="Макс. використань" value={form.max_uses} onChange={e => setForm(f => ({ ...f, max_uses: parseInt(e.target.value) || 1 }))} style={{ padding: '9px 12px', borderRadius: '8px' }} />
-              <textarea placeholder="Опис" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} style={{ padding: '9px 12px', borderRadius: '8px', resize: 'vertical' }} />
+              <input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="PROMO2026" style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Mono', outline: 'none' }} />
+              <input type="number" placeholder="Значення знижки" value={form.discount_value} onChange={e => setForm(f => ({ ...f, discount_value: parseInt(e.target.value) || 0 }))} style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none' }} />
+              <input type="number" placeholder="Макс. використань" value={form.max_uses} onChange={e => setForm(f => ({ ...f, max_uses: parseInt(e.target.value) || 1 }))} style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none' }} />
+              <textarea placeholder="Опис" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none', resize: 'vertical' }} />
               <label><input type="checkbox" checked={form.is_active} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} /> Активний</label>
             </div>
             <div style={{ display: 'flex', gap: '10px', marginTop: '24px', justifyContent: 'flex-end' }}>

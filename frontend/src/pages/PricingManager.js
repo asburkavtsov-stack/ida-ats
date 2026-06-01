@@ -112,11 +112,11 @@ const PricingManager = ({ isMobile }) => {
 
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '500px' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '500px', border: '1px solid var(--border)' }}>
             <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '20px' }}>{editingConfig ? 'Редагувати тариф' : 'Новий тариф'}</div>
             <div style={{ display: 'grid', gap: '14px' }}>
-              <input placeholder="Назва" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)' }} />
-              <input type="number" placeholder="Ціна за місяць" value={form.price_monthly} onChange={e => setForm(f => ({ ...f, price_monthly: parseFloat(e.target.value) || 0 }))} style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)' }} />
+              <input placeholder="Назва" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none' }} />
+              <input type="number" placeholder="Ціна за місяць" value={form.price_monthly} onChange={e => setForm(f => ({ ...f, price_monthly: parseFloat(e.target.value) || 0 }))} style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none' }} />
             </div>
             <div style={{ display: 'flex', gap: '10px', marginTop: '24px', justifyContent: 'flex-end' }}>
               <button onClick={() => setShowModal(false)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)' }}>Скасувати</button>

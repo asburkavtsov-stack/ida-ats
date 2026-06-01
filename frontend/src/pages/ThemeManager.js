@@ -227,7 +227,7 @@ const ThemeManager = ({ isMobile }) => {
                 <select
                   value={form.theme_type}
                   onChange={e => setForm(f => ({ ...f, theme_type: e.target.value }))}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)' }}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', outline: 'none', fontFamily: 'DM Sans' }}
                 >
                   <option value="new_year">Новорічний 🎄</option>
                   <option value="halloween">Хеллоуїн 🎃</option>
@@ -242,7 +242,7 @@ const ThemeManager = ({ isMobile }) => {
                 <input
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)' }}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', outline: 'none', fontFamily: 'DM Sans' }}
                 />
               </div>
 
@@ -260,13 +260,13 @@ const ThemeManager = ({ isMobile }) => {
                   <input type="color" value={form.accent_color} onChange={e => setForm(f => ({ ...f, accent_color: e.target.value }))} style={{ width: '100%', height: '40px' }} />
                 </div>
               </div>
+            </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '24px', justifyContent: 'flex-end' }}>
-                <button onClick={() => setShowModal(false)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent' }}>Скасувати</button>
-                <button onClick={handleSave} disabled={saving} style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
-                  {saving ? 'Збереження...' : 'Зберегти'}
-                </button>
-              </div>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '24px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowModal(false)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans' }}>Скасувати</button>
+              <button onClick={handleSave} disabled={saving} style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                {saving ? 'Збереження...' : 'Зберегти'}
+              </button>
             </div>
           </div>
         </div>
