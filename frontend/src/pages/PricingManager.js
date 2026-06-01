@@ -83,7 +83,7 @@ const PricingManager = ({ isMobile }) => {
             Налаштування тарифних планів, знижок та лімітів
           </div>
         </div>
-        <button onClick={() => { setEditingConfig(null); setShowModal(true); }} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={() => { setEditingConfig(null); setForm({ plan: 'starter', name: '', price_monthly: 0, price_yearly: 0, discount_percent: 0, discount_valid_until: '', max_hr: 3, max_vacancies: 10, has_analytics: false, has_email_templates: false, has_google_integration: false, has_custom_stages: false, is_active: true }); setShowModal(true); }} style={{ padding: '10px 16px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
           + Додати тариф
         </button>
       </div>
@@ -126,8 +126,7 @@ const PricingManager = ({ isMobile }) => {
                   <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>План</div>
                   <select value={form.plan} onChange={e => setForm(f => ({ ...f, plan: e.target.value }))} style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none' }}>
                     <option value="starter">Starter</option>
-                    <option value="pro">Pro</option>
-                    <option value="business">Business</option>
+                    <option value="growth">Growth</option>
                     <option value="enterprise">Enterprise</option>
                   </select>
                 </div>
