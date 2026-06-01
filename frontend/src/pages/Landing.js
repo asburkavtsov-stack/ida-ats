@@ -56,7 +56,7 @@ const Landing = ({ onLogin }) => {
       if (appliedPromo.discount_type === 'percent') {
         return Math.round(price * (100 - appliedPromo.discount_value) / 100);
       } else {
-        return Math.max(0, price - appliedPromo.discount_value);
+        return Math.max(0, Math.round(price - appliedPromo.discount_value));
       }
     }
     return price;
@@ -83,8 +83,11 @@ const Landing = ({ onLogin }) => {
     '--accent': activeTheme.accent_color,
   } : {};
 
-  const heroStyle = activeTheme?.background_image 
-    ? { backgroundImage: `url(${activeTheme.background_image})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+  const safeBgImage = activeTheme?.background_image && /^https?:\/\//.test(activeTheme.background_image)
+    ? activeTheme.background_image
+    : null;
+  const heroStyle = safeBgImage
+    ? { backgroundImage: `url(${safeBgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : { background: `linear-gradient(135deg, ${activeTheme?.primary_color || '#7a1a2e'} 0%, ${activeTheme?.secondary_color || '#4a0f1c'} 100%)` };
 
   if (loading) {
@@ -218,7 +221,7 @@ const Landing = ({ onLogin }) => {
                   {getPlanPrice('starter')?.monthly} ₴
                   <span style={{ fontSize: '14px', fontWeight: 400 }}>/міс</span>
                 </div>
-                {pricing.starter.discount > 0 && (
+                {(pricing.starter.discount > 0 || appliedPromo) && (
                   <div style={{ fontSize: '12px', color: '#16a34a', marginBottom: '24px' }}>
                     з {getPlanPrice('starter')?.originalMonthly} ₴
                   </div>
@@ -250,7 +253,7 @@ const Landing = ({ onLogin }) => {
                   {getPlanPrice('growth')?.monthly} ₴
                   <span style={{ fontSize: '14px', fontWeight: 400 }}>/міс</span>
                 </div>
-                {pricing.growth.discount > 0 && (
+                {(pricing.growth.discount > 0 || appliedPromo) && (
                   <div style={{ fontSize: '12px', color: '#fecaca', marginBottom: '24px' }}>
                     з {getPlanPrice('growth')?.originalMonthly} ₴
                   </div>
@@ -371,8 +374,8 @@ const Landing = ({ onLogin }) => {
               </div>
             )}
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button onClick={() => setShowPromoModal(false)} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #d4d4d8', background: 'transparent', cursor: 'pointer' }}>Скасувати</button>
-              <button onClick={() => { alert('Функція реєстрації буде доступна найближчим часом'); setShowPromoModal(false); }} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: activeTheme?.primary_color || '#7a1a2e', color: 'white', fontWeight: 600, cursor: 'pointer' }}>Продовжити</button>
+              <button onClick={() => { setShowPromoModal(false); setSelectedPlan(null); }} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #d4d4d8', background: 'transparent', cursor: 'pointer' }}>Скасувати</button>
+              <button onClick={() => { alert('Функція реєстрації буде доступна найближчим часом'); setShowPromoModal(false); setSelectedPlan(null); }} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: activeTheme?.primary_color || '#7a1a2e', color: 'white', fontWeight: 600, cursor: 'pointer' }}>Продовжити</button>
             </div>
           </div>
         </div>
