@@ -52,7 +52,12 @@ const PricingManager = ({ isMobile }) => {
       await fetchPricing();
     } catch (err) {
       console.error('Помилка збереження:', err);
-      alert('Не вдалося зберегти конфігурацію');
+      const data = err.response?.data;
+      console.error('Деталі від бекенду:', JSON.stringify(data, null, 2));
+      const msg = data
+        ? Object.entries(data).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join('\n')
+        : 'Не вдалося зберегти конфігурацію';
+      alert(msg);
     } finally {
       setSaving(false);
     }
