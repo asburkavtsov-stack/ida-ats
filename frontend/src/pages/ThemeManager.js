@@ -94,6 +94,7 @@ const ThemeManager = ({ isMobile }) => {
       halloween: '🎃',
       independence: '💙💛',
       ida_birthday: '🎂',
+      flag_day: '🚩',
       default: '🏠',
     };
     return icons[themeType] || '🎨';
@@ -232,6 +233,7 @@ const ThemeManager = ({ isMobile }) => {
                   <option value="new_year">Новорічний 🎄</option>
                   <option value="halloween">Хеллоуїн 🎃</option>
                   <option value="independence">День Незалежності 💙💛</option>
+                  <option value="flag_day">День Прапора 🚩</option>
                   <option value="ida_birthday">День народження ІДА 🎂</option>
                   <option value="default">Звичайний 🏠</option>
                 </select>

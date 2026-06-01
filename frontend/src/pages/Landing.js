@@ -90,6 +90,85 @@ const Landing = ({ onLogin }) => {
     ? { backgroundImage: `url(${safeBgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : { background: `linear-gradient(135deg, ${activeTheme?.primary_color || '#7a1a2e'} 0%, ${activeTheme?.secondary_color || '#4a0f1c'} 100%)` };
 
+  // Контент Hero залежно від теми
+  const themeContent = {
+    halloween: {
+      badge: <><span style={{ fontSize: '2rem' }}>{'🎃👻'}</span><span className="mono" style={{ fontSize: '14px', letterSpacing: '0.2em' }}>HALLOWEEN</span></>,
+      heading: <>Найстрашніший рекрутинг<br />в Україні</>,
+      sub: 'Не бійся — просто наймай найкращих кандидатів',
+      extraBtn: null,
+      pricingSubtitle: 'Спеціальна Halloween-знижка діє зараз 🎃',
+      footerText: 'З жахливим Halloween! 🎃',
+      ctaHeading: 'Готові до жахливо ефективного рекрутингу?',
+      navbarBg: '#000',
+      navbarBorder: 'rgba(255,255,255,0.1)',
+      navbarColor: 'white',
+    },
+    independence: {
+      badge: <><span style={{ fontSize: '2rem' }}>{'🇺🇦'}</span><span className="mono" style={{ fontSize: '14px', letterSpacing: '0.2em' }}>ДЕНЬ НЕЗАЛЕЖНОСТІ УКРАЇНИ</span></>,
+      heading: <>Рекрутинг для<br />сильної та вільної України</>,
+      sub: 'У День Незалежності ми пишаємося тим, що допомагаємо українським компаніям будувати потужні команди.',
+      extraBtn: <button onClick={() => alert('Слава Україні!')} style={{ background: 'transparent', border: '2px solid rgba(255,255,255,0.7)', color: 'white', fontWeight: 600, padding: '16px 40px', borderRadius: '16px', fontSize: '18px', cursor: 'pointer' }}>{'Слава Україні! 🇺🇦'}</button>,
+      pricingSubtitle: 'Спеціальна пропозиція до Дня Незалежності 🇺🇦',
+      footerText: 'Слава Україні! 🇺🇦',
+      ctaHeading: 'Готові зміцнити свою команду?',
+      navbarBg: '#fff',
+      navbarBorder: '#e4e4e7',
+      navbarColor: '#18181b',
+    },
+    new_year: {
+      badge: <><span style={{ fontSize: '2rem' }}>{'🎄✨'}</span><span className="mono" style={{ fontSize: '14px', letterSpacing: '0.2em' }}>НОВОРІЧНА АКЦІЯ</span></>,
+      heading: <>Новий рік —<br />нова команда</>,
+      sub: 'Зустрічай Новий рік з найкращими кандидатами. Спеціальні новорічні пропозиції для вашого рекрутингу.',
+      extraBtn: null,
+      pricingSubtitle: 'Спеціальні новорічні знижки 🎄',
+      footerText: 'З Новим Роком! 🎄✨',
+      ctaHeading: 'Розпочни Новий рік з кращим рекрутингом!',
+      navbarBg: '#fff',
+      navbarBorder: '#e4e4e7',
+      navbarColor: '#18181b',
+    },
+    ida_birthday: {
+      badge: <><span style={{ fontSize: '2rem' }}>{'🎂🎉'}</span><span className="mono" style={{ fontSize: '14px', letterSpacing: '0.2em' }}>ДЕНЬ НАРОДЖЕННЯ IDA</span></>,
+      heading: <>IDA святкує!<br />А ти наймаєш</>,
+      sub: 'У день нашого народження ми даруємо вам спеціальні пропозиції. Святкуємо разом!',
+      extraBtn: null,
+      pricingSubtitle: 'Святкові пропозиції на честь Дня народження IDA 🎂',
+      footerText: 'З Днем народження, IDA! 🎂🎉',
+      ctaHeading: 'Святкуй разом з нами!',
+      navbarBg: '#fff',
+      navbarBorder: '#e4e4e7',
+      navbarColor: '#18181b',
+    },
+    flag_day: {
+      badge: <><span style={{ fontSize: '2rem' }}>{'🇺🇦'}</span><span className="mono" style={{ fontSize: '14px', letterSpacing: '0.2em' }}>ДЕНЬ ДЕРЖАВНОГО ПРАПОРА УКРАЇНИ</span></>,
+      heading: <>Під одним прапором —<br />сильні команди</>,
+      sub: 'У День Державного Прапора ми святкуємо єдність і гідність. IDA допомагає українським компаніям збирати найкращі команди під синьо-жовтим прапором.',
+      extraBtn: <button onClick={() => alert('Слава Україні!')} style={{ background: 'transparent', border: '2px solid rgba(255,255,255,0.7)', color: 'white', fontWeight: 600, padding: '16px 40px', borderRadius: '16px', fontSize: '18px', cursor: 'pointer' }}>{'Слава Україні! 🇺🇦'}</button>,
+      pricingSubtitle: 'Спеціальна пропозиція до Дня Прапора 🚩',
+      footerText: 'Слава Україні! 🇺🇦',
+      ctaHeading: 'Готові підняти свій рекрутинг на новий рівень?',
+      navbarBg: '#fff',
+      navbarBorder: '#e4e4e7',
+      navbarColor: '#18181b',
+    },
+    default: {
+      badge: <><span style={{ color: activeTheme?.accent_color || '#fde047' }}>{'●'}</span><span className="mono" style={{ fontSize: '14px', letterSpacing: '0.15em' }}>Українська ATS</span></>,
+      heading: <>Рекрутинг,<br />який <span style={{ color: activeTheme?.accent_color || '#e8a0b0' }}>працює</span> на тебе</>,
+      sub: "Сучасна українська система для найму. Кандидати, канбан, інтерв'ю, аналітика та шаблони листів — в одному інтерфейсі.",
+      extraBtn: null,
+      pricingSubtitle: 'Прості та прозорі тарифи',
+      footerText: 'Усі права захищені.',
+      ctaHeading: 'Готові оптимізувати свій рекрутинг?',
+      navbarBg: '#fff',
+      navbarBorder: '#e4e4e7',
+      navbarColor: '#18181b',
+    },
+  };
+
+  const tc = themeContent[activeTheme?.theme_type] || themeContent.default;
+
+
   if (loading) {
     return (
       <div style={{ 
@@ -123,7 +202,7 @@ const Landing = ({ onLogin }) => {
       </style>
 
       {/* Navbar */}
-      <nav style={{ background: '#ffffff', borderBottom: '1px solid #e4e4e7', position: 'sticky', top: 0, zIndex: 50 }}>
+      <nav style={{ background: tc.navbarBg, borderBottom: `1px solid ${tc.navbarBorder}`, position: 'sticky', top: 0, zIndex: 50, color: tc.navbarColor }}>
         <div style={{ maxWidth: '80rem', margin: '0 auto', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ 
@@ -133,13 +212,13 @@ const Landing = ({ onLogin }) => {
               display: 'flex', alignItems: 'center', justifyContent: 'center', 
               borderRadius: '16px' 
             }}>I</div>
-            <span style={{ fontSize: '24px', fontWeight: 600, letterSpacing: '-0.025em' }}>IDA</span>
+            <span style={{ fontSize: '24px', fontWeight: 600, letterSpacing: '-0.025em', color: tc.navbarColor }}>IDA</span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
             <button 
               onClick={onLogin}
-              style={{ fontSize: '14px', fontWeight: 500, padding: '10px 24px', borderRadius: '9999px', border: '1px solid #d4d4d8', background: 'transparent', cursor: 'pointer', color: '#18181b' }}
+              style={{ fontSize: '14px', fontWeight: 500, padding: '10px 24px', borderRadius: '9999px', border: `1px solid ${tc.navbarColor === 'white' ? 'rgba(255,255,255,0.4)' : '#d4d4d8'}`, background: 'transparent', cursor: 'pointer', color: tc.navbarColor }}
             >
               Увійти
             </button>
@@ -156,17 +235,16 @@ const Landing = ({ onLogin }) => {
       {/* Hero з динамічною темою */}
       <section style={{ ...heroStyle, color: 'white', padding: '112px 24px' }}>
         <div style={{ maxWidth: '64rem', margin: '0 auto', textAlign: 'center' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(12px)', padding: '8px 20px', borderRadius: '24px', marginBottom: '32px' }}>
-            <span style={{ color: activeTheme?.accent_color || '#fde047' }}>●</span>
-            <span className="mono" style={{ fontSize: '14px', letterSpacing: '0.15em' }}>Українська ATS</span>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(12px)', padding: '8px 20px', borderRadius: '24px', marginBottom: '32px', border: '1px solid rgba(255,255,255,0.2)' }}>
+            {tc.badge}
           </div>
           
           <h1 style={{ fontSize: 'clamp(3rem, 6vw, 4.5rem)', fontWeight: 700, lineHeight: 1.1, letterSpacing: '-0.025em', marginBottom: '32px' }}>
-            Рекрутинг,<br />який <span style={{ color: activeTheme?.accent_color || '#e8a0b0' }}>працює</span> на тебе
+            {tc.heading}
           </h1>
           
           <p style={{ fontSize: 'clamp(1.125rem, 2.5vw, 1.5rem)', maxWidth: '42rem', margin: '0 auto 48px', color: '#e4e4e7', lineHeight: 1.6 }}>
-            Сучасна українська система для найму. Кандидати, канбан, інтерв'ю, аналітика та шаблони листів — в одному інтерфейсі.
+            {tc.sub}
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', justifyContent: 'center', alignItems: 'center' }}>
@@ -176,6 +254,7 @@ const Landing = ({ onLogin }) => {
             >
               Почати безкоштовно — 14 днів
             </button>
+            {tc.extraBtn && tc.extraBtn}
           </div>
         </div>
       </section>
@@ -204,7 +283,7 @@ const Landing = ({ onLogin }) => {
         <div style={{ maxWidth: '72rem', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '64px' }}>
             <h2 style={{ fontSize: 'clamp(2rem, 4vw, 2.5rem)', fontWeight: 700, marginBottom: '16px' }}>Оберіть свій тариф</h2>
-            <p style={{ color: '#52525b' }}>Прості та прозорі тарифи</p>
+            <p style={{ color: '#52525b' }}>{tc.pricingSubtitle}</p>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px', maxWidth: '64rem', margin: '0 auto' }}>
@@ -334,7 +413,7 @@ const Landing = ({ onLogin }) => {
       {/* CTA */}
       <section style={{ padding: '80px 24px', background: activeTheme?.primary_color || '#7a1a2e', color: 'white', textAlign: 'center' }}>
         <div style={{ maxWidth: '48rem', margin: '0 auto' }}>
-          <h2 style={{ fontSize: 'clamp(2rem, 4vw, 2.5rem)', fontWeight: 700, marginBottom: '24px' }}>Готові оптимізувати свій рекрутинг?</h2>
+          <h2 style={{ fontSize: 'clamp(2rem, 4vw, 2.5rem)', fontWeight: 700, marginBottom: '24px' }}>{tc.ctaHeading}</h2>
           <p style={{ fontSize: '20px', marginBottom: '40px', color: activeTheme?.accent_color || '#fecaca' }}>14 днів повноцінного доступу безкоштовно</p>
           <button 
             onClick={onLogin}
@@ -353,7 +432,7 @@ const Landing = ({ onLogin }) => {
             <span style={{ fontSize: '30px', fontWeight: 600, color: 'white' }}>IDA</span>
           </div>
           <p className="mono" style={{ fontSize: '14px' }}>Сучасна українська ATS-система</p>
-          <div style={{ fontSize: '12px', marginTop: '48px', opacity: 0.5 }}>© 2026 IDA Systems. Усі права захищені.</div>
+          <div style={{ fontSize: '12px', marginTop: '48px', opacity: 0.5 }}>© 2026 IDA Systems. {tc.footerText}</div>
         </div>
       </footer>
 
