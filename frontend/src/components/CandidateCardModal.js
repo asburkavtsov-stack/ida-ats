@@ -1,4 +1,4 @@
-// CandidateCardModal.js
+// CandidateCardModal.js (оновлений з модалкою відмови)
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axiosConfig';
 import { SOURCE_CONFIG, getSourceLabel, getSourceBg, getSourceText, getHrAvatarColor } from '../constants/statusColors';
@@ -55,11 +55,25 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
   const [showTagModal, setShowTagModal] = useState(false);
   const [newTagForm, setNewTagForm] = useState({ name: '', color: '#7a1a2e' });
 
+  // НОВІ СТЕЙТИ ДЛЯ ВІДМОВИ
+  const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [pendingRejectionStageId, setPendingRejectionStageId] = useState(null);
+  const [rejectionReasons, setRejectionReasons] = useState([]);
+  const [selectedRejectionReason, setSelectedRejectionReason] = useState('');
+  const [rejectionComment, setRejectionComment] = useState('');
+
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Завантажити причини відмови
+  useEffect(() => {
+    axios.get('/api/rejection-reasons/')
+      .then(res => setRejectionReasons(res.data.results ?? res.data))
+      .catch(() => {});
   }, []);
 
   // Fetch initial data
@@ -176,13 +190,17 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
     }
   };
 
-  const handleStageUpdate = async (stageId) => {
-    const currentStageId = candidate?.stage_id ?? candidate?.stage;
-    if (!candidate || currentStageId === stageId) return;
+  // ОНОВЛЕНА ФУНКЦІЯ З ПІДТВЕРДЖЕННЯМ ВІДМОВИ
+  const doStageUpdate = async (stageId, rejectionReasonId, rejectionComment) => {
     setSaving(true);
     setError('');
     try {
-      const res = await axios.patch(`/api/candidates/${candidateId}/update_status/`, { stage_id: stageId });
+      const payload = { stage_id: stageId };
+      if (rejectionReasonId) {
+        payload.rejection_reason_id = rejectionReasonId;
+        payload.rejection_comment = rejectionComment;
+      }
+      const res = await axios.patch(`/api/candidates/${candidateId}/update_status/`, payload);
       const updated = res.data;
       setCandidate(updated);
       if (onStatusChange) onStatusChange(candidateId, stageId);
@@ -192,6 +210,28 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleStageUpdate = async (stageId) => {
+    const currentStageId = candidate?.stage_id ?? candidate?.stage;
+    if (!candidate || currentStageId === stageId) return;
+
+    const targetStage = stages.find(s => s.id === stageId);
+    if (targetStage?.system_key === 'rejected') {
+      setPendingRejectionStageId(stageId);
+      setShowRejectionModal(true);
+      return;
+    }
+    await doStageUpdate(stageId, null, '');
+  };
+
+  const handleRejectionConfirm = async () => {
+    if (!selectedRejectionReason) return;
+    setShowRejectionModal(false);
+    await doStageUpdate(pendingRejectionStageId, selectedRejectionReason, rejectionComment);
+    setSelectedRejectionReason('');
+    setRejectionComment('');
+    setPendingRejectionStageId(null);
   };
 
   const handleSaveEdit = () => {
@@ -847,6 +887,12 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                             <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '2px' }}>
                               {item.changed_by_name || 'Система'}
                             </div>
+                            {item.rejection_reason_name && (
+                              <div style={{ marginTop: '6px', padding: '6px 10px', background: '#fee2e2', borderRadius: '6px', fontSize: '0.72rem' }}>
+                                <strong>Причина відмови:</strong> {item.rejection_reason_name}
+                                {item.rejection_comment && <div><strong>Коментар:</strong> {item.rejection_comment}</div>}
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -952,6 +998,11 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                           </div>
                           <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>{formatDate(item.changed_at)}</div>
                           <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>{item.changed_by_name || 'Система'}</div>
+                          {item.rejection_reason_name && (
+                            <div style={{ marginTop: '4px', fontSize: '0.65rem', color: '#dc2626' }}>
+                              🚫 {item.rejection_reason_name}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -1085,6 +1136,62 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
               <button onClick={handleDelete} disabled={saving} aria-label="Підтвердити видалення" type="button"
                 style={{ padding: isMobile ? '10px 18px' : '8px 18px', borderRadius: '8px', border: 'none', background: '#dc2626', color: '#fff', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'DM Sans', opacity: saving ? 0.7 : 1 }}>
                 {saving ? 'Видалення...' : 'Видалити'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* НОВА МОДАЛКА ВІДМОВИ */}
+      {showRejectionModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px' }}
+          onClick={() => setShowRejectionModal(false)}>
+          <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '24px',
+            width: '100%', maxWidth: '420px', border: '1px solid var(--border)' }}
+            onClick={e => e.stopPropagation()}>
+
+            <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '6px' }}>
+              Причина відмови
+            </div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: '18px' }}>
+              Оберіть причину переміщення кандидата до «Відмова»
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
+              {rejectionReasons.map(r => (
+                <button key={r.id} onClick={() => setSelectedRejectionReason(r.id)}
+                  style={{ padding: '10px 14px', borderRadius: '8px', textAlign: 'left', cursor: 'pointer',
+                    border: `1px solid ${selectedRejectionReason === r.id ? 'var(--accent)' : 'var(--border)'}`,
+                    background: selectedRejectionReason === r.id ? 'rgba(122,26,46,0.08)' : 'var(--bg)',
+                    color: 'var(--text)', fontSize: '0.85rem', fontFamily: 'DM Sans' }}>
+                  {r.name}
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              placeholder="Додатковий коментар (необов'язково)"
+              value={rejectionComment}
+              onChange={e => setRejectionComment(e.target.value)}
+              rows={3}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)',
+                background: 'var(--bg)', color: 'var(--text)', fontSize: '0.85rem',
+                fontFamily: 'DM Sans', resize: 'vertical', boxSizing: 'border-box', marginBottom: '16px' }}
+            />
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowRejectionModal(false)}
+                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)',
+                  background: 'transparent', cursor: 'pointer', fontFamily: 'DM Sans' }}>
+                Скасувати
+              </button>
+              <button onClick={handleRejectionConfirm} disabled={!selectedRejectionReason}
+                style={{ padding: '8px 18px', borderRadius: '8px', border: 'none',
+                  background: selectedRejectionReason ? '#757575' : 'var(--border)',
+                  color: '#fff', fontWeight: 600, cursor: selectedRejectionReason ? 'pointer' : 'not-allowed',
+                  fontFamily: 'DM Sans' }}>
+                Підтвердити відмову
               </button>
             </div>
           </div>
