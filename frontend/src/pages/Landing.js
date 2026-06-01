@@ -33,11 +33,10 @@ const Landing = ({ onLogin }) => {
 
   // Перевірка промо-коду
   const verifyPromoCode = async () => {
-    if (!promoCodeInput.trim() || !selectedPlan) return;
+    if (!promoCodeInput.trim()) return;
     try {
       const res = await axios.post('/api/promo-codes/verify/', { 
-        code: promoCodeInput, 
-        plan: selectedPlan 
+        code: promoCodeInput,
       });
       setPromoCodeResult(res.data);
       if (res.data.valid) {
@@ -52,8 +51,8 @@ const Landing = ({ onLogin }) => {
   };
 
   // Застосування промо-коду до ціни
-  const applyPromoToPrice = (price, planKey) => {
-    if (appliedPromo && appliedPromo.valid && selectedPlan === planKey) {
+  const applyPromoToPrice = (price) => {
+    if (appliedPromo && appliedPromo.valid) {
       if (appliedPromo.discount_type === 'percent') {
         return Math.round(price * (100 - appliedPromo.discount_value) / 100);
       } else {
@@ -68,8 +67,8 @@ const Landing = ({ onLogin }) => {
     if (!pricing || !pricing[planKey]) return null;
     const plan = pricing[planKey];
     return {
-      monthly: applyPromoToPrice(plan.monthly, planKey),
-      yearly: applyPromoToPrice(plan.yearly, planKey),
+      monthly: applyPromoToPrice(plan.monthly),
+      yearly: applyPromoToPrice(plan.yearly),
       originalMonthly: plan.monthly,
       discount: plan.discount,
       features: plan.features,
@@ -221,7 +220,7 @@ const Landing = ({ onLogin }) => {
                 </div>
                 {pricing.starter.discount > 0 && (
                   <div style={{ fontSize: '12px', color: '#16a34a', marginBottom: '24px' }}>
-                    з {pricing.starter.monthly} ₴
+                    з {getPlanPrice('starter')?.originalMonthly} ₴
                   </div>
                 )}
                 
@@ -253,7 +252,7 @@ const Landing = ({ onLogin }) => {
                 </div>
                 {pricing.growth.discount > 0 && (
                   <div style={{ fontSize: '12px', color: '#fecaca', marginBottom: '24px' }}>
-                    з {pricing.growth.monthly} ₴
+                    з {getPlanPrice('growth')?.originalMonthly} ₴
                   </div>
                 )}
                 
@@ -303,24 +302,26 @@ const Landing = ({ onLogin }) => {
                 type="text"
                 placeholder="Введіть промо-код"
                 value={promoCodeInput}
-                onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
-                style={{ padding: '12px 16px', borderRadius: '12px', border: '1px solid #d4d4d8', flex: 1, minWidth: '200px', fontFamily: 'DM Mono' }}
+                onChange={(e) => { setPromoCodeInput(e.target.value.toUpperCase()); setPromoCodeResult(null); }}
+                onKeyDown={(e) => e.key === 'Enter' && verifyPromoCode()}
+                style={{ padding: '12px 16px', borderRadius: '12px', border: '1px solid #d4d4d8', flex: 1, minWidth: '200px', fontFamily: 'DM Mono', outline: 'none' }}
               />
               <button
                 onClick={verifyPromoCode}
-                style={{ padding: '12px 24px', borderRadius: '12px', border: 'none', background: activeTheme?.primary_color || '#7a1a2e', color: 'white', fontWeight: 600, cursor: 'pointer' }}
+                disabled={!promoCodeInput.trim()}
+                style={{ padding: '12px 24px', borderRadius: '12px', border: 'none', background: activeTheme?.primary_color || '#7a1a2e', color: 'white', fontWeight: 600, cursor: promoCodeInput.trim() ? 'pointer' : 'not-allowed', opacity: promoCodeInput.trim() ? 1 : 0.6 }}
               >
                 Застосувати
               </button>
             </div>
             {promoCodeResult && (
               <div style={{ marginTop: '12px', fontSize: '0.85rem', color: promoCodeResult.valid ? '#16a34a' : '#dc2626' }}>
-                {promoCodeResult.message}
+                {promoCodeResult.valid ? '✓ ' : '✗ '}{promoCodeResult.message}
               </div>
             )}
             {appliedPromo && (
               <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#16a34a' }}>
-                ✓ Промо-код застосовано! Знижка {appliedPromo.discount_value}{appliedPromo.discount_type === 'percent' ? '%' : 'грн'}
+                Знижка {appliedPromo.discount_value}{appliedPromo.discount_type === 'percent' ? '%' : ' грн'} застосована до всіх тарифів
               </div>
             )}
           </div>
