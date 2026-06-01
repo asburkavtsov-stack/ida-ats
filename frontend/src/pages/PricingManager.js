@@ -102,7 +102,7 @@ const PricingManager = ({ isMobile }) => {
                 <div style={{ fontSize: '24px', fontWeight: 700 }}>{config.current_price} ₴<span style={{ fontSize: '12px' }}>/міс</span></div>
               </div>
               <div style={{ display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
-                <button onClick={() => { setEditingConfig(config); setShowModal(true); }} style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}>✏️ Редагувати</button>
+                <button onClick={() => { setEditingConfig(config); setForm({ plan: config.plan, name: config.name, price_monthly: config.price_monthly, price_yearly: config.price_yearly, discount_percent: config.discount_percent, discount_valid_until: config.discount_valid_until?.split('T')[0] || '', max_hr: config.max_hr, max_vacancies: config.max_vacancies, has_analytics: config.has_analytics, has_email_templates: config.has_email_templates, has_google_integration: config.has_google_integration, has_custom_stages: config.has_custom_stages, is_active: config.is_active }); setShowModal(true); }} style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer' }}>✏️ Редагувати</button>
                 <button onClick={() => handleDelete(config.id)} style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', cursor: 'pointer' }}>🗑 Видалити</button>
               </div>
             </div>
@@ -111,16 +111,86 @@ const PricingManager = ({ isMobile }) => {
       )}
 
       {showModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '500px', border: '1px solid var(--border)' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '520px', border: '1px solid var(--border)', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '20px' }}>{editingConfig ? 'Редагувати тариф' : 'Новий тариф'}</div>
             <div style={{ display: 'grid', gap: '14px' }}>
-              <input placeholder="Назва" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none' }} />
-              <input type="number" placeholder="Ціна за місяць" value={form.price_monthly} onChange={e => setForm(f => ({ ...f, price_monthly: parseFloat(e.target.value) || 0 }))} style={{ padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none' }} />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>План</div>
+                  <select value={form.plan} onChange={e => setForm(f => ({ ...f, plan: e.target.value }))} style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none' }}>
+                    <option value="starter">Starter</option>
+                    <option value="pro">Pro</option>
+                    <option value="business">Business</option>
+                    <option value="enterprise">Enterprise</option>
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Назва</div>
+                  <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Напр. Pro Plus" style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Ціна / місяць (₴)</div>
+                  <input type="number" min="0" value={form.price_monthly} onChange={e => setForm(f => ({ ...f, price_monthly: parseFloat(e.target.value) || 0 }))} style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Ціна / рік (₴)</div>
+                  <input type="number" min="0" value={form.price_yearly} onChange={e => setForm(f => ({ ...f, price_yearly: parseFloat(e.target.value) || 0 }))} style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Знижка (%)</div>
+                  <input type="number" min="0" max="100" value={form.discount_percent} onChange={e => setForm(f => ({ ...f, discount_percent: parseFloat(e.target.value) || 0 }))} style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Знижка діє до</div>
+                  <input type="date" value={form.discount_valid_until} onChange={e => setForm(f => ({ ...f, discount_valid_until: e.target.value }))} style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Ліміт HR</div>
+                  <input type="number" min="0" value={form.max_hr} onChange={e => setForm(f => ({ ...f, max_hr: parseInt(e.target.value) || 0 }))} style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '6px', fontFamily: 'DM Mono' }}>Ліміт вакансій</div>
+                  <input type="number" min="0" value={form.max_vacancies} onChange={e => setForm(f => ({ ...f, max_vacancies: parseInt(e.target.value) || 0 }))} style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'DM Sans', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '8px', fontFamily: 'DM Mono' }}>Функції</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  {[
+                    { key: 'has_analytics', label: 'Аналітика' },
+                    { key: 'has_email_templates', label: 'Email шаблони' },
+                    { key: 'has_google_integration', label: 'Google інтеграція' },
+                    { key: 'has_custom_stages', label: 'Кастомні стейджі' },
+                  ].map(({ key, label }) => (
+                    <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', cursor: 'pointer', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: form[key] ? 'var(--accent)10' : 'transparent' }}>
+                      <input type="checkbox" checked={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.checked }))} style={{ width: '15px', height: '15px', cursor: 'pointer' }} />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.is_active} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
+                Активний
+              </label>
+
             </div>
             <div style={{ display: 'flex', gap: '10px', marginTop: '24px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowModal(false)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)' }}>Скасувати</button>
-              <button onClick={handleSave} disabled={saving} style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>{saving ? 'Збереження...' : 'Зберегти'}</button>
+              <button onClick={() => { setShowModal(false); setEditingConfig(null); }} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'DM Sans' }}>Скасувати</button>
+              <button onClick={handleSave} disabled={saving} style={{ padding: '8px 18px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans' }}>{saving ? 'Збереження...' : 'Зберегти'}</button>
             </div>
           </div>
         </div>
