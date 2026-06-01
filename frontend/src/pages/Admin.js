@@ -686,7 +686,6 @@ function Admin({ onViewOrg, currentPage, onNavigate }) {
   const [usersOrg, setUsersOrg] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
-  const [activeTab, setActiveTab] = useState('organizations'); // organizations, themes, pricing, promocodes, blacklist
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -724,54 +723,11 @@ function Admin({ onViewOrg, currentPage, onNavigate }) {
     else console.warn('onViewOrg не передано як проп');
   };
 
-  // Вкладки для супер-адмінки
-  const tabs = [
-    { id: 'organizations', label: 'Організації', icon: '🏢' },
-    { id: 'themes', label: 'LED-теми', icon: '🎨' },
-    { id: 'pricing', label: 'Ціни та знижки', icon: '💰' },
-    { id: 'promocodes', label: 'Промо-коди', icon: '🎫' },
-    { id: 'blacklist', label: 'Чорний список', icon: '🚫' },
-  ];
-
   return (
     <div style={{ padding: isMobile ? '16px' : '28px' }}>
-      {/* Вкладки навігації */}
-      <div style={{
-        display: 'flex',
-        gap: isMobile ? '8px' : '16px',
-        marginBottom: '24px',
-        borderBottom: '1px solid var(--border)',
-        flexWrap: 'wrap',
-        paddingBottom: '8px',
-      }}>
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: isMobile ? '8px 12px' : '10px 20px',
-              background: 'transparent',
-              border: 'none',
-              borderBottom: activeTab === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
-              color: activeTab === tab.id ? 'var(--accent)' : 'var(--muted)',
-              fontWeight: activeTab === tab.id ? 600 : 400,
-              fontSize: isMobile ? '0.8rem' : '0.85rem',
-              cursor: 'pointer',
-              fontFamily: 'DM Sans',
-              transition: 'all 0.2s',
-            }}
-          >
-            <span>{tab.icon}</span>
-            <span>{tab.label}</span>
-          </button>
-        ))}
-      </div>
 
-      {/* Контент в залежності від активної вкладки */}
-      {activeTab === 'organizations' && (
+      {/* Організації */}
+      {currentPage === 'admin' && (
         <>
           <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
             <div>
@@ -842,36 +798,16 @@ function Admin({ onViewOrg, currentPage, onNavigate }) {
                     flexWrap: 'wrap',
                     width: isMobile ? '100%' : 'auto',
                   }}>
-                    <button
-                      onClick={() => handleViewOrg(org.id)}
-                      aria-label={`Переглянути ATS організації ${org.name}`}
-                      type="button"
-                      style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
-                    >
+                    <button onClick={() => handleViewOrg(org.id)} aria-label={`Переглянути ATS організації ${org.name}`} type="button" style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
                       <span aria-hidden="true">🖥</span> ATS
                     </button>
-                    <button
-                      onClick={() => setUsersOrg(org)}
-                      aria-label={`Користувачі організації ${org.name}`}
-                      type="button"
-                      style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
-                    >
+                    <button onClick={() => setUsersOrg(org)} aria-label={`Користувачі організації ${org.name}`} type="button" style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
                       <span aria-hidden="true">👥</span> Юзери
                     </button>
-                    <button
-                      onClick={() => { setEditOrg(org); setShowOrgModal(true); }}
-                      aria-label={`Редагувати організацію ${org.name}`}
-                      type="button"
-                      style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
-                    >
+                    <button onClick={() => { setEditOrg(org); setShowOrgModal(true); }} aria-label={`Редагувати організацію ${org.name}`} type="button" style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
                       <span aria-hidden="true">✏️</span> Змінити
                     </button>
-                    <button
-                      onClick={() => setConfirmDelete(org)}
-                      aria-label={`Видалити організацію ${org.name}`}
-                      type="button"
-                      style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}
-                    >
+                    <button onClick={() => setConfirmDelete(org)} aria-label={`Видалити організацію ${org.name}`} type="button" style={{ padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: '7px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'DM Mono' }}>
                       <span aria-hidden="true">🗑</span> Видалити
                     </button>
                   </div>
@@ -882,10 +818,10 @@ function Admin({ onViewOrg, currentPage, onNavigate }) {
         </>
       )}
 
-      {activeTab === 'themes' && <ThemeManager isMobile={isMobile} />}
-      {activeTab === 'pricing' && <PricingManager isMobile={isMobile} />}
-      {activeTab === 'promocodes' && <PromoCodeManager isMobile={isMobile} />}
-      {activeTab === 'blacklist' && <Blacklist isMobile={isMobile} />}
+      {currentPage === 'themes' && <ThemeManager isMobile={isMobile} />}
+      {currentPage === 'pricing' && <PricingManager isMobile={isMobile} />}
+      {currentPage === 'promocodes' && <PromoCodeManager isMobile={isMobile} />}
+      {currentPage === 'blacklist' && <Blacklist isMobile={isMobile} />}
 
       {/* Модальні вікна */}
       {showOrgModal && (

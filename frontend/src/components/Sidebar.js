@@ -20,13 +20,19 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
     admin:           (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>),
     blacklist:       (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>),
     users:           (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>),
+    themes:          (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20"/><path d="M12 2v20M2 12h20"/></svg>),
+    pricing:         (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>),
+    promocodes:      (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>),
   };
 
   const navItems = userRole === 'superadmin' ? [
-    { key: 'admin',     label: 'Організації',   badgeKey: null },
-    { key: 'users',     label: 'Юзери',         badgeKey: null },
-    { key: 'blacklist', label: 'Чорний список', badgeKey: null },
-    { key: 'profile',   label: 'Профіль',       badgeKey: null },
+    { key: 'admin',       label: 'Організації',    badgeKey: null },
+    { key: 'users',       label: 'Юзери',          badgeKey: null },
+    { key: 'themes',      label: 'LED-теми',        badgeKey: null },
+    { key: 'pricing',     label: 'Ціни та знижки',  badgeKey: null },
+    { key: 'promocodes',  label: 'Промо-коди',      badgeKey: null },
+    { key: 'blacklist',   label: 'Чорний список',   badgeKey: null },
+    { key: 'profile',     label: 'Профіль',         badgeKey: null },
   ] : userRole === 'admin' ? [
     { key: 'dashboard',       label: 'Дашборд',         badgeKey: null },
     { key: 'kanban',          label: 'Канбан',           badgeKey: 'kanban' },
