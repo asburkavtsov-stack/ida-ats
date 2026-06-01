@@ -1,10 +1,11 @@
+# serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import (
     Candidate, Vacancy, VacancyTemplate, VacancyStage,
     Organization, StatusHistory, EmailTemplate, SentEmail,
     Tag, Interview, UserProfile, HolidayTheme, PricingConfig,
-    PromoCode, PromoCodeUsage
+    PromoCode, PromoCodeUsage, RejectionReason
 )
 
 User = get_user_model()
@@ -66,12 +67,15 @@ class StatusHistorySerializer(serializers.ModelSerializer):
     new_stage_name = serializers.SerializerMethodField()
     old_stage_color = serializers.SerializerMethodField()
     new_stage_color = serializers.SerializerMethodField()
+    rejection_reason_name = serializers.SerializerMethodField()
+    rejection_reason_id = serializers.SerializerMethodField()
 
     class Meta:
         model = StatusHistory
         fields = ['id', 'old_status', 'new_status', 'old_stage', 'new_stage',
                   'old_stage_name', 'new_stage_name', 'old_stage_color', 'new_stage_color',
-                  'changed_by_name', 'changed_at']
+                  'changed_by_name', 'changed_at',
+                  'rejection_reason_id', 'rejection_reason_name', 'rejection_comment']
 
     def get_changed_by_name(self, obj):
         if not obj.changed_by:
@@ -91,12 +95,25 @@ class StatusHistorySerializer(serializers.ModelSerializer):
     def get_new_stage_color(self, obj):
         return obj.new_stage.color if obj.new_stage else '#7a1a2e'
 
+    def get_rejection_reason_name(self, obj):
+        return obj.rejection_reason.name if obj.rejection_reason else None
+
+    def get_rejection_reason_id(self, obj):
+        return obj.rejection_reason.id if obj.rejection_reason else None
+
 
 # ─── Tag ──────────────────────────────────────────────────────────────────────
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = ['id', 'name', 'color', 'created_at']
+
+
+# ─── RejectionReason ──────────────────────────────────────────────────────────
+class RejectionReasonSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RejectionReason
+        fields = ['id', 'name', 'is_default', 'is_active', 'order']
 
 
 # ─── Duplicate helper ─────────────────────────────────────────────────────────

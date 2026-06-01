@@ -15,13 +15,14 @@ from rest_framework.views import APIView
 from .models import (
     Candidate, EmailTemplate, Organization,
     SentEmail, Tag, User, UserProfile, Vacancy, VacancyTemplate, Interview,
-    BlacklistedOrganization, VacancyStage, StatusHistory,
+    BlacklistedOrganization, VacancyStage, StatusHistory, RejectionReason,
     HolidayTheme, PricingConfig, PromoCode, PromoCodeUsage
 )
 from .serializers import (
     CandidateSerializer, EmailTemplateSerializer, OrganizationSerializer,
     SentEmailSerializer, TagSerializer, VacancySerializer, VacancyTemplateSerializer,
     DuplicateCandidateSerializer, InterviewSerializer, VacancyStageSerializer,
+    RejectionReasonSerializer,
     HolidayThemeSerializer, HolidayThemeActivateSerializer, PricingConfigSerializer,
     PromoCodeSerializer, PromoCodeVerifySerializer, PromoCodeApplySerializer
 )
@@ -346,6 +347,21 @@ class CandidateViewSet(viewsets.ModelViewSet):
         else:
             return Response({'error': 'stage_id or status required'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # НОВЕ: якщо переміщуємо в rejected — перевіряємо причину
+        rejection_reason = None
+        rejection_comment = ''
+        if new_stage.system_key == 'rejected':
+            rejection_reason_id = request.data.get('rejection_reason_id')
+            rejection_comment = request.data.get('rejection_comment', '')
+            if not rejection_reason_id:
+                return Response(
+                    {'error': 'rejection_reason_id is required for rejected stage'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            rejection_reason = RejectionReason.objects.filter(pk=rejection_reason_id).first()
+            if not rejection_reason:
+                return Response({'error': 'RejectionReason not found'}, status=status.HTTP_404_NOT_FOUND)
+
         old_stage = candidate.stage
 
         StatusHistory.objects.create(
@@ -355,6 +371,8 @@ class CandidateViewSet(viewsets.ModelViewSet):
             old_status=old_stage.name if old_stage else '',
             new_status=new_stage.name,
             changed_by=request.user,
+            rejection_reason=rejection_reason,
+            rejection_comment=rejection_comment,
         )
 
         candidate.stage = new_stage
@@ -571,6 +589,64 @@ class InterviewViewSet(viewsets.ModelViewSet):
         interview.status = new_status
         interview.save(update_fields=['status'])
         return Response(InterviewSerializer(interview, context={'request': request}).data)
+
+
+# ─── REJECTION REASONS ────────────────────────────────────────────────────────
+
+class RejectionReasonViewSet(viewsets.ModelViewSet):
+    """CRUD для причин відмови"""
+    serializer_class = RejectionReasonSerializer
+    permission_classes = [IsAuthenticated, IsOrgMember]
+
+    def get_queryset(self):
+        org = get_user_organization(self.request.user)
+        return RejectionReason.objects.filter(organization=org, is_active=True)
+
+    def perform_create(self, serializer):
+        org = get_user_organization(self.request.user)
+        RejectionReason.get_or_create_defaults(org)
+        serializer.save(organization=org)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def rejection_analytics(request):
+    """Аналітика причин відмов"""
+    org = get_user_organization(request.user)
+    vacancy_id = request.query_params.get('vacancy')
+    date_from = request.query_params.get('date_from')
+    date_to = request.query_params.get('date_to')
+
+    qs = StatusHistory.objects.filter(
+        candidate__organization=org,
+        new_stage__system_key='rejected',
+        rejection_reason__isnull=False,
+    )
+    if vacancy_id:
+        qs = qs.filter(candidate__vacancy_id=vacancy_id)
+    if date_from:
+        qs = qs.filter(changed_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(changed_at__date__lte=date_to)
+
+    from django.db.models import Count
+    data = (
+        qs.values('rejection_reason__name')
+          .annotate(count=Count('id'))
+          .order_by('-count')
+    )
+    total = qs.count()
+    return Response({
+        'total': total,
+        'breakdown': [
+            {
+                'reason': item['rejection_reason__name'],
+                'count': item['count'],
+                'percent': round(item['count'] / total * 100, 1) if total else 0,
+            }
+            for item in data
+        ]
+    })
 
 
 # ─── CURRENT USER ─────────────────────────────────────────────────────────────

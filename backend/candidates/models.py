@@ -1,3 +1,4 @@
+# models.py
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -238,6 +239,46 @@ class Candidate(models.Model):
         return qs.filter(email_q | phone_q).distinct()
 
 
+REJECTION_REASON_CHOICES = [
+    ('insufficient_experience',   'Недостатній досвід'),
+    ('high_salary_expectations',  'Високі зарплатні очікування'),
+    ('failed_technical',          'Не пройшов технічну співбесіду'),
+    ('declined_offer',            'Відмовився від оферу'),
+    ('failed_soft_skills',        'Не відповідає корпоративній культурі'),
+    ('no_response',               'Не вийшов на зв\'язок'),
+    ('position_closed',           'Вакансія закрита'),
+    ('overqualified',             'Завищена кваліфікація'),
+    ('other',                     'Інша причина'),
+]
+
+
+class RejectionReason(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='rejection_reasons')
+    name = models.CharField(max_length=200)
+    is_default = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'name']
+        unique_together = [('organization', 'name')]
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def get_or_create_defaults(cls, organization):
+        if cls.objects.filter(organization=organization).exists():
+            return
+        defaults = [n for _, n in REJECTION_REASON_CHOICES]
+        for i, name in enumerate(defaults):
+            cls.objects.create(
+                organization=organization, name=name,
+                is_default=True, order=i,
+            )
+
+
 class StatusHistory(models.Model):
     candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE, related_name='status_history')
     old_stage = models.ForeignKey(VacancyStage, on_delete=models.SET_NULL, null=True, blank=True, related_name='history_from')
@@ -246,6 +287,11 @@ class StatusHistory(models.Model):
     new_status = models.CharField(max_length=100)
     changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     changed_at = models.DateTimeField(auto_now_add=True)
+    rejection_reason = models.ForeignKey(
+        'RejectionReason', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='status_history'
+    )
+    rejection_comment = models.TextField(blank=True)
 
     class Meta:
         ordering = ['-changed_at']

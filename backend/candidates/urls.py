@@ -1,3 +1,4 @@
+# urls.py (оновлений)
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
@@ -10,7 +11,7 @@ from .views import (
     export_hr_effectiveness_pdf, export_full_report_excel, export_full_report_pdf,
     InterviewViewSet, BlacklistViewSet,
     HolidayThemeViewSet, PricingConfigViewSet, PromoCodeViewSet,
-    public_pricing
+    public_pricing, RejectionReasonViewSet, rejection_analytics
 )
 from .job_board_views import (
     vacancy_feed_rabota_ua,
@@ -34,6 +35,7 @@ router.register(r'blacklist', BlacklistViewSet, basename='blacklist')
 router.register(r'holiday-themes', HolidayThemeViewSet)
 router.register(r'pricing-config', PricingConfigViewSet)
 router.register(r'promo-codes', PromoCodeViewSet)
+router.register(r'rejection-reasons', RejectionReasonViewSet, basename='rejection-reason')
 
 
 urlpatterns = [
@@ -62,6 +64,7 @@ urlpatterns = [
     path('analytics/hr-effectiveness/export-pdf/',           export_hr_effectiveness_pdf,      name='hr-effectiveness-export-pdf'),
     path('analytics/export-full-excel/',                     export_full_report_excel,         name='full-report-export-excel'),
     path('analytics/export-full-pdf/',                       export_full_report_pdf,           name='full-report-export-pdf'),
+    path('analytics/rejection-reasons/',                     rejection_analytics,              name='rejection-analytics'),
     path('public/pricing/', public_pricing, name='public_pricing'),
 
     path('google-auth-status/', google_auth_status, name='google-auth-status'),
