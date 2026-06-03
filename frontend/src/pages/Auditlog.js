@@ -1,5 +1,3 @@
-// pages/AuditLog.js
-// Сторінка логів дій — тільки для admin/superadmin
 import React, { useState, useEffect, useCallback } from 'react';
 import { auditApi } from '../api/auditApi';
 
