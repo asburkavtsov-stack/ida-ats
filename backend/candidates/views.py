@@ -31,7 +31,7 @@ from .serializers import (
     VacancyAccessSerializer, AuditLogSerializer,
 )
 from .pagination import StandardPagination
-from .permissions import IsSuperAdmin, IsOrgMember
+from .permissions import IsSuperAdmin, IsOrgMember, IsOrgAdmin
 from .services import CandidateService, EmailService, AnalyticsService
 from .utils.export_service import ExportService, FullReportExportService
 from .utils.context_processors import (
