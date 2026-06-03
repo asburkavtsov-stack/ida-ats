@@ -1,6 +1,7 @@
 // CandidateCardModal.js (оновлений з модалкою відмови)
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axiosConfig';
+import toast from 'react-hot-toast';
 import { SOURCE_CONFIG, getSourceLabel, getSourceBg, getSourceText, getHrAvatarColor } from '../constants/statusColors';
 
 const formatDate = (dateString) => {
@@ -161,7 +162,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
       setCandidate(res.data);
       setCandidateTags(res.data.tags || []);
     } catch {
-      setError('Не вдалося оновити теги');
+      toast.error('Не вдалося оновити теги');
     } finally {
       setSaving(false);
     }
@@ -185,8 +186,9 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
       await handleAddTag(res.data.id);
       setNewTagForm({ name: '', color: '#7a1a2e' });
       setShowTagModal(false);
+      toast.success(`Тег «${res.data.name}» створено`);
     } catch {
-      setError('Не вдалося створити тег');
+      toast.error('Не вдалося створити тег');
     }
   };
 
@@ -204,9 +206,11 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
       const updated = res.data;
       setCandidate(updated);
       if (onStatusChange) onStatusChange(candidateId, stageId);
+      const stageName = stages.find(s => s.id === stageId)?.name;
+      toast.success(stageName ? `Етап змінено → ${stageName}` : 'Етап оновлено');
     } catch (err) {
       console.error('Помилка оновлення етапу:', err);
-      setError('Не вдалося оновити етап');
+      toast.error('Не вдалося оновити етап');
     } finally {
       setSaving(false);
     }
@@ -256,21 +260,24 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
         });
         setEditMode(false);
         setVacancy(vacancies.find(v => v.id === updated.vacancy) || null);
+        toast.success('Зміни збережено');
       })
-      .catch(() => setError('Не вдалося зберегти зміни'))
+      .catch(() => toast.error('Не вдалося зберегти зміни'))
       .finally(() => setSaving(false));
   };
 
   const handleDelete = () => {
     setSaving(true);
     setError('');
+    const name = `${candidate?.first_name} ${candidate?.last_name}`.trim();
     axios.delete(`/api/candidates/${candidateId}/`)
       .then(() => {
         if (onDelete) onDelete(candidateId);
         onClose();
+        toast.success(`${name} видалено`);
       })
       .catch(() => {
-        setError('Не вдалося видалити кандидата');
+        toast.error('Не вдалося видалити кандидата');
         setSaving(false);
       });
   };
@@ -279,8 +286,11 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
     setSaving(true);
     setError('');
     axios.patch(`/api/candidates/${candidateId}/assign/`, { assigned_to: userId ?? null })
-      .then(res => setCandidate(res.data))
-      .catch(() => setError('Не вдалося призначити HR'))
+      .then(res => {
+        setCandidate(res.data);
+        toast.success(userId ? 'HR призначено' : 'HR знято');
+      })
+      .catch(() => toast.error('Не вдалося призначити HR'))
       .finally(() => setSaving(false));
   };
 
@@ -309,9 +319,10 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
       setPreviewEmail(null);
       setSelectedTemplate(null);
       fetchEmailHistory();
-      alert('Лист успішно відправлено!');
+      toast.success('Лист успішно відправлено');
     } catch (err) {
       setEmailError(err.response?.data?.error || 'Не вдалося відправити лист');
+      toast.error(err.response?.data?.error || 'Не вдалося відправити лист');
     } finally {
       setSendingEmail(false);
     }

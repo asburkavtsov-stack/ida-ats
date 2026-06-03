@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axiosConfig';
+import { Toaster } from 'react-hot-toast';
 import './styles/global.css';
 
 import Dashboard from './pages/Dashboard';
@@ -12,7 +13,7 @@ import Users from './pages/Users';
 import Profile from './pages/Profile';
 import OrgSettings from './pages/OrgSettings';
 import Landing from './pages/Landing';
-import Login from './pages/Login';          // ← компонент логіну
+import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import AddCandidateModal from './components/AddCandidateModal';
@@ -56,14 +57,12 @@ function App() {
     }
   }, []);
 
-  // Функція, яка викликається після успішного логіну
   const handleLoginSuccess = () => {
     setIsAuth(true);
     setShowLogin(false);
     fetchRole();
   };
 
-  // Функція, яка показує форму логіну
   const handleShowLogin = () => {
     setShowLogin(true);
   };
@@ -99,14 +98,46 @@ function App() {
     }
   };
 
-  // ── Показуємо форму логіну якщо натиснули "Увійти" ─────────────────────
+  // ── Toaster — один на весь додаток ─────────────────────────────────────────
+  const toaster = (
+    <Toaster
+      position="bottom-right"
+      toastOptions={{
+        duration: 4000,
+        style: {
+          fontFamily: 'DM Sans, sans-serif',
+          fontSize: '0.85rem',
+          borderRadius: '10px',
+          padding: '12px 16px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+        },
+        success: {
+          iconTheme: { primary: '#16a34a', secondary: '#fff' },
+        },
+        error: {
+          duration: 6000,
+          iconTheme: { primary: '#dc2626', secondary: '#fff' },
+        },
+      }}
+    />
+  );
+
   if (showLogin) {
-    return <Login onLogin={handleLoginSuccess} />;
+    return (
+      <>
+        <Login onLogin={handleLoginSuccess} />
+        {toaster}
+      </>
+    );
   }
 
-  // ── Неавторизований користувач → показуємо лендінг ─────────────────────
   if (!isAuth) {
-    return <Landing onLogin={handleShowLogin} />;
+    return (
+      <>
+        <Landing onLogin={handleShowLogin} />
+        {toaster}
+      </>
+    );
   }
 
   // ── Superadmin ──────────────────────────────────────────────────────────────
@@ -157,33 +188,12 @@ function App() {
         {showModal && (
           <AddCandidateModal onClose={() => setShowModal(false)} onAdded={handleAdded} />
         )}
+        {toaster}
       </div>
     );
   }
 
-  // ── Admin ───────────────────────────────────────────────────────────────────
-  if (userRole === 'admin') {
-    return (
-      <div className="app-layout">
-        <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} onLogout={handleLogout} userRole={userRole} />
-        <div className="main">
-          <Topbar
-            currentPage={currentPage}
-            onAddCandidate={() => setShowModal(true)}
-            onSearch={setSearchQuery}
-          />
-          <div className="content">
-            {renderPage()}
-          </div>
-        </div>
-        {showModal && (
-          <AddCandidateModal onClose={() => setShowModal(false)} onAdded={handleAdded} />
-        )}
-      </div>
-    );
-  }
-
-  // ── HR ──────────────────────────────────────────────────────────────────────
+  // ── Admin / HR — спільний layout ────────────────────────────────────────────
   return (
     <div className="app-layout">
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} onLogout={handleLogout} userRole={userRole} />
@@ -200,6 +210,7 @@ function App() {
       {showModal && (
         <AddCandidateModal onClose={() => setShowModal(false)} onAdded={handleAdded} />
       )}
+      {toaster}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axiosConfig';
+import toast from 'react-hot-toast';
 import Loader from '../components/Loader';
 import CandidateCardModal from '../components/CandidateCardModal';
 import {
@@ -128,7 +129,8 @@ function Candidates({ searchQuery = '' }) {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-    } catch { alert('Не вдалося експортувати CSV'); }
+      toast.success('CSV експортовано');
+    } catch { toast.error('Не вдалося експортувати CSV'); }
     finally  { setExporting(false); }
   };
 

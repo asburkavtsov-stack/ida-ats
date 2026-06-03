@@ -1,4 +1,5 @@
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
 axios.defaults.baseURL = API_URL;
@@ -58,7 +59,6 @@ axios.interceptors.response.use(
       originalRequest._retry = true;
 
       if (isRefreshing) {
-        // Wait for refresh to complete
         return new Promise(resolve => {
           addRefreshSubscriber(newToken => {
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
@@ -75,7 +75,6 @@ axios.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return axios(originalRequest);
       } catch (refreshError) {
-        // Refresh failed — logout
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         delete axios.defaults.headers.common['Authorization'];
@@ -86,20 +85,12 @@ axios.interceptors.response.use(
       }
     }
 
-    // Server errors (500+)
+    // Server errors (500+) — замінили DOM-маніпуляцію на toast
     if (error.response?.status >= 500 || !error.response) {
-      const toast = document.createElement('div');
-      toast.textContent = '⚠ Сервер недоступний. Спробуйте пізніше.';
-      toast.style.cssText = `
-        position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-        background: #dc2626; color: #fff; padding: 12px 20px;
-        border-radius: 10px; font-family: DM Sans, sans-serif;
-        font-size: 0.85rem; font-weight: 600;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-        animation: fadeIn 0.2s ease;
-      `;
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 6000);
+      toast.error('Сервер недоступний. Спробуйте пізніше.', {
+        id: 'server-error', // запобігає дублюванню при кількох помилках підряд
+        duration: 6000,
+      });
     }
 
     return Promise.reject(error);
