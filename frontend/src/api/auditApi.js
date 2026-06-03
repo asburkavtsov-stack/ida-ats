@@ -1,4 +1,3 @@
-// src/api/auditApi.js
 import axios from 'axiosConfig';
 
 export const auditApi = {

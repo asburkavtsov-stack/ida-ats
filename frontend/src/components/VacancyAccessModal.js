@@ -41,7 +41,7 @@ function VacancyAccessModal({ vacancy, onClose }) {
     setSaving(true);
     setError('');
     try {
-      const newAccess = await vacanciesApi.grantAccess(vacancy.id, Number(selectedHr));
+      await vacanciesApi.grantAccess(vacancy.id, Number(selectedHr));
       // Оновлюємо список доступу
       const updatedList = await vacanciesApi.listAccess(vacancy.id);
       setAccessList(updatedList);
