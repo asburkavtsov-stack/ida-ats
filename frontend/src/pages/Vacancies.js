@@ -4,6 +4,7 @@ import axios from 'axiosConfig';
 import AddVacancyModal from '../components/AddVacancyModal';
 import Loader from '../components/Loader';
 import CandidateCardModal from '../components/CandidateCardModal';
+import VacancyAccessModal from '../components/VacancyAccessModal';
 
 function Vacancies() {
   const [vacancies, setVacancies] = useState([]);
@@ -19,6 +20,8 @@ function Vacancies() {
   const [vacancyLimit, setVacancyLimit] = useState({ current: 0, max: 10 });
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+  const [accessModalVacancy, setAccessModalVacancy] = useState(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -43,8 +46,9 @@ function Vacancies() {
       setVacancyLimit({ current: vacsData.length, max: maxVacancies });
       
       // Перевірка ролі - така сама, як в Sidebar
-      const userRole = meRes.data.role;
-      setIsAdmin(userRole === 'admin');
+      const role = meRes.data.role;
+      setIsAdmin(role === 'admin');
+      setUserRole(role);
     } catch (err) {
       console.error('Помилка завантаження:', err);
     } finally {
@@ -217,6 +221,21 @@ function Vacancies() {
           >
             <span aria-hidden="true">✏️</span> Редагувати
           </button>
+          {isAdmin && (
+            <button
+              onClick={() => setAccessModalVacancy(selectedVacancy)}
+              type="button"
+              style={{
+                padding: isMobile ? '10px 14px' : '8px 16px',
+                borderRadius: '8px', border: '1px solid var(--border)',
+                background: 'var(--surface)', color: 'var(--text)',
+                cursor: 'pointer', fontSize: '0.82rem',
+                display: 'flex', alignItems: 'center', gap: '6px',
+              }}
+            >
+              <span aria-hidden="true">🔑</span> Доступ
+            </button>
+          )}
           <button
             onClick={(e) => handleToggleStatus(e, selectedVacancy)}
             aria-label={selectedVacancy?.is_active ? `Закрити вакансію ${selectedVacancy?.title}` : `Відкрити вакансію ${selectedVacancy?.title}`}
@@ -302,6 +321,21 @@ function Vacancies() {
             </div>
             <div style={{ padding: isMobile ? '16px' : '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
+              {(userRole === 'admin' || userRole === 'superadmin') && (selectedVacancy.salary_min || selectedVacancy.salary_max) && (
+                <div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 600, fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)', marginBottom: '8px' }}>
+                    Зарплатна вилка
+                  </div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text)' }}>
+                    {selectedVacancy.salary_min && selectedVacancy.salary_max
+                      ? `${selectedVacancy.salary_min.toLocaleString()} — ${selectedVacancy.salary_max.toLocaleString()} грн`
+                      : selectedVacancy.salary_min
+                        ? `від ${selectedVacancy.salary_min.toLocaleString()} грн`
+                        : `до ${selectedVacancy.salary_max.toLocaleString()} грн`
+                    }
+                  </div>
+                </div>
+              )}
               {(selectedVacancy.city || selectedVacancy.employment_type) && (
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   {selectedVacancy.city && (
@@ -482,6 +516,13 @@ function Vacancies() {
               setEditModalVacancy(null);
             }}
             onUpdated={() => setUpdateKey(k => k + 1)}
+          />
+        )}
+
+        {accessModalVacancy && (
+          <VacancyAccessModal
+            vacancy={accessModalVacancy}
+            onClose={() => setAccessModalVacancy(null)}
           />
         )}
 
@@ -677,11 +718,31 @@ function Vacancies() {
                   {v.is_active ? 'Активна' : 'Закрита'}
                 </span>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--muted)' }}>
-                  <div style={{ width: '22px', height: '22px', borderRadius: '6px', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, color: '#fff' }}>
-                    HR
-                  </div>
-                  HR Manager
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: 'var(--muted)', flexWrap: 'wrap' }}>
+                  {v.owner_name ? (
+                    <>
+                      <div style={{ width: '22px', height: '22px', borderRadius: '6px', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, color: '#fff' }}>
+                        {v.owner_name[0]?.toUpperCase()}
+                      </div>
+                      <span>{v.owner_name}</span>
+                    </>
+                  ) : (
+                    <span style={{ color: 'var(--muted)', fontFamily: 'DM Mono', fontSize: '0.7rem' }}>Без відповідального</span>
+                  )}
+                  {isAdmin && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setAccessModalVacancy(v); }}
+                      title="Керувати доступом"
+                      type="button"
+                      style={{
+                        marginLeft: '4px', padding: '2px 8px', borderRadius: '5px',
+                        border: '1px solid var(--border)', background: 'var(--surface)',
+                        cursor: 'pointer', fontSize: '0.68rem', fontFamily: 'DM Mono', color: 'var(--muted)',
+                      }}
+                    >
+                      🔑 Доступ
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -706,6 +767,13 @@ function Vacancies() {
             setEditModalVacancy(null);
           }}
           onUpdated={() => setUpdateKey(k => k + 1)}
+        />
+      )}
+
+      {accessModalVacancy && (
+        <VacancyAccessModal
+          vacancy={accessModalVacancy}
+          onClose={() => setAccessModalVacancy(null)}
         />
       )}
     </div>

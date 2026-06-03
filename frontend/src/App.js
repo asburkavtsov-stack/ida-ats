@@ -18,6 +18,7 @@ import Topbar from './components/Topbar';
 import AddCandidateModal from './components/AddCandidateModal';
 import EmailTemplates from './pages/EmailTemplates';
 import InterviewCalendar from './pages/InterviewCalendar';
+import AuditLog from './pages/AuditLog';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -93,6 +94,7 @@ function App() {
       case 'email_templates': return <EmailTemplates />;
       case 'org_settings':    return <OrgSettings />;
       case 'profile':         return <Profile />;
+      case 'audit_log':       return <AuditLog />;
       default:                return <Dashboard />;
     }
   };
@@ -134,6 +136,7 @@ function App() {
         case 'vacancies':       return <Vacancies />;
         case 'kanban':          return <Kanban key={refreshKey} searchQuery={debouncedSearch} />;
         case 'candidates':      return <Candidates key={refreshKey} searchQuery={debouncedSearch} />;
+        case 'audit_log':       return <AuditLog />;
         default:                return <Admin onViewOrg={handleViewOrg} currentPage={currentPage} onNavigate={setCurrentPage} />;
       }
     };

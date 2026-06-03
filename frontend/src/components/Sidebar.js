@@ -23,6 +23,7 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
     themes:          (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20"/><path d="M12 2v20M2 12h20"/></svg>),
     pricing:         (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>),
     promocodes:      (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>),
+    audit_log:       (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>),
   };
 
   const navItems = userRole === 'superadmin' ? [
@@ -32,6 +33,7 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
     { key: 'pricing',     label: 'Ціни та знижки',  badgeKey: null },
     { key: 'promocodes',  label: 'Промо-коди',      badgeKey: null },
     { key: 'blacklist',   label: 'Чорний список',   badgeKey: null },
+    { key: 'audit_log',   label: 'Аудит',           badgeKey: null },
     { key: 'profile',     label: 'Профіль',         badgeKey: null },
   ] : userRole === 'admin' ? [
     { key: 'dashboard',       label: 'Дашборд',         badgeKey: null },
@@ -40,6 +42,7 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
     { key: 'vacancies',       label: 'Вакансії',         badgeKey: 'vacancies' },
     { key: 'interviews',      label: "Інтерв'ю",         badgeKey: 'InterviewClendar' },
     { key: 'analytics',       label: 'Аналітика',        badgeKey: null },
+    { key: 'audit_log',       label: 'Аудит',            badgeKey: null },
     { key: 'org_settings',    label: 'Організація',      badgeKey: null },
     { key: 'email_templates', label: 'Шаблони листів',   badgeKey: null },
     { key: 'profile',         label: 'Профіль',          badgeKey: null },
