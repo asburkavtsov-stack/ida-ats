@@ -11,7 +11,8 @@ from .views import (
     export_hr_effectiveness_pdf, export_full_report_excel, export_full_report_pdf,
     InterviewViewSet, BlacklistViewSet,
     HolidayThemeViewSet, PricingConfigViewSet, PromoCodeViewSet,
-    public_pricing, RejectionReasonViewSet, rejection_analytics
+    public_pricing, RejectionReasonViewSet, rejection_analytics,
+    AuditLogView,
 )
 from .job_board_views import (
     vacancy_feed_rabota_ua,
@@ -66,6 +67,8 @@ urlpatterns = [
     path('analytics/export-full-pdf/',                       export_full_report_pdf,           name='full-report-export-pdf'),
     path('analytics/rejection-reasons/',                     rejection_analytics,              name='rejection-analytics'),
     path('public/pricing/', public_pricing, name='public_pricing'),
+    path('audit-log/', AuditLogView.as_view(), name='audit-log'),
+
 
     path('google-auth-status/', google_auth_status, name='google-auth-status'),
 ]
