@@ -53,3 +53,32 @@ class IsOrgMember(BasePermission):
             return obj.candidate.organization == user_org
 
         return False
+
+class IsHROwnerOrAdmin(BasePermission):
+    """
+    HR бачить/редагує об'єкт лише якщо він owner вакансії або має делегований доступ.
+    Admin/superadmin — повний доступ.
+    """
+    def has_object_permission(self, request, view, obj):
+        role = get_user_role(request.user)
+        if role in ['admin', 'superadmin']:
+            return True
+
+        # Визначаємо вакансію з об'єкта
+        if hasattr(obj, 'owner'):          # це Vacancy
+            vacancy = obj
+        elif hasattr(obj, 'vacancy') and obj.vacancy:
+            vacancy = obj.vacancy
+        else:
+            # Candidate без вакансії — дозволяємо якщо assigned_to == user
+            if hasattr(obj, 'assigned_to') and obj.assigned_to == request.user:
+                return True
+            return False
+
+        if vacancy.owner == request.user:
+            return True
+
+        from candidates.models import VacancyAccess
+        return VacancyAccess.objects.filter(
+            vacancy=vacancy, user=request.user
+        ).exists()

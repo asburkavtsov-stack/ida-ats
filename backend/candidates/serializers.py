@@ -5,7 +5,8 @@ from .models import (
     Candidate, Vacancy, VacancyTemplate, VacancyStage,
     Organization, StatusHistory, EmailTemplate, SentEmail,
     Tag, Interview, UserProfile, HolidayTheme, PricingConfig,
-    PromoCode, PromoCodeUsage, RejectionReason
+    PromoCode, PromoCodeUsage, RejectionReason,
+    VacancyAccess, AuditLog
 )
 
 User = get_user_model()
@@ -28,18 +29,43 @@ class VacancyStageSerializer(serializers.ModelSerializer):
 class VacancySerializer(serializers.ModelSerializer):
     published_boards = serializers.ReadOnlyField()
     stages = VacancyStageSerializer(many=True, read_only=True)
+    owner_name = serializers.SerializerMethodField()
+    salary_min = serializers.SerializerMethodField()
+    salary_max = serializers.SerializerMethodField()
+
+    def _can_see_salary(self):
+        request = self.context.get('request')
+        if not request:
+            return True
+        try:
+            return request.user.profile.role in ['admin', 'superadmin']
+        except Exception:
+            return False
+
+    def get_salary_min(self, obj):
+        return obj.salary_min if self._can_see_salary() else None
+
+    def get_salary_max(self, obj):
+        return obj.salary_max if self._can_see_salary() else None
+
+    def get_owner_name(self, obj):
+        if not obj.owner:
+            return None
+        full = f"{obj.owner.first_name} {obj.owner.last_name}".strip()
+        return full or obj.owner.username
 
     class Meta:
         model = Vacancy
         fields = [
             'id', 'title', 'department', 'description', 'requirements', 'city',
             'employment_type', 'salary_min', 'salary_max', 'is_active', 'created_at', 'stages',
+            'owner', 'owner_name',
             'published_boards', 'published_rabota_ua', 'rabota_ua_vacancy_id', 'published_at_rabota_ua',
             'published_work_ua', 'work_ua_vacancy_id', 'published_at_work_ua',
             'published_dou', 'dou_vacancy_url', 'published_at_dou',
             'published_linkedin', 'linkedin_vacancy_url', 'published_at_linkedin',
         ]
-        read_only_fields = ['published_boards', 'stages']
+        read_only_fields = ['published_boards', 'stages', 'owner_name']
 
 
 class VacancyPublishSerializer(serializers.Serializer):
@@ -178,6 +204,7 @@ class InterviewSerializer(serializers.ModelSerializer):
 class CandidateSerializer(serializers.ModelSerializer):
     vacancy_title = serializers.CharField(source='vacancy.title', read_only=True)
     assigned_to_name = serializers.SerializerMethodField()
+    notes = serializers.SerializerMethodField()
     assigned_to_username = serializers.SerializerMethodField()
     status_history = StatusHistorySerializer(many=True, read_only=True)
     source_display = serializers.CharField(source='get_source_display', read_only=True)
@@ -200,6 +227,24 @@ class CandidateSerializer(serializers.ModelSerializer):
             'assigned_to', 'assigned_to_name', 'assigned_to_username',
             'status_history', 'tags', 'tag_ids', 'duplicates',
         ]
+
+    def get_notes(self, obj):
+        request = self.context.get('request')
+        if not request:
+            return obj.notes
+        user = request.user
+        try:
+            role = user.profile.role
+        except Exception:
+            return ''
+        if role in ['admin', 'superadmin']:
+            return obj.notes
+        # HR бачить notes лише якщо він assigned_to або owner вакансії
+        if obj.assigned_to == user:
+            return obj.notes
+        if obj.vacancy and obj.vacancy.owner == user:
+            return obj.notes
+        return ''
 
     def get_assigned_to_name(self, obj):
         if not obj.assigned_to:
@@ -373,3 +418,45 @@ class PromoCodeUsageSerializer(serializers.ModelSerializer):
 
     def get_user_name(self, obj):
         return obj.user.get_full_name() or obj.user.username
+
+
+# ─── VacancyAccess ────────────────────────────────────────────────────────────
+class VacancyAccessSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+    granted_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = VacancyAccess
+        fields = ['id', 'vacancy', 'user', 'user_name', 'granted_by', 'granted_by_name', 'granted_at']
+        read_only_fields = ['granted_by', 'granted_at']
+
+    def get_user_name(self, obj):
+        full = f"{obj.user.first_name} {obj.user.last_name}".strip()
+        return full or obj.user.username
+
+    def get_granted_by_name(self, obj):
+        if not obj.granted_by:
+            return None
+        full = f"{obj.granted_by.first_name} {obj.granted_by.last_name}".strip()
+        return full or obj.granted_by.username
+
+
+# ─── AuditLog ─────────────────────────────────────────────────────────────────
+class AuditLogSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+    action_display = serializers.CharField(source='get_action_display', read_only=True)
+
+    class Meta:
+        model = AuditLog
+        fields = [
+            'id', 'user', 'user_name', 'action', 'action_display',
+            'model_name', 'object_id', 'object_repr',
+            'extra_data', 'ip_address', 'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_user_name(self, obj):
+        if not obj.user:
+            return 'Видалений користувач'
+        full = f"{obj.user.first_name} {obj.user.last_name}".strip()
+        return full or obj.user.username

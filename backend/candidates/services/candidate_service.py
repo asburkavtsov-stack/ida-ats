@@ -16,6 +16,8 @@ class CandidateService:
     @staticmethod
     def get_queryset_for_user(user: User, filters: Dict = None) -> QuerySet:
         from candidates.utils.context_processors import get_user_role, get_user_organization
+        from candidates.models import VacancyAccess
+        from django.db.models import Q as DQ
 
         role = get_user_role(user)
         org = get_user_organization(user)
@@ -24,8 +26,20 @@ class CandidateService:
             qs = Candidate.objects.all()
             if filters and filters.get('organization_id'):
                 qs = qs.filter(organization_id=filters['organization_id'])
-        else:
+        elif role == 'admin':
             qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
+        else:
+            # HR — лише кандидати по своїх вакансіях (owner або делегований доступ)
+            if not org:
+                return Candidate.objects.none()
+            delegated_ids = VacancyAccess.objects.filter(
+                user=user
+            ).values_list('vacancy_id', flat=True)
+            qs = Candidate.objects.filter(organization=org).filter(
+                DQ(vacancy__owner=user) |
+                DQ(vacancy__id__in=delegated_ids) |
+                DQ(vacancy__isnull=True, assigned_to=user)
+            )
 
         return qs.select_related('assigned_to', 'vacancy', 'organization').prefetch_related(
             'status_history', 'status_history__changed_by', 'tags'

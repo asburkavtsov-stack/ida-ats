@@ -142,6 +142,14 @@ class Vacancy(models.Model):
     linkedin_vacancy_url = models.URLField(blank=True)
     published_at_linkedin = models.DateTimeField(null=True, blank=True)
 
+    owner = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='owned_vacancies',
+        verbose_name='Відповідальний HR',
+    )
+
     def __str__(self):
         return self.title
 
@@ -577,3 +585,72 @@ class PromoCodeUsage(models.Model):
 
     def __str__(self):
         return f"{self.promo_code.code} -> {self.user.email} ({self.used_at})"
+
+
+class VacancyAccess(models.Model):
+    """Делегований доступ HR до конкретної вакансії"""
+    vacancy = models.ForeignKey(
+        Vacancy, on_delete=models.CASCADE,
+        related_name='shared_access',
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE,
+        related_name='vacancy_access',
+    )
+    granted_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='granted_access',
+    )
+    granted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('vacancy', 'user')]
+        verbose_name = 'Доступ до вакансії'
+        verbose_name_plural = 'Делеговані доступи'
+
+    def __str__(self):
+        return f"{self.user.username} → {self.vacancy.title}"
+
+
+class AuditLog(models.Model):
+    ACTION_CHOICES = [
+        ('view',          'Перегляд'),
+        ('create',        'Створення'),
+        ('update',        'Оновлення'),
+        ('delete',        'Видалення'),
+        ('status_change', 'Зміна статусу'),
+        ('assign',        'Призначення'),
+        ('export',        'Експорт'),
+        ('access_grant',  'Надання доступу'),
+        ('access_revoke', 'Відкликання доступу'),
+    ]
+
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True,
+        related_name='audit_logs',
+    )
+    organization = models.ForeignKey(
+        Organization, on_delete=models.SET_NULL, null=True,
+        related_name='audit_logs',
+    )
+    action      = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    model_name  = models.CharField(max_length=50)
+    object_id   = models.PositiveIntegerField(null=True, blank=True)
+    object_repr = models.CharField(max_length=200, blank=True)
+    extra_data  = models.JSONField(default=dict, blank=True)
+    ip_address  = models.GenericIPAddressField(null=True, blank=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Лог дій'
+        verbose_name_plural = 'Логи дій'
+        indexes = [
+            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['model_name', 'object_id']),
+            models.Index(fields=['organization', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user} — {self.action} {self.model_name} #{self.object_id}"

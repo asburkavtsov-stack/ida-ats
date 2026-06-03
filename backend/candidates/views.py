@@ -6,17 +6,20 @@ from django.shortcuts import get_object_or_404
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 
-from rest_framework import serializers, status, viewsets, permissions
+from rest_framework import serializers, status, viewsets, permissions, generics
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.filters import OrderingFilter
+from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import (
     Candidate, EmailTemplate, Organization,
     SentEmail, Tag, User, UserProfile, Vacancy, VacancyTemplate, Interview,
     BlacklistedOrganization, VacancyStage, StatusHistory, RejectionReason,
     HolidayTheme, PricingConfig, PromoCode, PromoCodeUsage
+    VacancyAccess, AuditLog,
 )
 from .serializers import (
     CandidateSerializer, EmailTemplateSerializer, OrganizationSerializer,
@@ -25,6 +28,7 @@ from .serializers import (
     RejectionReasonSerializer,
     HolidayThemeSerializer, HolidayThemeActivateSerializer, PricingConfigSerializer,
     PromoCodeSerializer, PromoCodeVerifySerializer, PromoCodeApplySerializer
+    VacancyAccessSerializer, AuditLogSerializer,
 )
 from .pagination import StandardPagination
 from .permissions import IsSuperAdmin, IsOrgMember
@@ -147,19 +151,80 @@ class VacancyViewSet(VacancyJobBoardMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         try:
-            org = user.profile.organization
-            if user.profile.role == 'superadmin':
+            role = user.profile.role
+            org  = user.profile.organization
+            if role == 'superadmin':
                 return Vacancy.objects.all()
-            return Vacancy.objects.filter(organization=org)
+            if role == 'admin':
+                return Vacancy.objects.filter(organization=org)
+            # HR — тільки свої (owner) + делеговані
+            from django.db.models import Q as DQ
+            delegated_ids = VacancyAccess.objects.filter(
+                user=user
+            ).values_list('vacancy_id', flat=True)
+            return Vacancy.objects.filter(organization=org).filter(
+                DQ(owner=user) | DQ(id__in=delegated_ids)
+            )
         except Exception:
-            return Vacancy.objects.all()
+            return Vacancy.objects.none()
 
     def perform_create(self, serializer):
         try:
             org = self.request.user.profile.organization
-            serializer.save(organization=org)
+            serializer.save(organization=org, owner=self.request.user)
         except Exception:
             serializer.save()
+
+    @action(detail=True, methods=['post', 'delete'], url_path='access')
+    def manage_access(self, request, pk=None):
+        """POST: надати HR доступ до вакансії. DELETE: відкликати.  Body: {user_id: 5}"""
+        vacancy = self.get_object()
+        try:
+            role = request.user.profile.role
+        except Exception:
+            role = None
+        if role not in ['admin', 'superadmin']:
+            return Response(
+                {'error': 'Тільки адміністратор може керувати доступом'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({'error': 'user_id обов\'язковий'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            target = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Користувача не знайдено'}, status=status.HTTP_404_NOT_FOUND)
+        if request.method == 'POST':
+            obj, created = VacancyAccess.objects.get_or_create(
+                vacancy=vacancy, user=target,
+                defaults={'granted_by': request.user}
+            )
+            from .utils.audit import log_action
+            log_action(request.user, 'access_grant', vacancy,
+                       {'target_user': target.username}, request)
+            return Response({
+                'status': 'granted' if created else 'already_exists',
+                'user': target.username,
+                'vacancy': vacancy.title,
+            })
+        elif request.method == 'DELETE':
+            deleted, _ = VacancyAccess.objects.filter(vacancy=vacancy, user=target).delete()
+            from .utils.audit import log_action
+            log_action(request.user, 'access_revoke', vacancy,
+                       {'target_user': target.username}, request)
+            return Response({
+                'status': 'revoked' if deleted else 'not_found',
+                'user': target.username,
+            })
+
+    @action(detail=True, methods=['get'], url_path='access-list')
+    def list_access(self, request, pk=None):
+        """GET: список хто має доступ до вакансії"""
+        vacancy = self.get_object()
+        accesses = VacancyAccess.objects.filter(vacancy=vacancy).select_related('user', 'granted_by')
+        from .serializers import VacancyAccessSerializer
+        return Response(VacancyAccessSerializer(accesses, many=True).data)
 
     @action(detail=True, methods=['post'], url_path='save_as_template')
     def save_as_template(self, request, pk=None):
@@ -377,6 +442,13 @@ class CandidateViewSet(viewsets.ModelViewSet):
 
         candidate.stage = new_stage
         candidate.save(update_fields=['stage'])
+
+        from .utils.audit import log_action
+        log_action(request.user, 'status_change', candidate, {
+            'from': old_stage.name if old_stage else None,
+            'to': new_stage.name,
+        }, request)
+
         return Response(CandidateSerializer(candidate, context={'request': request}).data)
 
     @action(detail=True, methods=['patch'], url_path='assign')
@@ -391,6 +463,10 @@ class CandidateViewSet(viewsets.ModelViewSet):
                 candidate = CandidateService.assign_to_hr(candidate, hr_user)
             except User.DoesNotExist:
                 return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        from .utils.audit import log_action
+        log_action(request.user, 'assign', candidate, {
+            'assigned_to': hr_user.username if user_id else None,
+        }, request)
         return Response(CandidateSerializer(candidate).data)
 
     @action(detail=False, methods=['post'], url_path='check-duplicate')
@@ -497,6 +573,12 @@ class CandidateExportCSVView(APIView):
 
 
 # ─── INTERVIEWS ───────────────────────────────────────────────────────────────
+
+    def perform_destroy(self, instance):
+        from .utils.audit import log_action
+        log_action(self.request.user, 'delete', instance, {}, self.request)
+        instance.delete()
+
 
 class InterviewViewSet(viewsets.ModelViewSet):
     serializer_class = InterviewSerializer
@@ -650,6 +732,24 @@ def rejection_analytics(request):
 
 
 # ─── CURRENT USER ─────────────────────────────────────────────────────────────
+
+
+# ─── AUDIT LOG ────────────────────────────────────────────────────────────────
+class AuditLogView(generics.ListAPIView):
+    """Перегляд логів дій — тільки для admin/superadmin"""
+    serializer_class = AuditLogSerializer
+    permission_classes = [IsAuthenticated, IsOrgAdmin]
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ['action', 'model_name', 'user']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        role = get_user_role(self.request.user)
+        if role == 'superadmin':
+            return AuditLog.objects.select_related('user', 'organization').all()
+        org = get_user_organization(self.request.user)
+        return AuditLog.objects.filter(organization=org).select_related('user', 'organization')
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
