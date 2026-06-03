@@ -33,7 +33,6 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
     { key: 'pricing',     label: 'Ціни та знижки',  badgeKey: null },
     { key: 'promocodes',  label: 'Промо-коди',      badgeKey: null },
     { key: 'blacklist',   label: 'Чорний список',   badgeKey: null },
-    { key: 'audit_log',   label: 'Аудит',           badgeKey: null },
     { key: 'profile',     label: 'Профіль',         badgeKey: null },
   ] : userRole === 'admin' ? [
     { key: 'dashboard',       label: 'Дашборд',         badgeKey: null },
