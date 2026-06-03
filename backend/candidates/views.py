@@ -18,7 +18,7 @@ from .models import (
     Candidate, EmailTemplate, Organization,
     SentEmail, Tag, User, UserProfile, Vacancy, VacancyTemplate, Interview,
     BlacklistedOrganization, VacancyStage, StatusHistory, RejectionReason,
-    HolidayTheme, PricingConfig, PromoCode, PromoCodeUsage
+    HolidayTheme, PricingConfig, PromoCode, PromoCodeUsage,
     VacancyAccess, AuditLog,
 )
 from .serializers import (
@@ -27,7 +27,7 @@ from .serializers import (
     DuplicateCandidateSerializer, InterviewSerializer, VacancyStageSerializer,
     RejectionReasonSerializer,
     HolidayThemeSerializer, HolidayThemeActivateSerializer, PricingConfigSerializer,
-    PromoCodeSerializer, PromoCodeVerifySerializer, PromoCodeApplySerializer
+    PromoCodeSerializer, PromoCodeVerifySerializer, PromoCodeApplySerializer,
     VacancyAccessSerializer, AuditLogSerializer,
 )
 from .pagination import StandardPagination
