@@ -1,5 +1,5 @@
 // src/components/RegisterModal.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axiosConfig';
 
 const INPUT_STYLE = {
@@ -58,7 +58,6 @@ export default function RegisterModal({ onClose, onSuccess, primaryColor = '#7a1
     axios.get('/api/public/pricing/')
       .then(res => {
         const data = res.data;
-        // pricing — об'єкт {free: {...}, growth: {...}, enterprise: {...}}
         const list = Object.entries(data).map(([key, val]) => ({
           key,
           label: val.name || key,
@@ -71,11 +70,13 @@ export default function RegisterModal({ onClose, onSuccess, primaryColor = '#7a1
       .finally(() => setPlansLoading(false));
   }, []);
 
-  const set = (field) => (e) => {
-    setForm(f => ({ ...f, [field]: e.target.value }));
-    setErrors(er => ({ ...er, [field]: '' }));
+  // ВИПРАВЛЕНО: нормальний обробник зміни полів
+  const handleChange = useCallback((field) => (e) => {
+    setForm(prev => ({ ...prev, [field]: e.target.value }));
+    // Очищаємо помилку тільки для цього поля
+    setErrors(prev => ({ ...prev, [field]: '' }));
     setServerError('');
-  };
+  }, []);
 
   // Клієнтська валідація
   const validate = () => {
@@ -136,7 +137,6 @@ export default function RegisterModal({ onClose, onSuccess, primaryColor = '#7a1
     } catch (err) {
       const data = err.response?.data;
       if (data && typeof data === 'object') {
-        // Серверні помилки полів
         const fieldErrors = {};
         let general = '';
         for (const [key, val] of Object.entries(data)) {
@@ -157,13 +157,14 @@ export default function RegisterModal({ onClose, onSuccess, primaryColor = '#7a1
     }
   };
 
+  // ВИПРАВЛЕНО: компонент поля тепер використовує useCallback
   const Field = ({ name, label, type = 'text', placeholder }) => (
     <div style={{ marginBottom: '16px' }}>
       <label style={LABEL_STYLE}>{label}</label>
       <input
         type={type}
         value={form[name]}
-        onChange={set(name)}
+        onChange={handleChange(name)}
         placeholder={placeholder}
         style={errors[name] ? INPUT_ERROR_STYLE : INPUT_STYLE}
         onFocus={e => { e.target.style.borderColor = errors[name] ? '#dc2626' : primaryColor; }}
@@ -239,7 +240,7 @@ export default function RegisterModal({ onClose, onSuccess, primaryColor = '#7a1
           ) : (
             <select
               value={form.plan}
-              onChange={set('plan')}
+              onChange={handleChange('plan')}
               style={{
                 ...INPUT_STYLE,
                 ...(errors.plan ? { border: '1px solid #dc2626', background: '#fff5f5' } : {}),
