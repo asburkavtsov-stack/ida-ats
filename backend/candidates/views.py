@@ -12,6 +12,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.filters import OrderingFilter
+from rest_framework_simplejwt.tokens import RefreshToken
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import (
@@ -1634,3 +1635,33 @@ class PromoCodeViewSet(viewsets.ModelViewSet):
                 for u in usages[:20]
             ]
         })
+
+
+class RegisterView(APIView):
+    permission_classes = []  # публічний endpoint
+
+    def post(self, request):
+        from .serializers import RegisterSerializer
+        serializer = RegisterSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user, org = serializer.save()
+
+        # Видати JWT одразу після реєстрації
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'role': 'admin',
+            },
+            'organization': {
+                'id': org.id,
+                'name': org.name,
+                'slug': org.slug,
+            },
+        }, status=status.HTTP_201_CREATED)

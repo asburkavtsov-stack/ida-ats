@@ -460,3 +460,129 @@ class AuditLogSerializer(serializers.ModelSerializer):
             return 'Видалений користувач'
         full = f"{obj.user.first_name} {obj.user.last_name}".strip()
         return full or obj.user.username
+
+#─── Register ─────────────────────────────────────────────────────────────────
+
+RESERVED_USERNAMES = {
+    'admin', 'root', 'support', 'system', 'superadmin', 'moderator',
+    'staff', 'api', 'test', 'user', 'null', 'undefined', 'me',
+    'ida', 'help', 'info', 'contact', 'security', 'abuse',
+}
+
+BLACKLISTED_ORG_NAMES = {
+    'міноборони', 'кабмін', 'верховна рада', 'президент', 'служба безпеки',
+    'адміністрація президента', 'нбу', 'national bank', 'fbi', 'cia',
+}
+
+
+class RegisterSerializer(serializers.Serializer):
+    username = serializers.CharField(min_length=3, max_length=30)
+    email = serializers.EmailField()
+    password = serializers.CharField(min_length=8, write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
+    organization_name = serializers.CharField(min_length=2, max_length=100)
+    plan = serializers.CharField()
+
+    def validate_username(self, value):
+        import re
+        value = value.strip()
+        if not re.match(r'^[a-zA-Z0-9_-]+$', value):
+            raise serializers.ValidationError(
+                'Нік може містити лише літери a-z, A-Z, цифри, _ та -'
+            )
+        if value.lower() in RESERVED_USERNAMES:
+            raise serializers.ValidationError(
+                f'Нік "{value}" зарезервований системою. Оберіть інший.'
+            )
+        if User.objects.filter(username__iexact=value).exists():
+            raise serializers.ValidationError(
+                'Цей нік вже зайнятий.'
+            )
+        return value
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError(
+                'Обліковий запис з цим email вже існує.'
+            )
+        return value.lower()
+
+    def validate_organization_name(self, value):
+        value = value.strip()
+        lower = value.lower()
+        for blocked in BLACKLISTED_ORG_NAMES:
+            if blocked in lower:
+                raise serializers.ValidationError(
+                    'Назва організації містить заборонені слова. Будь ласка, оберіть іншу назву.'
+                )
+        if Organization.objects.filter(name__iexact=value).exists():
+            raise serializers.ValidationError(
+                'Організація з такою назвою вже зареєстрована.'
+            )
+        return value
+
+    def validate_plan(self, value):
+        from .models import PricingConfig
+        valid_plans = PricingConfig.objects.filter(is_active=True).values_list('plan', flat=True)
+        if value not in valid_plans:
+            raise serializers.ValidationError(
+                f'Пакет "{value}" недоступний. Оберіть зі списку актуальних пакетів.'
+            )
+        return value
+
+    def validate(self, data):
+        if data.get('password') != data.get('confirm_password'):
+            raise serializers.ValidationError({'confirm_password': 'Паролі не збігаються.'})
+        return data
+
+    def create(self, validated_data):
+        from django.utils.text import slugify
+        from .models import VacancyStage, PricingConfig
+
+        validated_data.pop('confirm_password')
+        plan = validated_data.pop('plan')
+        org_name = validated_data.pop('organization_name')
+        username = validated_data['username']
+        email = validated_data['email']
+        password = validated_data['password']
+
+        # Отримати ліміти з пакету
+        pricing = PricingConfig.objects.filter(plan=plan, is_active=True).first()
+        max_hr = pricing.max_hr if pricing else 3
+        max_vacancies = pricing.max_vacancies if pricing else 10
+
+        # Слаг для організації (унікальний)
+        base_slug = slugify(org_name) or 'org'
+        slug = base_slug
+        counter = 1
+        while Organization.objects.filter(slug=slug).exists():
+            slug = f'{base_slug}-{counter}'
+            counter += 1
+
+        # Створення організації
+        org = Organization.objects.create(
+            name=org_name,
+            slug=slug,
+            is_active=True,
+            max_hr=max_hr,
+            max_vacancies=max_vacancies,
+        )
+
+        # Дефолтні етапи для організації
+        VacancyStage.create_defaults_for_org(org)
+
+        # Створення користувача
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+        )
+
+        # Профіль — адмін організації
+        UserProfile.objects.create(
+            user=user,
+            organization=org,
+            role='admin',
+        )
+
+        return user, org
