@@ -1,5 +1,5 @@
 // src/components/RegisterModal.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axiosConfig';
 
 const INPUT_STYLE = {
@@ -70,13 +70,12 @@ export default function RegisterModal({ onClose, onSuccess, primaryColor = '#7a1
       .finally(() => setPlansLoading(false));
   }, []);
 
-  // ВИПРАВЛЕНО: нормальний обробник зміни полів
-  const handleChange = useCallback((field) => (e) => {
-    setForm(prev => ({ ...prev, [field]: e.target.value }));
-    // Очищаємо помилку тільки для цього поля
+  // ВИПРАВЛЕНО: простий прямий обробник
+  const handleChange = (field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
     setErrors(prev => ({ ...prev, [field]: '' }));
     setServerError('');
-  }, []);
+  };
 
   // Клієнтська валідація
   const validate = () => {
@@ -157,24 +156,6 @@ export default function RegisterModal({ onClose, onSuccess, primaryColor = '#7a1
     }
   };
 
-  // ВИПРАВЛЕНО: компонент поля тепер використовує useCallback
-  const Field = ({ name, label, type = 'text', placeholder }) => (
-    <div style={{ marginBottom: '16px' }}>
-      <label style={LABEL_STYLE}>{label}</label>
-      <input
-        type={type}
-        value={form[name]}
-        onChange={handleChange(name)}
-        placeholder={placeholder}
-        style={errors[name] ? INPUT_ERROR_STYLE : INPUT_STYLE}
-        onFocus={e => { e.target.style.borderColor = errors[name] ? '#dc2626' : primaryColor; }}
-        onBlur={e => { e.target.style.borderColor = errors[name] ? '#dc2626' : '#e4e4e7'; }}
-        autoComplete={type === 'password' ? 'new-password' : 'off'}
-      />
-      {errors[name] && <div style={ERROR_MSG_STYLE}>{errors[name]}</div>}
-    </div>
-  );
-
   return (
     <div
       style={{
@@ -216,17 +197,76 @@ export default function RegisterModal({ onClose, onSuccess, primaryColor = '#7a1
           Акаунт адміністратора
         </div>
 
-        <Field name="username" label="Нік (Username)" placeholder="my_company_admin" />
-        <Field name="email" label="Email" type="email" placeholder="admin@company.com" />
-        <Field name="password" label="Пароль" type="password" placeholder="Мінімум 8 символів" />
-        <Field name="confirm_password" label="Підтвердити пароль" type="password" placeholder="Повторіть пароль" />
+        {/* ВИПРАВЛЕНО: Пряме написання полів без компонента Field */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={LABEL_STYLE}>Нік (Username)</label>
+          <input
+            type="text"
+            value={form.username}
+            onChange={(e) => handleChange('username', e.target.value)}
+            placeholder="my_company_admin"
+            style={errors.username ? INPUT_ERROR_STYLE : INPUT_STYLE}
+            autoComplete="off"
+          />
+          {errors.username && <div style={ERROR_MSG_STYLE}>{errors.username}</div>}
+        </div>
+
+        <div style={{ marginBottom: '16px' }}>
+          <label style={LABEL_STYLE}>Email</label>
+          <input
+            type="email"
+            value={form.email}
+            onChange={(e) => handleChange('email', e.target.value)}
+            placeholder="admin@company.com"
+            style={errors.email ? INPUT_ERROR_STYLE : INPUT_STYLE}
+            autoComplete="off"
+          />
+          {errors.email && <div style={ERROR_MSG_STYLE}>{errors.email}</div>}
+        </div>
+
+        <div style={{ marginBottom: '16px' }}>
+          <label style={LABEL_STYLE}>Пароль</label>
+          <input
+            type="password"
+            value={form.password}
+            onChange={(e) => handleChange('password', e.target.value)}
+            placeholder="Мінімум 8 символів"
+            style={errors.password ? INPUT_ERROR_STYLE : INPUT_STYLE}
+            autoComplete="new-password"
+          />
+          {errors.password && <div style={ERROR_MSG_STYLE}>{errors.password}</div>}
+        </div>
+
+        <div style={{ marginBottom: '16px' }}>
+          <label style={LABEL_STYLE}>Підтвердити пароль</label>
+          <input
+            type="password"
+            value={form.confirm_password}
+            onChange={(e) => handleChange('confirm_password', e.target.value)}
+            placeholder="Повторіть пароль"
+            style={errors.confirm_password ? INPUT_ERROR_STYLE : INPUT_STYLE}
+            autoComplete="new-password"
+          />
+          {errors.confirm_password && <div style={ERROR_MSG_STYLE}>{errors.confirm_password}</div>}
+        </div>
 
         {/* Секція: організація */}
         <div style={{ fontSize: '11px', fontFamily: 'DM Mono, monospace', letterSpacing: '0.1em', color: primaryColor, margin: '24px 0 14px', textTransform: 'uppercase' }}>
           Організація
         </div>
 
-        <Field name="organization_name" label="Назва організації" placeholder="Назва вашої компанії" />
+        <div style={{ marginBottom: '16px' }}>
+          <label style={LABEL_STYLE}>Назва організації</label>
+          <input
+            type="text"
+            value={form.organization_name}
+            onChange={(e) => handleChange('organization_name', e.target.value)}
+            placeholder="Назва вашої компанії"
+            style={errors.organization_name ? INPUT_ERROR_STYLE : INPUT_STYLE}
+            autoComplete="off"
+          />
+          {errors.organization_name && <div style={ERROR_MSG_STYLE}>{errors.organization_name}</div>}
+        </div>
 
         {/* Пакет */}
         <div style={{ marginBottom: '24px' }}>
@@ -240,7 +280,7 @@ export default function RegisterModal({ onClose, onSuccess, primaryColor = '#7a1
           ) : (
             <select
               value={form.plan}
-              onChange={handleChange('plan')}
+              onChange={(e) => handleChange('plan', e.target.value)}
               style={{
                 ...INPUT_STYLE,
                 ...(errors.plan ? { border: '1px solid #dc2626', background: '#fff5f5' } : {}),
