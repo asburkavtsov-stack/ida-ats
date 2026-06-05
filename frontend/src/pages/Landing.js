@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axiosConfig';
+import RegisterModal from '../components/RegisterModal';
 
 const Landing = ({ onLogin }) => {
   const [activeTheme, setActiveTheme] = useState(null);
@@ -10,6 +11,7 @@ const Landing = ({ onLogin }) => {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showPromoModal, setShowPromoModal] = useState(false);
   const [appliedPromo, setAppliedPromo] = useState(null);
+  const [showRegister, setShowRegister] = useState(false);
 
   // Отримання активної теми та цін
   useEffect(() => {
@@ -223,7 +225,7 @@ const Landing = ({ onLogin }) => {
               Увійти
             </button>
             <button 
-              onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
+              onClick={() => setShowRegister(true)}
               style={{ background: activeTheme?.primary_color || '#7a1a2e', color: 'white', padding: '10px 24px', borderRadius: '9999px', fontWeight: 600, border: 'none', cursor: 'pointer' }}
             >
               Почати безкоштовно
@@ -249,7 +251,7 @@ const Landing = ({ onLogin }) => {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', justifyContent: 'center', alignItems: 'center' }}>
             <button 
-              onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
+              onClick={() => setShowRegister(true)}
               style={{ background: 'white', color: activeTheme?.primary_color || '#7a1a2e', fontWeight: 600, padding: '16px 40px', borderRadius: '16px', fontSize: '18px', border: 'none', cursor: 'pointer' }}
             >
               Почати безкоштовно — 14 днів
@@ -416,7 +418,7 @@ const Landing = ({ onLogin }) => {
           <h2 style={{ fontSize: 'clamp(2rem, 4vw, 2.5rem)', fontWeight: 700, marginBottom: '24px' }}>{tc.ctaHeading}</h2>
           <p style={{ fontSize: '20px', marginBottom: '40px', color: activeTheme?.accent_color || '#fecaca' }}>14 днів повноцінного доступу безкоштовно</p>
           <button 
-            onClick={onLogin}
+            onClick={() => setShowRegister(true)}
             style={{ display: 'inline-block', background: 'white', color: activeTheme?.primary_color || '#7a1a2e', fontWeight: 600, padding: '20px 48px', borderRadius: '16px', fontSize: '18px', border: 'none', cursor: 'pointer' }}
           >
             Почати безкоштовний період
@@ -458,6 +460,18 @@ const Landing = ({ onLogin }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Модальне вікно реєстрації */}
+      {showRegister && (
+        <RegisterModal
+          primaryColor={activeTheme?.primary_color || '#7a1a2e'}
+          onClose={() => setShowRegister(false)}
+          onSuccess={() => {
+            setShowRegister(false);
+            window.location.reload();
+          }}
+        />
       )}
     </div>
   );
