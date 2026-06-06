@@ -3,10 +3,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../axiosConfig';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Cell, FunnelChart, Funnel,
+  Tooltip, ResponsiveContainer, Cell,
   LabelList, Legend,
 } from 'recharts';
-import { SOURCE_FILTERS, getSourceLabel, getSourceBg, getSourceText } from '../constants/statusColors';
+import { SOURCE_FILTERS } from '../constants/statusColors';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const getSpeedColor  = d => d <= 14 ? '#16a34a' : d <= 30 ? '#eab308' : '#dc2626';
