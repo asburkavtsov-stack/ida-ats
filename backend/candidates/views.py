@@ -1045,21 +1045,25 @@ def time_to_hire_analytics(request):
 @permission_classes([IsAuthenticated, IsOrgMember])
 def monthly_trend_analytics(request):
     """Динаміка кандидатів по місяцях для графіка Recharts."""
-    role = get_user_role(request.user)
-    if role == 'superadmin':
-        qs = Candidate.objects.all()
-        org_id = request.query_params.get('organization')
-        if org_id:
-            qs = qs.filter(organization_id=org_id)
-    else:
-        org = get_user_organization(request.user)
-        qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
+    import traceback as _tb
+    try:
+        role = get_user_role(request.user)
+        if role == 'superadmin':
+            qs = Candidate.objects.all()
+            org_id = request.query_params.get('organization')
+            if org_id:
+                qs = qs.filter(organization_id=org_id)
+        else:
+            org = get_user_organization(request.user)
+            qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
 
-    if request.query_params.get('vacancy'):
-        qs = qs.filter(vacancy_id=request.query_params['vacancy'])
+        if request.query_params.get('vacancy'):
+            qs = qs.filter(vacancy_id=request.query_params['vacancy'])
 
-    data = AnalyticsService.calculate_monthly_trend(qs)
-    return Response({'monthly': data})
+        data = AnalyticsService.calculate_monthly_trend(qs)
+        return Response({'monthly': data})
+    except Exception as e:
+        return Response({'error': str(e), 'tb': _tb.format_exc()}, status=500)
 
 
 @api_view(['GET'])
