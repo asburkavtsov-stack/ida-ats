@@ -21,6 +21,7 @@ import EmailTemplates from './pages/EmailTemplates';
 import InterviewCalendar from './pages/InterviewCalendar';
 import AuditLog from './pages/AuditLog';
 import RegisterModal from './components/RegisterModal';
+import Integrations from './pages/Integrations';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -103,6 +104,7 @@ function App() {
       case 'org_settings':    return <OrgSettings />;
       case 'profile':         return <Profile />;
       case 'audit_log':       return <AuditLog />;
+      case 'integrations':    return <Integrations />;
       default:                return <Dashboard />;
     }
   };
