@@ -1142,39 +1142,43 @@ def export_time_to_hire_csv(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
 def hr_effectiveness_analytics(request):
-    role = get_user_role(request.user)
-    if role == 'superadmin':
-        qs = Candidate.objects.all()
-        org_id = request.query_params.get('organization')
-        if org_id:
-            qs = qs.filter(organization_id=org_id)
-    else:
-        org = get_user_organization(request.user)
-        qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
+    import traceback as _tb
+    try:
+        role = get_user_role(request.user)
+        if role == 'superadmin':
+            qs = Candidate.objects.all()
+            org_id = request.query_params.get('organization')
+            if org_id:
+                qs = qs.filter(organization_id=org_id)
+        else:
+            org = get_user_organization(request.user)
+            qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
 
-    if request.query_params.get('date_from'):
-        qs = qs.filter(created_at__date__gte=request.query_params['date_from'])
-    if request.query_params.get('date_to'):
-        qs = qs.filter(created_at__date__lte=request.query_params['date_to'])
-    if request.query_params.get('vacancy'):
-        qs = qs.filter(vacancy_id=request.query_params['vacancy'])
+        if request.query_params.get('date_from'):
+            qs = qs.filter(created_at__date__gte=request.query_params['date_from'])
+        if request.query_params.get('date_to'):
+            qs = qs.filter(created_at__date__lte=request.query_params['date_to'])
+        if request.query_params.get('vacancy'):
+            qs = qs.filter(vacancy_id=request.query_params['vacancy'])
 
-    hr_data = AnalyticsService.calculate_hr_effectiveness(qs)
-    total_candidates = qs.count()
-    from django.db.models import Q as _Q
-    _terminal_ids = AnalyticsService._get_offer_stage_ids(qs)
-    total_offers = qs.filter(_Q(stage_id__in=_terminal_ids)).count() if _terminal_ids else qs.filter(status="offer").count()
-    overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
+        hr_data = AnalyticsService.calculate_hr_effectiveness(qs)
+        total_candidates = qs.count()
+        from django.db.models import Q as _Q
+        _terminal_ids = AnalyticsService._get_offer_stage_ids(qs)
+        total_offers = qs.filter(_Q(stage_id__in=_terminal_ids)).count() if _terminal_ids else qs.filter(status='offer').count()
+        overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
 
-    return Response({
-        'hr_managers': hr_data,
-        'summary': {
-            'total_hr': len(hr_data),
-            'total_candidates': total_candidates,
-            'total_offers': total_offers,
-            'overall_conversion': overall_conversion,
-        }
-    })
+        return Response({
+            'hr_managers': hr_data,
+            'summary': {
+                'total_hr': len(hr_data),
+                'total_candidates': total_candidates,
+                'total_offers': total_offers,
+                'overall_conversion': overall_conversion,
+            }
+        })
+    except Exception as e:
+        return Response({'error': str(e), 'tb': _tb.format_exc()}, status=500)
 
 
 @api_view(['GET'])
