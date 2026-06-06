@@ -20,6 +20,7 @@ import AddCandidateModal from './components/AddCandidateModal';
 import EmailTemplates from './pages/EmailTemplates';
 import InterviewCalendar from './pages/InterviewCalendar';
 import AuditLog from './pages/AuditLog';
+import RegisterModal from './components/RegisterModal';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -31,6 +32,8 @@ function App() {
   const [userRole, setUserRole] = useState(null);
   const [viewOrgId, setViewOrgId] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
+  const [registerPrimaryColor, setRegisterPrimaryColor] = useState('#7a1a2e');
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
@@ -60,11 +63,17 @@ function App() {
   const handleLoginSuccess = () => {
     setIsAuth(true);
     setShowLogin(false);
+    setShowRegister(false);
     fetchRole();
   };
 
   const handleShowLogin = () => {
     setShowLogin(true);
+  };
+
+  const handleShowRegister = (primaryColor) => {
+    setRegisterPrimaryColor(primaryColor || '#7a1a2e');
+    setShowRegister(true);
   };
 
   const handleLogout = () => {
@@ -98,7 +107,6 @@ function App() {
     }
   };
 
-  // ── Toaster — один на весь додаток ─────────────────────────────────────────
   const toaster = (
     <Toaster
       position="bottom-right"
@@ -134,7 +142,14 @@ function App() {
   if (!isAuth) {
     return (
       <>
-        <Landing onLogin={handleShowLogin} />
+        <Landing onLogin={handleShowLogin} onRegister={handleShowRegister} />
+        {showRegister && (
+          <RegisterModal
+            primaryColor={registerPrimaryColor}
+            onClose={() => setShowRegister(false)}
+            onSuccess={handleLoginSuccess}
+          />
+        )}
         {toaster}
       </>
     );
@@ -193,7 +208,7 @@ function App() {
     );
   }
 
-  // ── Admin / HR — спільний layout ────────────────────────────────────────────
+  // ── Admin / HR ──────────────────────────────────────────────────────────────
   return (
     <div className="app-layout">
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} onLogout={handleLogout} userRole={userRole} />

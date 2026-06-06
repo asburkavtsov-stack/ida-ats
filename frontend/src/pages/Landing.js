@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axiosConfig';
-import RegisterModal from '../components/RegisterModal';
 
-const Landing = ({ onLogin }) => {
+// Landing більше НЕ імпортує RegisterModal — він піднятий в App.js
+const Landing = ({ onLogin, onRegister }) => {
   const [activeTheme, setActiveTheme] = useState(null);
   const [pricing, setPricing] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -11,9 +11,7 @@ const Landing = ({ onLogin }) => {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showPromoModal, setShowPromoModal] = useState(false);
   const [appliedPromo, setAppliedPromo] = useState(null);
-  const [showRegister, setShowRegister] = useState(false);
 
-  // Отримання активної теми та цін
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -33,26 +31,20 @@ const Landing = ({ onLogin }) => {
     fetchData();
   }, []);
 
-  // Перевірка промо-коду
   const verifyPromoCode = async () => {
     if (!promoCodeInput.trim()) return;
     try {
-      const res = await axios.post('/api/promo-codes/verify/', { 
-        code: promoCodeInput,
-      });
+      const res = await axios.post('/api/promo-codes/verify/', { code: promoCodeInput });
       setPromoCodeResult(res.data);
-      if (res.data.valid) {
-        setAppliedPromo(res.data);
-      }
+      if (res.data.valid) setAppliedPromo(res.data);
     } catch (err) {
-      setPromoCodeResult({ 
-        valid: false, 
-        message: err.response?.data?.error || 'Невірний промо-код' 
+      setPromoCodeResult({
+        valid: false,
+        message: err.response?.data?.error || 'Невірний промо-код'
       });
     }
   };
 
-  // Застосування промо-коду до ціни
   const applyPromoToPrice = (price) => {
     if (appliedPromo && appliedPromo.valid) {
       if (appliedPromo.discount_type === 'percent') {
@@ -64,7 +56,6 @@ const Landing = ({ onLogin }) => {
     return price;
   };
 
-  // Отримання ціни для плану
   const getPlanPrice = (planKey) => {
     if (!pricing || !pricing[planKey]) return null;
     const plan = pricing[planKey];
@@ -78,21 +69,20 @@ const Landing = ({ onLogin }) => {
     };
   };
 
-  // CSS змінні для теми
-  const themeStyles = activeTheme ? {
-    '--primary': activeTheme.primary_color,
-    '--secondary': activeTheme.secondary_color,
-    '--accent': activeTheme.accent_color,
-  } : {};
+  const primary = activeTheme?.primary_color || '#7a1a2e';
+
+  // Хелпер — виклик реєстрації з передачею поточного кольору теми
+  const handleOpenRegister = () => {
+    onRegister(primary);
+  };
 
   const safeBgImage = activeTheme?.background_image && /^https?:\/\//.test(activeTheme.background_image)
     ? activeTheme.background_image
     : null;
   const heroStyle = safeBgImage
     ? { backgroundImage: `url(${safeBgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-    : { background: `linear-gradient(135deg, ${activeTheme?.primary_color || '#7a1a2e'} 0%, ${activeTheme?.secondary_color || '#4a0f1c'} 100%)` };
+    : { background: `linear-gradient(135deg, ${primary} 0%, ${activeTheme?.secondary_color || '#4a0f1c'} 100%)` };
 
-  // Контент Hero залежно від теми
   const themeContent = {
     halloween: {
       badge: <><span style={{ fontSize: '2rem' }}>{'🎃👻'}</span><span className="mono" style={{ fontSize: '14px', letterSpacing: '0.2em' }}>HALLOWEEN</span></>,
@@ -147,188 +137,166 @@ const Landing = ({ onLogin }) => {
       heading: <>Під одним прапором —<br />сильні команди</>,
       sub: 'У День Державного Прапора ми святкуємо єдність і гідність. IDA допомагає українським компаніям збирати найкращі команди під синьо-жовтим прапором.',
       extraBtn: <button onClick={() => alert('Слава Україні!')} style={{ background: 'transparent', border: '2px solid rgba(255,255,255,0.7)', color: 'white', fontWeight: 600, padding: '16px 40px', borderRadius: '16px', fontSize: '18px', cursor: 'pointer' }}>{'Слава Україні! 🇺🇦'}</button>,
-      pricingSubtitle: 'Спеціальна пропозиція до Дня Прапора 🚩',
+      pricingSubtitle: 'Спеціальна пропозиція до Дня Державного Прапора 🇺🇦',
       footerText: 'Слава Україні! 🇺🇦',
-      ctaHeading: 'Готові підняти свій рекрутинг на новий рівень?',
-      navbarBg: '#fff',
-      navbarBorder: '#e4e4e7',
-      navbarColor: '#18181b',
-    },
-    default: {
-      badge: <><span style={{ color: activeTheme?.accent_color || '#fde047' }}>{'●'}</span><span className="mono" style={{ fontSize: '14px', letterSpacing: '0.15em' }}>Українська ATS</span></>,
-      heading: <>Рекрутинг,<br />який <span style={{ color: activeTheme?.accent_color || '#e8a0b0' }}>працює</span> на тебе</>,
-      sub: "Сучасна українська система для найму. Кандидати, канбан, інтерв'ю, аналітика та шаблони листів — в одному інтерфейсі.",
-      extraBtn: null,
-      pricingSubtitle: 'Прості та прозорі тарифи',
-      footerText: 'Усі права захищені.',
-      ctaHeading: 'Готові оптимізувати свій рекрутинг?',
-      navbarBg: '#fff',
-      navbarBorder: '#e4e4e7',
-      navbarColor: '#18181b',
+      ctaHeading: 'Готові зміцнити свою команду?',
+      navbarBg: '#005BBB',
+      navbarBorder: 'rgba(255,255,255,0.2)',
+      navbarColor: 'white',
     },
   };
 
-  const tc = themeContent[activeTheme?.theme_type] || themeContent.default;
+  const defaultContent = {
+    badge: null,
+    heading: <>Сучасний рекрутинг<br />для вашої команди</>,
+    sub: 'IDA ATS — українська система управління кандидатами. Kanban-дошка, аналітика, Google-інтеграції та багато іншого.',
+    extraBtn: null,
+    pricingSubtitle: 'Оберіть план, що підходить вашій команді',
+    footerText: '',
+    ctaHeading: 'Готові розпочати?',
+    navbarBg: 'rgba(255,255,255,0.95)',
+    navbarBorder: '#e4e4e7',
+    navbarColor: '#18181b',
+  };
 
+  const tc = (activeTheme?.name && themeContent[activeTheme.name]) ? themeContent[activeTheme.name] : defaultContent;
 
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', justifyContent: 'center', alignItems: 'center', 
-        minHeight: '100vh', background: '#fafafa' 
-      }}>
-        <div style={{ fontSize: '1.2rem', color: '#7a1a2e' }}>Завантаження...</div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fafafa' }}>
+        <div style={{ fontFamily: 'DM Mono, monospace', fontSize: '14px', color: '#71717a', letterSpacing: '0.1em' }}>
+          ЗАВАНТАЖЕННЯ...
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ 
-      background: '#fafafa', 
-      color: '#18181b', 
-      minHeight: '100vh', 
-      fontFamily: "'DM Sans', system-ui, sans-serif",
-      ...themeStyles
-    }}>
-      <style>
-        {`
-          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-          body { margin: 0; padding: 0; font-family: 'DM Sans', system-ui, sans-serif; }
-          .mono { font-family: 'DM Mono', monospace; }
-          :root {
-            --primary: ${activeTheme?.primary_color || '#7a1a2e'};
-            --secondary: ${activeTheme?.secondary_color || '#4a0f1c'};
-            --accent: ${activeTheme?.accent_color || '#e8a0b0'};
-          }
-        `}
-      </style>
+    <div style={{ fontFamily: 'DM Sans, sans-serif', minHeight: '100vh', background: '#fafafa' }}>
 
       {/* Navbar */}
-      <nav style={{ background: tc.navbarBg, borderBottom: `1px solid ${tc.navbarBorder}`, position: 'sticky', top: 0, zIndex: 50, color: tc.navbarColor }}>
-        <div style={{ maxWidth: '80rem', margin: '0 auto', padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ 
-              width: '36px', height: '36px', 
-              background: activeTheme?.primary_color || '#7a1a2e', 
-              color: 'white', fontWeight: 'bold', fontSize: '24px', 
-              display: 'flex', alignItems: 'center', justifyContent: 'center', 
-              borderRadius: '16px' 
-            }}>I</div>
-            <span style={{ fontSize: '24px', fontWeight: 600, letterSpacing: '-0.025em', color: tc.navbarColor }}>IDA</span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-            <button 
-              onClick={onLogin}
-              style={{ fontSize: '14px', fontWeight: 500, padding: '10px 24px', borderRadius: '9999px', border: `1px solid ${tc.navbarColor === 'white' ? 'rgba(255,255,255,0.4)' : '#d4d4d8'}`, background: 'transparent', cursor: 'pointer', color: tc.navbarColor }}
-            >
-              Увійти
-            </button>
-            <button 
-              onClick={() => setShowRegister(true)}
-              style={{ background: activeTheme?.primary_color || '#7a1a2e', color: 'white', padding: '10px 24px', borderRadius: '9999px', fontWeight: 600, border: 'none', cursor: 'pointer' }}
-            >
-              Почати безкоштовно
-            </button>
-          </div>
+      <nav style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        background: tc.navbarBg,
+        borderBottom: `1px solid ${tc.navbarBorder}`,
+        backdropFilter: 'blur(12px)',
+        padding: '0 24px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        height: '64px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: '32px', height: '32px', background: primary, color: 'white', fontWeight: 'bold', fontSize: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '10px' }}>I</div>
+          <span style={{ fontSize: '20px', fontWeight: 700, color: tc.navbarColor }}>IDA ATS</span>
+        </div>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <button
+            onClick={onLogin}
+            style={{ padding: '8px 20px', borderRadius: '10px', border: `1px solid ${tc.navbarBorder}`, background: 'transparent', color: tc.navbarColor, fontWeight: 500, cursor: 'pointer', fontSize: '14px' }}
+          >
+            Увійти
+          </button>
+          <button
+            onClick={handleOpenRegister}
+            style={{ padding: '8px 20px', borderRadius: '10px', border: 'none', background: primary, color: 'white', fontWeight: 600, cursor: 'pointer', fontSize: '14px' }}
+          >
+            Почати безкоштовно
+          </button>
         </div>
       </nav>
 
-      {/* Hero з динамічною темою */}
-      <section style={{ ...heroStyle, color: 'white', padding: '112px 24px' }}>
-        <div style={{ maxWidth: '64rem', margin: '0 auto', textAlign: 'center' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(12px)', padding: '8px 20px', borderRadius: '24px', marginBottom: '32px', border: '1px solid rgba(255,255,255,0.2)' }}>
+      {/* Hero */}
+      <section style={{ ...heroStyle, padding: 'clamp(80px, 12vw, 140px) 24px', textAlign: 'center', color: 'white' }}>
+        {tc.badge && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)', borderRadius: '9999px', padding: '8px 20px', marginBottom: '32px', color: 'white' }}>
             {tc.badge}
           </div>
-          
-          <h1 style={{ fontSize: 'clamp(3rem, 6vw, 4.5rem)', fontWeight: 700, lineHeight: 1.1, letterSpacing: '-0.025em', marginBottom: '32px' }}>
-            {tc.heading}
-          </h1>
-          
-          <p style={{ fontSize: 'clamp(1.125rem, 2.5vw, 1.5rem)', maxWidth: '42rem', margin: '0 auto 48px', color: '#e4e4e7', lineHeight: 1.6 }}>
-            {tc.sub}
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', justifyContent: 'center', alignItems: 'center' }}>
-            <button 
-              onClick={() => setShowRegister(true)}
-              style={{ background: 'white', color: activeTheme?.primary_color || '#7a1a2e', fontWeight: 600, padding: '16px 40px', borderRadius: '16px', fontSize: '18px', border: 'none', cursor: 'pointer' }}
-            >
-              Почати безкоштовно — 14 днів
-            </button>
-            {tc.extraBtn && tc.extraBtn}
-          </div>
+        )}
+        <h1 style={{ fontSize: 'clamp(2.2rem, 6vw, 4rem)', fontWeight: 800, lineHeight: 1.15, marginBottom: '24px', letterSpacing: '-0.02em' }}>
+          {tc.heading}
+        </h1>
+        <p style={{ fontSize: 'clamp(16px, 2.5vw, 20px)', maxWidth: '600px', margin: '0 auto 48px', opacity: 0.9, lineHeight: 1.6 }}>
+          {tc.sub}
+        </p>
+        <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button
+            onClick={handleOpenRegister}
+            style={{ background: 'white', color: primary, fontWeight: 700, padding: '18px 44px', borderRadius: '16px', fontSize: '17px', border: 'none', cursor: 'pointer', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}
+          >
+            Почати безкоштовно
+          </button>
+          <button
+            onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' })}
+            style={{ background: 'rgba(255,255,255,0.15)', color: 'white', fontWeight: 600, padding: '18px 44px', borderRadius: '16px', fontSize: '17px', border: '2px solid rgba(255,255,255,0.4)', cursor: 'pointer', backdropFilter: 'blur(8px)' }}
+          >
+            Переглянути тарифи
+          </button>
+          {tc.extraBtn}
         </div>
       </section>
 
       {/* Features */}
-      <section id="features" style={{ padding: '96px 24px', background: 'white' }}>
-        <div style={{ maxWidth: '72rem', margin: '0 auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px' }}>
-            {[
-              { icon: '👥', title: 'Кандидати', desc: 'Зручна база, фільтри, теги, історія змін статусів, масовий імпорт CSV.' },
-              { icon: '📋', title: 'Канбан-дошка', desc: 'Візуальне управління процесом найму. Перетягуй кандидатів між етапами.' },
-              { icon: '📅', title: 'Інтерв\'ю', desc: 'Планування, синхронізація з Google Calendar, Meet, історія співбесід.' },
-            ].map((f, i) => (
-              <div key={i} style={{ background: '#fafafa', border: '1px solid #f4f4f5', borderRadius: '24px', padding: '40px' }}>
-                <div style={{ fontSize: '40px', marginBottom: '24px' }}>{f.icon}</div>
-                <h3 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '12px' }}>{f.title}</h3>
-                <p style={{ color: '#52525b', lineHeight: 1.6 }}>{f.desc}</p>
-              </div>
-            ))}
-          </div>
+      <section style={{ padding: 'clamp(64px, 8vw, 96px) 24px', maxWidth: '80rem', margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: '56px' }}>
+          <span className="mono" style={{ fontSize: '12px', letterSpacing: '0.15em', color: primary, textTransform: 'uppercase' }}>Можливості</span>
+          <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: 700, marginTop: '12px', color: '#18181b' }}>Все для ефективного рекрутингу</h2>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+          {[
+            { icon: '📋', title: 'Kanban-дошка', desc: 'Drag-and-drop управління кандидатами по етапах воронки найму' },
+            { icon: '📊', title: 'Аналітика', desc: 'Time-to-hire, ефективність HR-команди, конверсія по вакансіях' },
+            { icon: '📧', title: 'Email-шаблони', desc: 'Автоматичні листи кандидатам через Google Gmail інтеграцію' },
+            { icon: '📅', title: 'Календар інтерв\'ю', desc: 'Синхронізація з Google Calendar, автоматичні нагадування' },
+            { icon: '👥', title: 'Управління командою', desc: 'Ролі admin та HR, розмежування доступу всередині організації' },
+            { icon: '🔍', title: 'Пошук та фільтри', desc: 'Швидкий пошук по кандидатах, фільтрація по тегах і статусах' },
+          ].map(f => (
+            <div key={f.title} style={{ background: 'white', borderRadius: '20px', padding: '28px', border: '1px solid #e4e4e7' }}>
+              <div style={{ fontSize: '32px', marginBottom: '16px' }}>{f.icon}</div>
+              <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#18181b', marginBottom: '8px' }}>{f.title}</h3>
+              <p style={{ fontSize: '14px', color: '#71717a', lineHeight: 1.6, margin: 0 }}>{f.desc}</p>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* Pricing з динамічними цінами та промо-кодами */}
-      <section id="pricing" style={{ padding: '96px 24px', background: '#f4f4f5' }}>
-        <div style={{ maxWidth: '72rem', margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: '64px' }}>
-            <h2 style={{ fontSize: 'clamp(2rem, 4vw, 2.5rem)', fontWeight: 700, marginBottom: '16px' }}>Оберіть свій тариф</h2>
-            <p style={{ color: '#52525b' }}>{tc.pricingSubtitle}</p>
+      {/* Pricing */}
+      <section id="pricing" style={{ padding: 'clamp(64px, 8vw, 96px) 24px', background: '#f4f4f5' }}>
+        <div style={{ maxWidth: '80rem', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '56px' }}>
+            <span className="mono" style={{ fontSize: '12px', letterSpacing: '0.15em', color: primary, textTransform: 'uppercase' }}>Тарифи</span>
+            <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: 700, marginTop: '12px', color: '#18181b' }}>Прозора ціна</h2>
+            <p style={{ color: '#71717a', marginTop: '12px' }}>{tc.pricingSubtitle}</p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px', maxWidth: '64rem', margin: '0 auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', alignItems: 'start' }}>
+
             {/* Starter */}
             {pricing?.starter && (
-              <div style={{ background: 'white', borderRadius: '24px', padding: '32px', border: '1px solid #e4e4e7', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
-                {pricing.starter.discount > 0 && (
-                  <div style={{ position: 'absolute', top: '-12px', right: '20px', background: '#facc15', color: '#7f1d1d', padding: '4px 16px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700 }}>
-                    -{pricing.starter.discount}%
-                  </div>
-                )}
+              <div style={{ background: 'white', borderRadius: '24px', padding: '32px', border: '1px solid #e4e4e7', display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <div className="mono" style={{ fontSize: '14px', fontWeight: 500, color: '#71717a', marginBottom: '8px' }}>STARTER</div>
-                <div style={{ fontSize: '30px', fontWeight: 600, color: activeTheme?.primary_color || '#7a1a2e', marginBottom: '8px' }}>
-                  {getPlanPrice('starter')?.monthly} ₴
-                  <span style={{ fontSize: '14px', fontWeight: 400 }}>/міс</span>
+                <div style={{ fontSize: '30px', fontWeight: 600, marginBottom: '24px', color: '#18181b' }}>
+                  {getPlanPrice('starter')?.monthly === 0 ? 'Безкоштовно' : `${getPlanPrice('starter')?.monthly} ₴`}
+                  {getPlanPrice('starter')?.monthly > 0 && <span style={{ fontSize: '14px', fontWeight: 400 }}>/міс</span>}
                 </div>
-                {(pricing.starter.discount > 0 || appliedPromo) && (
-                  <div style={{ fontSize: '12px', color: '#16a34a', marginBottom: '24px' }}>
-                    з {getPlanPrice('starter')?.originalMonthly} ₴
-                  </div>
-                )}
-                
-                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>✓ {pricing.starter.limits.max_hr} HR</li>
-                  <li style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>✓ {pricing.starter.limits.max_vacancies === 0 ? 'Необмежені' : pricing.starter.limits.max_vacancies} вакансії</li>
-                  {pricing.starter.features.analytics && <li>✓ Аналітика</li>}
-                  {pricing.starter.features.google_integration && <li>✓ Google інтеграції</li>}
+                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px', color: '#3f3f46' }}>
+                  <li>✓ До {pricing.starter.limits?.max_hr || 1} HR</li>
+                  <li>✓ {pricing.starter.limits?.max_vacancies || 5} вакансій</li>
+                  <li>✓ Kanban-дошка</li>
+                  <li style={{ color: '#a1a1aa' }}>✗ Аналітика</li>
+                  <li style={{ color: '#a1a1aa' }}>✗ Email-шаблони</li>
                 </ul>
-                
-                <button 
-                  onClick={() => { setSelectedPlan('starter'); setShowPromoModal(true); }}
-                  style={{ width: '100%', padding: '14px', borderRadius: '12px', fontWeight: 600, background: activeTheme?.primary_color || '#7a1a2e', color: 'white', border: 'none', cursor: 'pointer' }}
+                <button
+                  onClick={handleOpenRegister}
+                  style={{ width: '100%', padding: '14px', borderRadius: '12px', fontWeight: 600, border: `1px solid ${primary}`, background: 'transparent', color: primary, cursor: 'pointer', fontSize: '14px' }}
                 >
-                  Обрати Starter
+                  Почати безкоштовно
                 </button>
               </div>
             )}
 
             {/* Growth */}
             {pricing?.growth && (
-              <div style={{ background: activeTheme?.primary_color || '#7a1a2e', color: 'white', borderRadius: '24px', padding: '32px', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', transform: 'scale(1.02)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-                <div style={{ position: 'absolute', top: '-16px', left: '50%', transform: 'translateX(-50%)', background: '#facc15', color: '#7f1d1d', padding: '4px 24px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700 }} className="mono">РЕКОМЕНДУЄМО</div>
-                
+              <div style={{ background: primary, color: 'white', borderRadius: '24px', padding: '32px', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', transform: 'scale(1.02)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+                <div style={{ position: 'absolute', top: '-16px', left: '50%', transform: 'translateX(-50%)', background: '#facc15', color: '#7f1d1d', padding: '4px 24px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700, whiteSpace: 'nowrap' }} className="mono">РЕКОМЕНДУЄМО</div>
                 <div className="mono" style={{ fontSize: '14px', fontWeight: 500, opacity: 0.75, marginBottom: '8px' }}>GROWTH</div>
                 <div style={{ fontSize: '30px', fontWeight: 600, marginBottom: '8px' }}>
                   {getPlanPrice('growth')?.monthly} ₴
@@ -339,18 +307,17 @@ const Landing = ({ onLogin }) => {
                     з {getPlanPrice('growth')?.originalMonthly} ₴
                   </div>
                 )}
-                
-                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <li>✓ До {pricing.growth.limits.max_hr} HR</li>
-                  <li>✓ {pricing.growth.limits.max_vacancies === 0 ? 'Необмежені' : pricing.growth.limits.max_vacancies} вакансії</li>
-                  {pricing.growth.features.analytics && <li>✓ Повна аналітика</li>}
-                  {pricing.growth.features.email_templates && <li>✓ Шаблони листів</li>}
-                  {pricing.growth.features.google_integration && <li>✓ Google інтеграції</li>}
+                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px' }}>
+                  <li>✓ До {pricing.growth.limits?.max_hr} HR</li>
+                  <li>✓ {pricing.growth.limits?.max_vacancies === 0 ? 'Необмежені' : pricing.growth.limits?.max_vacancies} вакансії</li>
+                  {pricing.growth.features?.analytics && <li>✓ Повна аналітика</li>}
+                  {pricing.growth.features?.email_templates && <li>✓ Шаблони листів</li>}
+                  {pricing.growth.features?.google_integration && <li>✓ Google інтеграції</li>}
+                  <li>✓ Календар інтерв'ю</li>
                 </ul>
-                
-                <button 
+                <button
                   onClick={() => { setSelectedPlan('growth'); setShowPromoModal(true); }}
-                  style={{ width: '100%', background: 'white', color: activeTheme?.primary_color || '#7a1a2e', padding: '14px', borderRadius: '12px', fontWeight: 600, border: 'none', cursor: 'pointer' }}
+                  style={{ width: '100%', background: 'white', color: primary, padding: '14px', borderRadius: '12px', fontWeight: 600, border: 'none', cursor: 'pointer', fontSize: '14px' }}
                 >
                   Обрати Growth
                 </button>
@@ -361,17 +328,17 @@ const Landing = ({ onLogin }) => {
             {pricing?.enterprise && (
               <div style={{ background: 'white', borderRadius: '24px', padding: '32px', border: '1px solid #e4e4e7', display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <div className="mono" style={{ fontSize: '14px', fontWeight: 500, color: '#71717a', marginBottom: '8px' }}>ENTERPRISE</div>
-                <div style={{ fontSize: '30px', fontWeight: 600, marginBottom: '24px' }}>Індивідуальний</div>
-                
-                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ fontSize: '30px', fontWeight: 600, marginBottom: '24px', color: '#18181b' }}>Індивідуальний</div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px', color: '#3f3f46' }}>
                   <li>✓ Необмежена кількість HR</li>
+                  <li>✓ Необмежені вакансії</li>
                   <li>✓ Кастомізація системи</li>
                   <li>✓ Пріоритетна підтримка</li>
+                  <li>✓ SLA гарантії</li>
                 </ul>
-                
-                <button 
-                  onClick={() => alert('Зв\'яжіться з нами для отримання індивідуальної пропозиції')}
-                  style={{ width: '100%', padding: '14px', borderRadius: '12px', fontWeight: 600, border: `1px solid ${activeTheme?.primary_color || '#7a1a2e'}`, background: 'transparent', color: activeTheme?.primary_color || '#7a1a2e', cursor: 'pointer' }}
+                <button
+                  onClick={() => alert('Зв\'яжіться з нами: ida@ida-ats.com')}
+                  style={{ width: '100%', padding: '14px', borderRadius: '12px', fontWeight: 600, border: `1px solid ${primary}`, background: 'transparent', color: primary, cursor: 'pointer', fontSize: '14px' }}
                 >
                   Написати нам
                 </button>
@@ -388,12 +355,12 @@ const Landing = ({ onLogin }) => {
                 value={promoCodeInput}
                 onChange={(e) => { setPromoCodeInput(e.target.value.toUpperCase()); setPromoCodeResult(null); }}
                 onKeyDown={(e) => e.key === 'Enter' && verifyPromoCode()}
-                style={{ padding: '12px 16px', borderRadius: '12px', border: '1px solid #d4d4d8', flex: 1, minWidth: '200px', fontFamily: 'DM Mono', outline: 'none' }}
+                style={{ padding: '12px 16px', borderRadius: '12px', border: '1px solid #d4d4d8', flex: 1, minWidth: '200px', fontFamily: 'DM Mono', outline: 'none', background: 'white' }}
               />
               <button
                 onClick={verifyPromoCode}
                 disabled={!promoCodeInput.trim()}
-                style={{ padding: '12px 24px', borderRadius: '12px', border: 'none', background: activeTheme?.primary_color || '#7a1a2e', color: 'white', fontWeight: 600, cursor: promoCodeInput.trim() ? 'pointer' : 'not-allowed', opacity: promoCodeInput.trim() ? 1 : 0.6 }}
+                style={{ padding: '12px 24px', borderRadius: '12px', border: 'none', background: primary, color: 'white', fontWeight: 600, cursor: promoCodeInput.trim() ? 'pointer' : 'not-allowed', opacity: promoCodeInput.trim() ? 1 : 0.6 }}
               >
                 Застосувати
               </button>
@@ -413,13 +380,13 @@ const Landing = ({ onLogin }) => {
       </section>
 
       {/* CTA */}
-      <section style={{ padding: '80px 24px', background: activeTheme?.primary_color || '#7a1a2e', color: 'white', textAlign: 'center' }}>
+      <section style={{ padding: 'clamp(64px, 8vw, 96px) 24px', background: primary, color: 'white', textAlign: 'center' }}>
         <div style={{ maxWidth: '48rem', margin: '0 auto' }}>
           <h2 style={{ fontSize: 'clamp(2rem, 4vw, 2.5rem)', fontWeight: 700, marginBottom: '24px' }}>{tc.ctaHeading}</h2>
           <p style={{ fontSize: '20px', marginBottom: '40px', color: activeTheme?.accent_color || '#fecaca' }}>14 днів повноцінного доступу безкоштовно</p>
-          <button 
-            onClick={() => setShowRegister(true)}
-            style={{ display: 'inline-block', background: 'white', color: activeTheme?.primary_color || '#7a1a2e', fontWeight: 600, padding: '20px 48px', borderRadius: '16px', fontSize: '18px', border: 'none', cursor: 'pointer' }}
+          <button
+            onClick={handleOpenRegister}
+            style={{ display: 'inline-block', background: 'white', color: primary, fontWeight: 700, padding: '20px 48px', borderRadius: '16px', fontSize: '18px', border: 'none', cursor: 'pointer', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }}
           >
             Почати безкоштовний період
           </button>
@@ -430,7 +397,7 @@ const Landing = ({ onLogin }) => {
       <footer style={{ background: '#18181b', color: '#a1a1aa', padding: '64px 24px' }}>
         <div style={{ maxWidth: '80rem', margin: '0 auto', textAlign: 'center' }}>
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-            <div style={{ width: '36px', height: '36px', background: activeTheme?.primary_color || '#7a1a2e', color: 'white', fontWeight: 'bold', fontSize: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '16px' }}>I</div>
+            <div style={{ width: '36px', height: '36px', background: primary, color: 'white', fontWeight: 'bold', fontSize: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '16px' }}>I</div>
             <span style={{ fontSize: '30px', fontWeight: 600, color: 'white' }}>IDA</span>
           </div>
           <p className="mono" style={{ fontSize: '14px' }}>Сучасна українська ATS-система</p>
@@ -438,14 +405,14 @@ const Landing = ({ onLogin }) => {
         </div>
       </footer>
 
-      {/* Модальне вікно вибору тарифу з промо-кодом */}
+      {/* Модальне вікно вибору тарифу Growth з промо-кодом */}
       {showPromoModal && selectedPlan && pricing?.[selectedPlan] && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'white', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '400px' }}>
-            <h3 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '16px' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 900, padding: '16px' }}>
+          <div style={{ background: 'white', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '400px', fontFamily: 'DM Sans, sans-serif' }}>
+            <h3 style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: '16px', color: '#18181b' }}>
               Тариф {selectedPlan === 'starter' ? 'Starter' : selectedPlan === 'growth' ? 'Growth' : 'Enterprise'}
             </h3>
-            <div style={{ fontSize: '28px', fontWeight: 700, marginBottom: '8px' }}>
+            <div style={{ fontSize: '28px', fontWeight: 700, marginBottom: '8px', color: '#18181b' }}>
               {getPlanPrice(selectedPlan)?.monthly} ₴
               <span style={{ fontSize: '14px', fontWeight: 400 }}>/міс</span>
             </div>
@@ -455,23 +422,21 @@ const Landing = ({ onLogin }) => {
               </div>
             )}
             <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button onClick={() => { setShowPromoModal(false); setSelectedPlan(null); }} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #d4d4d8', background: 'transparent', cursor: 'pointer' }}>Скасувати</button>
-              <button onClick={() => { alert('Функція реєстрації буде доступна найближчим часом'); setShowPromoModal(false); setSelectedPlan(null); }} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: activeTheme?.primary_color || '#7a1a2e', color: 'white', fontWeight: 600, cursor: 'pointer' }}>Продовжити</button>
+              <button
+                onClick={() => { setShowPromoModal(false); setSelectedPlan(null); }}
+                style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #d4d4d8', background: 'transparent', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+              >
+                Скасувати
+              </button>
+              <button
+                onClick={() => { setShowPromoModal(false); setSelectedPlan(null); handleOpenRegister(); }}
+                style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: primary, color: 'white', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+              >
+                Зареєструватись
+              </button>
             </div>
           </div>
         </div>
-      )}
-
-      {/* Модальне вікно реєстрації */}
-      {showRegister && (
-        <RegisterModal
-          primaryColor={activeTheme?.primary_color || '#7a1a2e'}
-          onClose={() => setShowRegister(false)}
-          onSuccess={() => {
-            setShowRegister(false);
-            window.location.reload();
-          }}
-        />
       )}
     </div>
   );
