@@ -1165,7 +1165,7 @@ def hr_effectiveness_analytics(request):
         total_candidates = qs.count()
         from django.db.models import Q as _Q
         _terminal_ids = AnalyticsService._get_offer_stage_ids(qs)
-        total_offers = qs.filter(_Q(stage_id__in=_terminal_ids)).count() if _terminal_ids else qs.filter(status='offer').count()
+        total_offers = qs.filter(stage__is_terminal=True).count()
         overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
 
         return Response({
@@ -1307,7 +1307,7 @@ def export_hr_effectiveness_excel(request):
 
     hr_data = AnalyticsService.calculate_hr_effectiveness(qs)
     total_candidates = qs.count()
-    total_offers = qs.filter(status='offer').count()
+    total_offers = qs.filter(stage__is_terminal=True).count()
     overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
     summary = {
         'total_hr': len(hr_data), 'total_candidates': total_candidates,
@@ -1344,7 +1344,7 @@ def export_hr_effectiveness_pdf(request):
 
     hr_data = AnalyticsService.calculate_hr_effectiveness(qs)
     total_candidates = qs.count()
-    total_offers = qs.filter(status='offer').count()
+    total_offers = qs.filter(stage__is_terminal=True).count()
     overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
     summary = {
         'total_hr': len(hr_data), 'total_candidates': total_candidates,
@@ -1417,7 +1417,7 @@ def export_full_report_excel(request):
 
     hr_data = AnalyticsService.calculate_hr_effectiveness(candidates_qs)
     total_candidates = candidates_qs.count()
-    total_offers = candidates_qs.filter(status='offer').count()
+    total_offers = candidates_qs.filter(stage__is_terminal=True).count()
     overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
 
     hr_effectiveness = {
@@ -1479,7 +1479,7 @@ def export_full_report_pdf(request):
     tth_statistics = AnalyticsService.calculate_statistics(time_data)
     hr_data = AnalyticsService.calculate_hr_effectiveness(candidates_qs)
     total_candidates = candidates_qs.count()
-    total_offers = candidates_qs.filter(status='offer').count()
+    total_offers = candidates_qs.filter(stage__is_terminal=True).count()
     overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
     funnel = AnalyticsService.calculate_funnel_data(candidates_qs, total_candidates, KANBAN_COLUMNS)
 
