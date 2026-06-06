@@ -281,10 +281,10 @@ class AnalyticsService:
                 continue
 
             offers = hr_candidates.filter(offer_q).count()
-            rejected = hr_candidates.filter(status='rejected').count()
-            # Знаходимо "interview-like" стейджі (не нові, не термінальні, не rejected)
+            rejected = hr_candidates.filter(stage__system_key='rejected').count()
+            # Знаходимо "interview-like" стейджі (не термінальні, не перший, не rejected)
             interviews = hr_candidates.exclude(offer_q).exclude(
-                Q(stage__order__lte=1) | Q(status__in=['new', 'screening', 'rejected'])
+                Q(stage__system_key='rejected') | Q(stage__order__lte=1) | Q(stage__isnull=True)
             ).count()
 
             conversion_rate = round(offers / total * 100, 1) if total > 0 else 0
@@ -296,9 +296,12 @@ class AnalyticsService:
 
             hr_name = f"{hr_user.first_name} {hr_user.last_name}".strip() or hr_user.username
 
-            # by_status — сумісність зі старим форматом
+            # by_status — сумісність зі старим форматом (через stage.system_key)
             by_status_qs = dict(
-                hr_candidates.values('status').annotate(count=Count('id')).values_list('status', 'count')
+                hr_candidates.exclude(stage__isnull=True)
+                .values('stage__system_key')
+                .annotate(count=Count('id'))
+                .values_list('stage__system_key', 'count')
             )
 
             hr_stats.append({
