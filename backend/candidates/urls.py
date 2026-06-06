@@ -12,7 +12,7 @@ from .views import (
     InterviewViewSet, BlacklistViewSet,
     HolidayThemeViewSet, PricingConfigViewSet, PromoCodeViewSet,
     public_pricing, RejectionReasonViewSet, rejection_analytics,
-    AuditLogView, RegisterView
+    AuditLogView, RegisterView, monthly_trend_analytics
 )
 from .job_board_views import (
     vacancy_feed_rabota_ua,
@@ -66,6 +66,7 @@ urlpatterns = [
     path('analytics/export-full-excel/',                     export_full_report_excel,         name='full-report-export-excel'),
     path('analytics/export-full-pdf/',                       export_full_report_pdf,           name='full-report-export-pdf'),
     path('analytics/rejection-reasons/',                     rejection_analytics,              name='rejection-analytics'),
+    path('analytics/monthly-trend/',                         monthly_trend_analytics,          name='monthly-trend'),
     path('public/pricing/', public_pricing, name='public_pricing'),
     path('audit-log/', AuditLogView.as_view(), name='audit-log'),
     path('register/', RegisterView.as_view(), name='register'),

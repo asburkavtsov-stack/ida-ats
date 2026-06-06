@@ -1,12 +1,27 @@
+# candidates/analytics_service.py
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from django.db.models import Q, Prefetch, QuerySet, Count
 from django.core.cache import cache
 
-from candidates.models import Candidate, StatusHistory
+from candidates.models import Candidate, StatusHistory, VacancyStage
 
 
 class AnalyticsService:
+
+    # ─── Визначити "terminal" стейдж — оффер ─────────────────────────────────
+    @staticmethod
+    def _get_offer_stage_ids(queryset: QuerySet) -> List[int]:
+        """Повертає IDs стейджів is_terminal=True (аналог 'offer')."""
+        org_ids = queryset.values_list('organization_id', flat=True).distinct()
+        return list(
+            VacancyStage.objects.filter(
+                Q(is_terminal=True) & (
+                    Q(vacancy__organization_id__in=org_ids) | Q(vacancy__isnull=True)
+                )
+            ).values_list('id', flat=True)
+        )
+
     @staticmethod
     def calculate_time_to_hire_data(
             queryset: QuerySet,
@@ -19,12 +34,22 @@ class AnalyticsService:
         if date_to:
             queryset = queryset.filter(created_at__date__lte=date_to)
 
-        candidates_with_offer = queryset.filter(status='offer').select_related(
-            'vacancy', 'assigned_to'
+        # Підтримуємо обидва варіанти: stage FK (нова архітектура) та status (legacy)
+        terminal_stage_ids = AnalyticsService._get_offer_stage_ids(queryset)
+
+        if terminal_stage_ids:
+            offer_filter = Q(stage_id__in=terminal_stage_ids)
+        else:
+            offer_filter = Q(status='offer')
+
+        candidates_with_offer = queryset.filter(offer_filter).select_related(
+            'vacancy', 'assigned_to', 'stage'
         ).prefetch_related(
             Prefetch(
                 'status_history',
-                queryset=StatusHistory.objects.filter(new_status='offer').order_by('changed_at'),
+                queryset=StatusHistory.objects.filter(
+                    Q(new_stage__is_terminal=True) | Q(new_status='offer')
+                ).order_by('changed_at'),
                 to_attr='offer_history'
             )
         )
@@ -35,10 +60,10 @@ class AnalyticsService:
             new_time = candidate.created_at
             first_offer = candidate.offer_history[0] if candidate.offer_history else None
 
-            if candidate.status == 'offer' and not first_offer:
+            if not first_offer:
                 days = 0
                 offer_date = candidate.created_at
-            elif first_offer and new_time:
+            elif new_time:
                 days = round((first_offer.changed_at - new_time).total_seconds() / 86400, 1)
                 offer_date = first_offer.changed_at
             else:
@@ -76,6 +101,7 @@ class AnalyticsService:
         overall_avg = round(sum(all_days) / len(all_days), 1)
         all_days_sorted = sorted(all_days)
         median = round(all_days_sorted[len(all_days_sorted) // 2], 1)
+
         vacancy_stats = {}
         for d in time_data:
             vid = d['vacancy_id']
@@ -102,6 +128,7 @@ class AnalyticsService:
                 'max_days': round(max(times), 1),
             })
         by_vacancy.sort(key=lambda x: x['avg_days'])
+
         ranges = [
             ('0-7 днів', 0, 7),
             ('7-14 днів', 7, 14),
@@ -129,7 +156,100 @@ class AnalyticsService:
         }
 
     @staticmethod
-    def get_cached_analytics(cache_key: str) -> Optional[Dict]:
+    def calculate_monthly_trend(queryset: QuerySet) -> List[Dict[str, Any]]:
+        """Динаміка кандидатів по місяцях."""
+        from django.db.models.functions import TruncMonth
+        from django.db.models import Count as DCount
+
+        monthly = (
+            queryset
+            .annotate(month=TruncMonth('created_at'))
+            .values('month')
+            .annotate(total=DCount('id'))
+            .order_by('month')
+        )
+
+        terminal_ids = AnalyticsService._get_offer_stage_ids(queryset)
+        if terminal_ids:
+            offer_q = Q(stage_id__in=terminal_ids)
+        else:
+            offer_q = Q(status='offer')
+
+        monthly_offers = (
+            queryset.filter(offer_q)
+            .annotate(month=TruncMonth('created_at'))
+            .values('month')
+            .annotate(total=DCount('id'))
+            .order_by('month')
+        )
+
+        rejected_monthly = (
+            queryset.filter(Q(stage__is_terminal=False) | Q(status='rejected'))
+            .filter(status='rejected')
+            .annotate(month=TruncMonth('created_at'))
+            .values('month')
+            .annotate(total=DCount('id'))
+            .order_by('month')
+        )
+
+        offers_map = {str(r['month'])[:7]: r['total'] for r in monthly_offers if r['month']}
+        rejected_map = {str(r['month'])[:7]: r['total'] for r in rejected_monthly if r['month']}
+
+        result = []
+        for row in monthly:
+            if not row['month']:
+                continue
+            month_key = str(row['month'])[:7]
+            label = row['month'].strftime('%b %Y')
+            result.append({
+                'month': month_key,
+                'label': label,
+                'total': row['total'],
+                'offers': offers_map.get(month_key, 0),
+                'rejected': rejected_map.get(month_key, 0),
+            })
+
+        return result
+
+    @staticmethod
+    def calculate_funnel_data(queryset: QuerySet) -> List[Dict[str, Any]]:
+        """Воронка по стейджах (динамічна, без хардкоду статусів)."""
+        from django.db.models import Count as DCount
+
+        stages_data = (
+            queryset
+            .exclude(stage__isnull=True)
+            .values('stage_id', 'stage__name', 'stage__color', 'stage__order', 'stage__is_terminal')
+            .annotate(count=DCount('id'))
+            .order_by('stage__order')
+        )
+
+        # Кандидати без стейджу — у legacy bucket
+        no_stage = queryset.filter(stage__isnull=True).count()
+
+        result = []
+        for row in stages_data:
+            result.append({
+                'stage_id': row['stage_id'],
+                'label': row['stage__name'] or '—',
+                'color': row['stage__color'] or '#7a1a2e',
+                'count': row['count'],
+                'is_terminal': row['stage__is_terminal'],
+            })
+
+        if no_stage > 0:
+            result.append({
+                'stage_id': None,
+                'label': 'Без етапу',
+                'color': '#aaaaaa',
+                'count': no_stage,
+                'is_terminal': False,
+            })
+
+        return result
+
+    @staticmethod
+    def get_cached_analytics(cache_key: str):
         return cache.get(cache_key)
 
     @staticmethod
@@ -140,12 +260,15 @@ class AnalyticsService:
     def calculate_hr_effectiveness(queryset: QuerySet) -> List[Dict[str, Any]]:
         from django.contrib.auth.models import User
 
-        # Групуємо по assigned_to
-        hr_stats = []
+        terminal_ids = AnalyticsService._get_offer_stage_ids(queryset)
+        if terminal_ids:
+            offer_q = Q(stage_id__in=terminal_ids)
+        else:
+            offer_q = Q(status='offer')
 
-        # Отримуємо всіх HR з кандидатами
         hr_ids = queryset.exclude(assigned_to__isnull=True).values_list('assigned_to', flat=True).distinct()
 
+        hr_stats = []
         for hr_id in hr_ids:
             try:
                 hr_user = User.objects.get(id=hr_id)
@@ -154,30 +277,29 @@ class AnalyticsService:
 
             hr_candidates = queryset.filter(assigned_to=hr_id)
             total = hr_candidates.count()
-
             if total == 0:
                 continue
 
-            # Розподіл по статусах
-            status_counts = dict(
-                hr_candidates.values('status').annotate(count=Count('id')).values_list('status', 'count'))
+            offers = hr_candidates.filter(offer_q).count()
+            rejected = hr_candidates.filter(status='rejected').count()
+            # Знаходимо "interview-like" стейджі (не нові, не термінальні, не rejected)
+            interviews = hr_candidates.exclude(offer_q).exclude(
+                Q(stage__order__lte=1) | Q(status__in=['new', 'screening', 'rejected'])
+            ).count()
 
-            offers = status_counts.get('offer', 0)
-            interviews = status_counts.get('interview', 0)
-            rejected = status_counts.get('rejected', 0)
+            conversion_rate = round(offers / total * 100, 1) if total > 0 else 0
+            interview_rate = round((interviews + offers) / total * 100, 1) if total > 0 else 0
             active = total - rejected
 
-            # Конверсія в оффер
-            conversion_rate = round(offers / total * 100, 1) if total > 0 else 0
-
-            # Конверсія в співбесіду+
-            interview_rate = round((interviews + offers) / total * 100, 1) if total > 0 else 0
-
-            # Середній час до офферу
             time_data = AnalyticsService.calculate_time_to_hire_data(hr_candidates)
             avg_time = round(sum(d['days'] for d in time_data) / len(time_data), 1) if time_data else None
 
             hr_name = f"{hr_user.first_name} {hr_user.last_name}".strip() or hr_user.username
+
+            # by_status — сумісність зі старим форматом
+            by_status_qs = dict(
+                hr_candidates.values('status').annotate(count=Count('id')).values_list('status', 'count')
+            )
 
             hr_stats.append({
                 'hr_id': hr_id,
@@ -192,10 +314,9 @@ class AnalyticsService:
                 'conversion_rate': conversion_rate,
                 'interview_rate': interview_rate,
                 'time_to_hire_avg': avg_time,
-                'by_status': {s: status_counts.get(s, 0) for s in
+                'by_status': {s: by_status_qs.get(s, 0) for s in
                               ['new', 'screening', 'interview', 'offer', 'rejected']},
             })
 
         hr_stats.sort(key=lambda x: (-x['conversion_rate'], -x['total_candidates']))
-
         return hr_stats

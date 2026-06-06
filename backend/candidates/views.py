@@ -1003,29 +1003,63 @@ def time_to_hire_analytics(request):
     if request.query_params.get('assigned_to'):
         qs = qs.filter(assigned_to_id=request.query_params['assigned_to'])
 
-    time_data = AnalyticsService.calculate_time_to_hire_data(qs, request.query_params.get('date_from'),
-                                                             request.query_params.get('date_to'))
+    time_data = AnalyticsService.calculate_time_to_hire_data(
+        qs,
+        request.query_params.get('date_from'),
+        request.query_params.get('date_to'),
+    )
     result = AnalyticsService.calculate_statistics(time_data)
 
     period = request.query_params.get('period', 'month')
-    period_format = {'day': '%Y-%m-%d', 'week': '%Y-W%W', 'month': '%Y-%m', 'quarter': '%Y-Q%q', 'year': '%Y'}.get(
+    period_format = {'day': '%Y-%m-%d', 'week': '%Y-W%W', 'month': '%Y-%m', 'quarter': '%Y-Q', 'year': '%Y'}.get(
         period, '%Y-%m')
     period_stats = {}
     for d in time_data:
-        pkey = d['offer_date'].strftime(period_format)
+        try:
+            pkey = d['offer_date'].strftime(period_format)
+        except Exception:
+            continue
         period_stats.setdefault(pkey, []).append(d['days'])
-    result['by_period'] = [{'period': pkey, 'avg_days': round(sum(t) / len(t), 1), 'offers_count': len(t)}
-                           for pkey, t in sorted(period_stats.items())]
+    result['by_period'] = [
+        {'period': pkey, 'avg_days': round(sum(t) / len(t), 1), 'offers_count': len(t)}
+        for pkey, t in sorted(period_stats.items())
+    ]
 
     cumulative_times = []
     result['trend'] = []
     for bp in result['by_period']:
         cumulative_times.extend(period_stats.get(bp['period'], []))
-        result['trend'].append({'period': bp['period'],
-                                'cumulative_avg': round(sum(cumulative_times) / len(cumulative_times),
-                                                        1) if cumulative_times else 0,
-                                'offers_to_date': len(cumulative_times)})
+        result['trend'].append({
+            'period': bp['period'],
+            'cumulative_avg': round(sum(cumulative_times) / len(cumulative_times), 1) if cumulative_times else 0,
+            'offers_to_date': len(cumulative_times),
+        })
+
+    # Воронка по стейджах (для Analytics UI)
+    result['funnel'] = AnalyticsService.calculate_funnel_data(qs)
+
     return Response(result)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsOrgMember])
+def monthly_trend_analytics(request):
+    """Динаміка кандидатів по місяцях для графіка Recharts."""
+    role = get_user_role(request.user)
+    if role == 'superadmin':
+        qs = Candidate.objects.all()
+        org_id = request.query_params.get('organization')
+        if org_id:
+            qs = qs.filter(organization_id=org_id)
+    else:
+        org = get_user_organization(request.user)
+        qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
+
+    if request.query_params.get('vacancy'):
+        qs = qs.filter(vacancy_id=request.query_params['vacancy'])
+
+    data = AnalyticsService.calculate_monthly_trend(qs)
+    return Response({'monthly': data})
 
 
 @api_view(['GET'])
@@ -1127,7 +1161,9 @@ def hr_effectiveness_analytics(request):
 
     hr_data = AnalyticsService.calculate_hr_effectiveness(qs)
     total_candidates = qs.count()
-    total_offers = qs.filter(status='offer').count()
+    from django.db.models import Q as _Q
+    _terminal_ids = AnalyticsService._get_offer_stage_ids(qs)
+    total_offers = qs.filter(_Q(stage_id__in=_terminal_ids)).count() if _terminal_ids else qs.filter(status="offer").count()
     overall_conversion = round(total_offers / total_candidates * 100, 1) if total_candidates > 0 else 0
 
     return Response({
