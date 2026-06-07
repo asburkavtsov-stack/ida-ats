@@ -4,6 +4,7 @@ import axios from 'axiosConfig';
 import toast from 'react-hot-toast';
 import CandidateCardModal from '../components/CandidateCardModal';
 import BulkActionBar from '../components/BulkActionBar';
+import { KanbanSkeleton } from '../components/SkeletonComponents';
 
 const STAGE_COLORS = [
   '#7a1a2e','#b03050','#8a3a5a','#c2185b','#e8a0b0',
@@ -486,7 +487,7 @@ function Kanban({ searchQuery = '' }) {
       )}
 
       {loading ? (
-        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)', fontSize:'0.85rem' }}>Завантаження...</div>
+        <KanbanSkeleton columns={Math.max(stages.length, 4)} />
       ) : (
         <div style={{ display:'flex', gap:'12px', overflowX:'auto', flex:1, paddingBottom:'8px', alignItems:'flex-start', scrollSnapType: isMobile ? 'x mandatory' : 'none' }}>
           {stages.map((stage, idx) => (

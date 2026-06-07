@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axiosConfig';
 import toast from 'react-hot-toast';
 import { SOURCE_CONFIG, getSourceLabel, getSourceBg, getSourceText, getHrAvatarColor } from '../constants/statusColors';
+import { ModalSkeleton } from '../components/SkeletonComponents';
 
 const formatDate = (dateString) => {
   if (!dateString) return '—';
@@ -413,6 +414,8 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
 
   const currentStageId = candidate?.stage_id ?? candidate?.stage;
 
+  if (loading) return <ModalSkeleton />;
+
   return (
     <div
       style={{
@@ -448,9 +451,6 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
           position: 'sticky', top: 0, background: 'var(--surface)', zIndex: 10,
           borderRadius: isMobile ? '16px 16px 0 0' : '16px 16px 0 0',
         }}>
-          {loading ? (
-            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'var(--surface2)', flexShrink: 0 }} />
-          ) : (
             <div style={{
               width: '44px', height: '44px', borderRadius: '10px',
               background: 'var(--accent)', display: 'flex', alignItems: 'center',
@@ -459,24 +459,14 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
             }}>
               {initials}
             </div>
-          )}
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            {loading ? (
-              <>
-                <div style={{ height: '20px', width: '60%', background: 'var(--surface2)', borderRadius: '4px', marginBottom: '6px' }} />
-                <div style={{ height: '14px', width: '40%', background: 'var(--surface2)', borderRadius: '4px' }} />
-              </>
-            ) : (
-              <>
-                <div id="candidate-card-title" style={{ fontWeight: 700, fontSize: '1rem', wordBreak: 'break-word' }}>
-                  {candidate?.first_name} {candidate?.last_name}
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '2px' }}>
-                  ID: {candidate?.id} · Додано {formatDateShort(candidate?.created_at)}
-                </div>
-              </>
-            )}
+            <div id="candidate-card-title" style={{ fontWeight: 700, fontSize: '1rem', wordBreak: 'break-word' }}>
+              {candidate?.first_name} {candidate?.last_name}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '2px' }}>
+              ID: {candidate?.id} · Додано {formatDateShort(candidate?.created_at)}
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
@@ -556,16 +546,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
         }}>
           {/* Main column */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            {loading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {[1, 2, 3, 4].map(i => (
-                  <div key={i}>
-                    <div style={{ height: '12px', width: '80px', background: 'var(--surface2)', borderRadius: '4px', marginBottom: '8px' }} />
-                    <div style={{ height: '40px', background: 'var(--surface2)', borderRadius: '8px' }} />
-                  </div>
-                ))}
-              </div>
-            ) : error ? (
+            {error ? (
               <div style={{ color: '#dc2626', fontSize: '0.85rem', textAlign: 'center', padding: '20px' }}>
                 ⚠ {error}
               </div>

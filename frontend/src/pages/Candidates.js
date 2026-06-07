@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import axios from 'axiosConfig';
 import toast from 'react-hot-toast';
-import Loader from '../components/Loader';
+import { CandidateTableSkeleton } from '../components/SkeletonComponents';
 import CandidateCardModal from '../components/CandidateCardModal';
 import BulkActionBar from '../components/BulkActionBar';
 import {
@@ -367,11 +367,12 @@ function Candidates({ searchQuery = '' }) {
       </div>
 
       {/* ── Таблиця / Картки ── */}
+      {loading ? (
+        <CandidateTableSkeleton rows={8} isMobile={isMobile} />
+      ) : (
       <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'12px', overflow:'hidden' }}>
         {isMobile ? (
-          loading ? (
-            <div style={{ padding:'40px', textAlign:'center' }}><Loader /></div>
-          ) : candidates.length === 0 ? (
+          candidates.length === 0 ? (
             <div style={{ padding:'40px', textAlign:'center', color:'var(--muted)', fontSize:'0.82rem', fontFamily:'DM Mono' }}>Кандидатів не знайдено</div>
           ) : (
             // ── Звичайний список ──
@@ -403,7 +404,7 @@ function Candidates({ searchQuery = '' }) {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={bulkMode ? 7 : 6} style={{ padding:'40px', textAlign:'center' }}><Loader /></td></tr>
+                <CandidateTableSkeleton rows={8} isMobile={false} />
               ) : candidates.length === 0 ? (
                 <tr><td colSpan={bulkMode ? 7 : 6} style={{ padding:'40px', textAlign:'center', color:'var(--muted)', fontSize:'0.82rem', fontFamily:'DM Mono' }}>Кандидатів не знайдено</td></tr>
               ) : candidates.map(c => (
@@ -421,6 +422,7 @@ function Candidates({ searchQuery = '' }) {
           </table>
         )}
       </div>
+      )}
 
       {/* ── Пагінація ── */}
       {totalPages > 1 && (
