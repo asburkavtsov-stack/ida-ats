@@ -329,4 +329,11 @@ export const ModalSkeleton = memo(function ModalSkeleton() {
   );
 });
 
-export default { CandidateTableSkeleton, ModalSkeleton };
+// ─── Default export (іменований об'єкт) ─────────────────────────────────────
+const SkeletonComponents = {
+  KanbanSkeleton,
+  CandidateTableSkeleton,
+  ModalSkeleton,
+};
+
+export default SkeletonComponents;
