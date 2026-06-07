@@ -1,6 +1,5 @@
-// Candidates.js — оптимізований: React.memo, useMemo, useCallback, react-window при >300 записах
+// Candidates.js — оптимізований: React.memo, useMemo, useCallback
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
-import { FixedSizeList } from 'react-window';
 import axios from 'axiosConfig';
 import toast from 'react-hot-toast';
 import Loader from '../components/Loader';
@@ -155,28 +154,7 @@ const TableRow = memo(function TableRow({ candidate, isSelected, bulkMode, onOpe
   prev.isMobile   === next.isMobile
 ));
 
-// ─── VirtualRow — обгортка для react-window ───────────────────────────────────
-// Використовується тільки при >300 записах на мобільному списку
-function VirtualRow({ index, style, data }) {
-  const { candidates, selectedSet, bulkMode, onOpen, onToggle } = data;
-  const c = candidates[index];
-  return (
-    <div style={style}>
-      <TableRow
-        candidate={c}
-        isSelected={selectedSet.has(c.id)}
-        bulkMode={bulkMode}
-        onOpen={onOpen}
-        onToggle={onToggle}
-        isMobile
-      />
-    </div>
-  );
-}
 
-// ─── Поріг для віртуалізації ──────────────────────────────────────────────────
-const VIRTUALIZE_THRESHOLD = 300;
-const VIRTUAL_ROW_HEIGHT   = 130; // px — приблизна висота мобільного рядка
 
 // ─── Головний компонент ───────────────────────────────────────────────────────
 function Candidates({ searchQuery = '' }) {
@@ -305,17 +283,6 @@ function Candidates({ searchQuery = '' }) {
 
   const activeStatusFilters = stages.length > 0 ? stageFilters : STATUS_FILTERS;
 
-  // ── Чи потрібна віртуалізація ─────────────────────────────────────────────────
-  const useVirtualization = isMobile && candidates.length > VIRTUALIZE_THRESHOLD;
-
-  // ── Дані для VirtualRow (стабільний об'єкт) ──────────────────────────────────
-  const virtualListData = useMemo(() => ({
-    candidates,
-    selectedSet,
-    bulkMode,
-    onOpen:   setSelectedCandidateId,
-    onToggle: toggleSelect,
-  }), [candidates, selectedSet, bulkMode, toggleSelect]);
 
   // ── Callbacks ─────────────────────────────────────────────────────────────────
   const handleCandidateStatusChange = useCallback((id, stageId) => {
@@ -389,11 +356,7 @@ function Candidates({ searchQuery = '' }) {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px', gap:'8px' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
           <div style={{ fontSize:'0.78rem', color:'var(--muted)', fontFamily:'DM Mono' }}>
-            {loading ? 'Завантаження...' : `${totalCount} кандидат${totalCount === 1 ? '' : totalCount < 5 ? 'и' : 'ів'}`}
-            {useVirtualization && !loading && (
-              <span style={{ marginLeft:'6px', color:'#ca8a04' }}>· віртуальний список</span>
-            )}
-          </div>
+            {loading ? 'Завантаження...' : `${totalCount} кандидат${totalCount === 1 ? '' : totalCount < 5 ? 'и' : 'ів'}`}          </div>
           <button onClick={handleToggleBulkMode} style={{ padding:'5px 12px', borderRadius:'7px', fontSize:'0.75rem', border:`1px solid ${bulkMode ? 'var(--accent)' : 'var(--border)'}`, background: bulkMode ? 'rgba(159,18,57,0.08)' : 'var(--surface)', color: bulkMode ? 'var(--accent)' : 'var(--muted)', cursor:'pointer', fontFamily:'DM Mono', transition:'all 0.15s' }}>
             {bulkMode ? '✓ Режим вибору' : '☐ Вибрати'}
           </button>
@@ -410,17 +373,6 @@ function Candidates({ searchQuery = '' }) {
             <div style={{ padding:'40px', textAlign:'center' }}><Loader /></div>
           ) : candidates.length === 0 ? (
             <div style={{ padding:'40px', textAlign:'center', color:'var(--muted)', fontSize:'0.82rem', fontFamily:'DM Mono' }}>Кандидатів не знайдено</div>
-          ) : useVirtualization ? (
-            // ── Віртуалізований список для >300 записів ──
-            <FixedSizeList
-              height={Math.min(candidates.length * VIRTUAL_ROW_HEIGHT, window.innerHeight - 300)}
-              itemCount={candidates.length}
-              itemSize={VIRTUAL_ROW_HEIGHT}
-              itemData={virtualListData}
-              overscanCount={5}
-            >
-              {VirtualRow}
-            </FixedSizeList>
           ) : (
             // ── Звичайний список ──
             candidates.map(c => (
