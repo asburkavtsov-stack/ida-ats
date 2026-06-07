@@ -329,4 +329,4 @@ export const ModalSkeleton = memo(function ModalSkeleton() {
   );
 });
 
-export default { KanbanSkeleton, CandidateTableSkeleton, ModalSkeleton };
+export default { CandidateTableSkeleton, ModalSkeleton };
