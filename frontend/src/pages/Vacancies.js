@@ -5,6 +5,7 @@ import AddVacancyModal from '../components/AddVacancyModal';
 import Loader from '../components/Loader';
 import CandidateCardModal from '../components/CandidateCardModal';
 import VacancyAccessModal from '../components/VacancyAccessModal';
+import JobBoardSelector from '../components/JobBoardSelector';
 
 function Vacancies() {
   const [vacancies, setVacancies] = useState([]);
@@ -22,6 +23,7 @@ function Vacancies() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [accessModalVacancy, setAccessModalVacancy] = useState(null);
+  const [jobBoardVacancy, setJobBoardVacancy] = useState(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -236,6 +238,35 @@ function Vacancies() {
               <span aria-hidden="true">🔑</span> Доступ
             </button>
           )}
+          <button
+            onClick={() => setJobBoardVacancy(selectedVacancy)}
+            type="button"
+            style={{
+              padding: isMobile ? '10px 14px' : '8px 16px',
+              borderRadius: '8px',
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text)',
+              cursor: 'pointer',
+              fontSize: '0.82rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <span aria-hidden="true">📢</span> Job Boards
+            {(() => {
+              const boards = ['published_rabota_ua','published_work_ua','published_dou','published_linkedin'];
+              const count = boards.filter(f => selectedVacancy?.[f]).length;
+              return count > 0 ? (
+                <span style={{
+                  background: '#16a34a', color: '#fff',
+                  borderRadius: '10px', fontSize: '0.65rem',
+                  padding: '1px 6px', fontFamily: 'DM Mono', fontWeight: 700,
+                }}>{count}</span>
+              ) : null;
+            })()}
+          </button>
           <button
             onClick={(e) => handleToggleStatus(e, selectedVacancy)}
             aria-label={selectedVacancy?.is_active ? `Закрити вакансію ${selectedVacancy?.title}` : `Відкрити вакансію ${selectedVacancy?.title}`}
@@ -671,6 +702,24 @@ function Vacancies() {
                   <span aria-hidden="true">✏️</span>
                 </button>
                 <button
+                  onClick={e => { e.stopPropagation(); setJobBoardVacancy(v); }}
+                  aria-label={`Job Boards для ${v.title}`}
+                  type="button"
+                  title="Публікація на Job Boards"
+                  style={{
+                    padding: isMobile ? '8px 12px' : '6px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--surface)',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    zIndex: 10,
+                    position: 'relative',
+                  }}
+                >
+                  <span aria-hidden="true">📢</span>
+                </button>
+                <button
                   onClick={(e) => handleDelete(e, v)}
                   aria-label={`Видалити вакансію ${v.title}`}
                   type="button"
@@ -707,16 +756,32 @@ function Vacancies() {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
-                <span style={{
-                  fontSize: '0.7rem',
-                  fontFamily: 'DM Mono',
-                  padding: '3px 8px',
-                  borderRadius: '4px',
-                  background: v.is_active ? '#f9eaed' : '#f5f5f5',
-                  color: v.is_active ? '#7a1a2e' : '#757575',
-                }}>
-                  {v.is_active ? 'Активна' : 'Закрита'}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontSize: '0.7rem',
+                    fontFamily: 'DM Mono',
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                    background: v.is_active ? '#f9eaed' : '#f5f5f5',
+                    color: v.is_active ? '#7a1a2e' : '#757575',
+                  }}>
+                    {v.is_active ? 'Активна' : 'Закрита'}
+                  </span>
+                  {/* Індикатори job boards */}
+                  {[
+                    { field: 'published_rabota_ua', label: 'R', title: 'Rabota.ua', color: '#0066cc' },
+                    { field: 'published_work_ua',   label: 'W', title: 'Work.ua',   color: '#e65c00' },
+                    { field: 'published_dou',        label: 'D', title: 'DOU',       color: '#1a56db' },
+                    { field: 'published_linkedin',   label: 'in', title: 'LinkedIn', color: '#0a66c2' },
+                  ].filter(b => v[b.field]).map(b => (
+                    <span key={b.field} title={b.title} style={{
+                      fontSize: '0.58rem', fontWeight: 700, fontFamily: 'DM Mono',
+                      padding: '2px 5px', borderRadius: '3px',
+                      background: b.color + '18', color: b.color,
+                      border: `1px solid ${b.color}44`,
+                    }}>{b.label}</span>
+                  ))}
+                </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: 'var(--muted)', flexWrap: 'wrap' }}>
                   {v.owner_name ? (
@@ -774,6 +839,14 @@ function Vacancies() {
         <VacancyAccessModal
           vacancy={accessModalVacancy}
           onClose={() => setAccessModalVacancy(null)}
+        />
+      )}
+
+      {jobBoardVacancy && (
+        <JobBoardSelector
+          vacancy={jobBoardVacancy}
+          onClose={() => setJobBoardVacancy(null)}
+          onUpdated={() => setUpdateKey(k => k + 1)}
         />
       )}
     </div>
