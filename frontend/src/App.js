@@ -17,6 +17,7 @@ import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import AddCandidateModal from './components/AddCandidateModal';
+import ErrorBoundary from './components/ErrorBoundary';
 import EmailTemplates from './pages/EmailTemplates';
 import InterviewCalendar from './pages/InterviewCalendar';
 import AuditLog from './pages/AuditLog';
@@ -68,9 +69,7 @@ function App() {
     fetchRole();
   };
 
-  const handleShowLogin = () => {
-    setShowLogin(true);
-  };
+  const handleShowLogin = () => setShowLogin(true);
 
   const handleShowRegister = (primaryColor) => {
     setRegisterPrimaryColor(primaryColor || '#7a1a2e');
@@ -87,9 +86,22 @@ function App() {
   };
 
   const handleAdded = () => setRefreshKey(k => k + 1);
+  const handleViewOrg = (orgId) => setViewOrgId(orgId);
 
-  const handleViewOrg = (orgId) => {
-    setViewOrgId(orgId);
+  const PAGE_NAMES = {
+    dashboard:       'Дашборд',
+    kanban:          'Канбан',
+    candidates:      'Кандидати',
+    vacancies:       'Вакансії',
+    interviews:      "Інтерв'ю",
+    analytics:       'Аналітика',
+    email_templates: 'Шаблони листів',
+    org_settings:    'Організація',
+    profile:         'Профіль',
+    audit_log:       'Аудит',
+    integrations:    'Інтеграції',
+    admin:           'Адмін',
+    users:           'Юзери',
   };
 
   const renderPage = () => {
@@ -121,13 +133,8 @@ function App() {
           padding: '12px 16px',
           boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
         },
-        success: {
-          iconTheme: { primary: '#16a34a', secondary: '#fff' },
-        },
-        error: {
-          duration: 6000,
-          iconTheme: { primary: '#dc2626', secondary: '#fff' },
-        },
+        success: { iconTheme: { primary: '#16a34a', secondary: '#fff' } },
+        error:   { duration: 6000, iconTheme: { primary: '#dc2626', secondary: '#fff' } },
       }}
     />
   );
@@ -135,7 +142,9 @@ function App() {
   if (showLogin) {
     return (
       <>
-        <Login onLogin={handleLoginSuccess} />
+        <ErrorBoundary pageName="Вхід">
+          <Login onLogin={handleLoginSuccess} />
+        </ErrorBoundary>
         {toaster}
       </>
     );
@@ -144,14 +153,16 @@ function App() {
   if (!isAuth) {
     return (
       <>
-        <Landing onLogin={handleShowLogin} onRegister={handleShowRegister} />
-        {showRegister && (
-          <RegisterModal
-            primaryColor={registerPrimaryColor}
-            onClose={() => setShowRegister(false)}
-            onSuccess={handleLoginSuccess}
-          />
-        )}
+        <ErrorBoundary pageName="Головна">
+          <Landing onLogin={handleShowLogin} onRegister={handleShowRegister} />
+          {showRegister && (
+            <RegisterModal
+              primaryColor={registerPrimaryColor}
+              onClose={() => setShowRegister(false)}
+              onSuccess={handleLoginSuccess}
+            />
+          )}
+        </ErrorBoundary>
         {toaster}
       </>
     );
@@ -172,7 +183,9 @@ function App() {
               </button>
               <span style={{ fontSize: '0.82rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>Перегляд організації</span>
             </div>
-            <Kanban key={viewOrgId} searchQuery="" orgId={viewOrgId} />
+            <ErrorBoundary pageName="Канбан організації">
+              <Kanban key={viewOrgId} searchQuery="" orgId={viewOrgId} />
+            </ErrorBoundary>
           </div>
         );
       }
@@ -199,11 +212,15 @@ function App() {
             onSearch={setSearchQuery}
           />
           <div className="content">
-            {renderSuperadminPage()}
+            <ErrorBoundary pageName={PAGE_NAMES[currentPage]}>
+              {renderSuperadminPage()}
+            </ErrorBoundary>
           </div>
         </div>
         {showModal && (
-          <AddCandidateModal onClose={() => setShowModal(false)} onAdded={handleAdded} />
+          <ErrorBoundary>
+            <AddCandidateModal onClose={() => setShowModal(false)} onAdded={handleAdded} />
+          </ErrorBoundary>
         )}
         {toaster}
       </div>
@@ -221,11 +238,15 @@ function App() {
           onSearch={setSearchQuery}
         />
         <div className="content">
-          {renderPage()}
+          <ErrorBoundary pageName={PAGE_NAMES[currentPage]}>
+            {renderPage()}
+          </ErrorBoundary>
         </div>
       </div>
       {showModal && (
-        <AddCandidateModal onClose={() => setShowModal(false)} onAdded={handleAdded} />
+        <ErrorBoundary>
+          <AddCandidateModal onClose={() => setShowModal(false)} onAdded={handleAdded} />
+        </ErrorBoundary>
       )}
       {toaster}
     </div>
