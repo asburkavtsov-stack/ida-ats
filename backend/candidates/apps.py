@@ -7,3 +7,4 @@ class CandidatesConfig(AppConfig):
 
     def ready(self):
         import candidates.signals  # noqa: F401
+        import ida_ats.external_api_signals
