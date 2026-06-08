@@ -36,11 +36,28 @@ function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [registerPrimaryColor, setRegisterPrimaryColor] = useState('#7a1a2e');
+  const [isMobile, setIsMobile] = useState(false);
+  const [pwaUpdateAvailable, setPwaUpdateAvailable] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Мобайл детект
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  // PWA оновлення
+  useEffect(() => {
+    const handler = () => setPwaUpdateAvailable(true);
+    window.addEventListener('pwa-update-available', handler);
+    return () => window.removeEventListener('pwa-update-available', handler);
+  }, []);
 
   const fetchRole = () => {
     axios.get('/api/me/')
@@ -211,7 +228,7 @@ function App() {
             onAddCandidate={() => setShowModal(true)}
             onSearch={setSearchQuery}
           />
-          <div className="content">
+          <div className="content" style={isMobile ? { paddingBottom: '64px' } : {}}>
             <ErrorBoundary pageName={PAGE_NAMES[currentPage]}>
               {renderSuperadminPage()}
             </ErrorBoundary>
@@ -232,12 +249,37 @@ function App() {
     <div className="app-layout">
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} onLogout={handleLogout} userRole={userRole} />
       <div className="main">
+        {/* PWA оновлення banner */}
+        {pwaUpdateAvailable && (
+          <div style={{
+            background: 'var(--accent)', color: '#fff',
+            padding: '10px 20px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            fontSize: '0.82rem', fontFamily: 'DM Sans', flexShrink: 0,
+          }}>
+            <span>Доступна нова версія IDA ATS</span>
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                background: 'rgba(255,255,255,0.2)', border: 'none',
+                color: '#fff', padding: '4px 12px', borderRadius: '6px',
+                cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'DM Mono',
+                minHeight: 'unset', minWidth: 'unset',
+              }}
+            >
+              Оновити
+            </button>
+          </div>
+        )}
         <Topbar
           currentPage={currentPage}
           onAddCandidate={() => setShowModal(true)}
           onSearch={setSearchQuery}
         />
-        <div className="content">
+        <div
+          className="content"
+          style={isMobile ? { paddingBottom: '64px' } : {}}
+        >
           <ErrorBoundary pageName={PAGE_NAMES[currentPage]}>
             {renderPage()}
           </ErrorBoundary>

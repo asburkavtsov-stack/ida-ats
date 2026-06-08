@@ -1,0 +1,52 @@
+{
+  "short_name": "IDA ATS",
+  "name": "IDA ATS — Система рекрутингу",
+  "description": "Система управління кандидатами та вакансіями",
+  "icons": [
+    {
+      "src": "icons/icon-72.png",
+      "type": "image/png",
+      "sizes": "72x72",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-96.png",
+      "type": "image/png",
+      "sizes": "96x96",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-128.png",
+      "type": "image/png",
+      "sizes": "128x128",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-144.png",
+      "type": "image/png",
+      "sizes": "144x144",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#7a1a2e",
+  "background_color": "#f9eaed",
+  "scope": "/",
+  "lang": "uk",
+  "categories": ["business", "productivity"],
+  "screenshots": []
+}
