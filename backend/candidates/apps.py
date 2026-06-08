@@ -6,5 +6,5 @@ class CandidatesConfig(AppConfig):
     name = 'candidates'
 
     def ready(self):
-        import candidates.signals  # noqa: F401
-        import ida_ats.external_api_signals
+        import candidates.signals          # noqa: F401
+        import candidates.external_api_signals  # noqa: F401
