@@ -3,6 +3,8 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 import re
+import secrets
+import hashlib
 
 
 class Organization(models.Model):
@@ -654,3 +656,150 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.user} — {self.action} {self.model_name} #{self.object_id}"
+
+
+# ─── External API ─────────────────────────────────────────────────────────────
+
+class ExternalAPIKey(models.Model):
+    """API-ключ для зовнішніх інтеграцій. Прив'язаний до організації."""
+
+    SCOPE_CHOICES = [
+        ('read',  'Тільки читання'),
+        ('write', 'Читання + запис'),
+        ('full',  'Повний доступ'),
+    ]
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE,
+        related_name='api_keys',
+    )
+    name        = models.CharField(max_length=100)
+    key_prefix  = models.CharField(max_length=8, db_index=True)
+    key_hash    = models.CharField(max_length=64)
+    scope       = models.CharField(max_length=10, choices=SCOPE_CHOICES, default='read')
+    is_active   = models.BooleanField(default=True)
+    created_by  = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='created_api_keys',
+    )
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+    expires_at   = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name        = 'API-ключ'
+        verbose_name_plural = 'API-ключі'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} [{self.organization.name}]"
+
+    @classmethod
+    def generate(cls, organization, name, scope='read', created_by=None, expires_at=None):
+        """
+        Створює новий API-ключ.
+        Повертає (instance, raw_key) — raw_key показується тільки один раз.
+        """
+        raw_key    = 'ida_' + secrets.token_urlsafe(32)
+        key_hash   = hashlib.sha256(raw_key.encode()).hexdigest()
+        key_prefix = raw_key[:8]
+        instance   = cls.objects.create(
+            organization=organization,
+            name=name,
+            scope=scope,
+            key_prefix=key_prefix,
+            key_hash=key_hash,
+            created_by=created_by,
+            expires_at=expires_at,
+        )
+        return instance, raw_key
+
+    @classmethod
+    def authenticate(cls, raw_key):
+        """Перевіряє ключ. Повертає ExternalAPIKey або None."""
+        if not raw_key or not raw_key.startswith('ida_'):
+            return None
+        prefix   = raw_key[:8]
+        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+        try:
+            api_key = cls.objects.select_related('organization').get(
+                key_prefix=prefix,
+                key_hash=key_hash,
+                is_active=True,
+            )
+        except cls.DoesNotExist:
+            return None
+        if api_key.expires_at and api_key.expires_at < timezone.now():
+            return None
+        cls.objects.filter(pk=api_key.pk).update(last_used_at=timezone.now())
+        return api_key
+
+    def is_expired(self):
+        return bool(self.expires_at and self.expires_at < timezone.now())
+
+
+class WebhookEndpoint(models.Model):
+    """Зовнішній URL, на який ATS надсилає події."""
+
+    EVENT_CHOICES = [
+        ('candidate.created',        'Новий кандидат'),
+        ('candidate.status_changed', 'Зміна статусу кандидата'),
+        ('candidate.hired',          'Кандидат найнятий'),
+        ('candidate.rejected',       'Кандидат відхилений'),
+        ('vacancy.created',          'Нова вакансія'),
+        ('vacancy.closed',           'Вакансія закрита'),
+    ]
+
+    organization  = models.ForeignKey(
+        Organization, on_delete=models.CASCADE,
+        related_name='webhook_endpoints',
+    )
+    name          = models.CharField(max_length=100)
+    url           = models.URLField(max_length=500)
+    secret        = models.CharField(max_length=64, blank=True)
+    events        = models.JSONField(default=list)
+    is_active     = models.BooleanField(default=True)
+    created_by    = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    created_at    = models.DateTimeField(auto_now_add=True)
+    last_fired_at = models.DateTimeField(null=True, blank=True)
+    fail_count    = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name        = 'Webhook'
+        verbose_name_plural = 'Webhooks'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} → {self.url}"
+
+
+class WebhookLog(models.Model):
+    """Лог кожного виклику вебхука."""
+
+    STATUS_CHOICES = [
+        ('success', 'Успішно'),
+        ('failed',  'Помилка'),
+        ('timeout', 'Таймаут'),
+    ]
+
+    endpoint    = models.ForeignKey(
+        WebhookEndpoint, on_delete=models.CASCADE,
+        related_name='logs',
+    )
+    event       = models.CharField(max_length=50)
+    payload     = models.JSONField()
+    status      = models.CharField(max_length=10, choices=STATUS_CHOICES)
+    http_status = models.PositiveIntegerField(null=True, blank=True)
+    response    = models.TextField(blank=True)
+    duration_ms = models.PositiveIntegerField(null=True, blank=True)
+    fired_at    = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering            = ['-fired_at']
+        verbose_name        = 'Webhook лог'
+        verbose_name_plural = 'Webhook логи'
+
+    def __str__(self):
+        return f"{self.event} → {self.endpoint.url} [{self.status}]"

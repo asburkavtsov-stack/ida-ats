@@ -20,6 +20,21 @@ from .job_board_views import (
     work_ua_webhook,
     job_board_application_webhook,
 )
+from .external_api_views import (
+    # Зовнішнє API (авт. по API Key)
+    ExtVacancyListView,
+    ExtVacancyDetailView,
+    ExtCandidateCreateView,
+    ExtCandidateStatusView,
+    ExtWebhookListCreateView,
+    ExtWebhookDetailView,
+    ExtWebhookTestView,
+    ExtWebhookLogsView,
+    ExtAPIKeyInfoView,
+    # Внутрішнє управління ключами (авт. по JWT)
+    APIKeyManageView,
+    APIKeyDetailManageView,
+)
 
 router = DefaultRouter()
 router.register(r'candidates',        CandidateViewSet,       basename='candidate')
@@ -72,4 +87,19 @@ urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
 
     path('google-auth-status/', google_auth_status, name='google-auth-status'),
+
+    # ── External REST API (авт. по API Key: Authorization: Bearer ida_...) ──
+    path('v1/ext/me/',                                  ExtAPIKeyInfoView.as_view(),        name='ext-me'),
+    path('v1/ext/vacancies/',                           ExtVacancyListView.as_view(),       name='ext-vacancies'),
+    path('v1/ext/vacancies/<int:pk>/',                  ExtVacancyDetailView.as_view(),     name='ext-vacancy-detail'),
+    path('v1/ext/candidates/',                          ExtCandidateCreateView.as_view(),   name='ext-candidate-create'),
+    path('v1/ext/candidates/<int:pk>/status/',          ExtCandidateStatusView.as_view(),   name='ext-candidate-status'),
+    path('v1/ext/webhooks/',                            ExtWebhookListCreateView.as_view(), name='ext-webhooks'),
+    path('v1/ext/webhooks/<int:pk>/',                   ExtWebhookDetailView.as_view(),     name='ext-webhook-detail'),
+    path('v1/ext/webhooks/<int:pk>/test/',              ExtWebhookTestView.as_view(),       name='ext-webhook-test'),
+    path('v1/ext/webhooks/<int:pk>/logs/',              ExtWebhookLogsView.as_view(),       name='ext-webhook-logs'),
+
+    # ── Internal API Keys management (авт. по JWT, тільки Admin/SuperAdmin) ──
+    path('internal/api-keys/',          APIKeyManageView.as_view(),       name='api-keys-list'),
+    path('internal/api-keys/<int:pk>/', APIKeyDetailManageView.as_view(), name='api-keys-detail'),
 ]
