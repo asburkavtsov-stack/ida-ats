@@ -21,19 +21,19 @@ from .job_board_views import (
     job_board_application_webhook,
 )
 from .external_api_views import (
-    # Зовнішнє API (авт. по API Key)
-    ExtVacancyListView,
-    ExtVacancyDetailView,
-    ExtCandidateCreateView,
-    ExtCandidateStatusView,
-    ExtWebhookListCreateView,
-    ExtWebhookDetailView,
-    ExtWebhookTestView,
-    ExtWebhookLogsView,
-    ExtAPIKeyInfoView,
-    # Внутрішнє управління ключами (авт. по JWT)
-    APIKeyManageView,
-    APIKeyDetailManageView,
+    ExtVacancyListView, ExtVacancyDetailView,
+    ExtCandidateCreateView, ExtCandidateStatusView,
+    ExtWebhookListCreateView, ExtWebhookDetailView,
+    ExtWebhookTestView, ExtWebhookLogsView, ExtAPIKeyInfoView,
+    APIKeyManageView, APIKeyDetailManageView,
+)
+from .gdpr_views import (
+    CandidateGDPRConsentView,
+    CandidateGDPRAnonymizeView,
+    CandidateGDPRExportView,
+    GDPRSettingsView,
+    GDPRExpiringCandidatesView,
+    GDPRRunCleanupView,
 )
 
 router = DefaultRouter()
@@ -102,4 +102,12 @@ urlpatterns = [
     # ── Internal API Keys management (авт. по JWT, тільки Admin/SuperAdmin) ──
     path('internal/api-keys/',          APIKeyManageView.as_view(),       name='api-keys-list'),
     path('internal/api-keys/<int:pk>/', APIKeyDetailManageView.as_view(), name='api-keys-detail'),
+
+    # ── GDPR ──────────────────────────────────────────────────────────────────
+    path('candidates/<int:pk>/gdpr/consent/',   CandidateGDPRConsentView.as_view(),   name='gdpr-consent'),
+    path('candidates/<int:pk>/gdpr/anonymize/', CandidateGDPRAnonymizeView.as_view(), name='gdpr-anonymize'),
+    path('candidates/<int:pk>/gdpr/export/',    CandidateGDPRExportView.as_view(),    name='gdpr-export'),
+    path('gdpr/settings/',                      GDPRSettingsView.as_view(),           name='gdpr-settings'),
+    path('gdpr/candidates/expiring/',           GDPRExpiringCandidatesView.as_view(), name='gdpr-expiring'),
+    path('gdpr/run-cleanup/',                   GDPRRunCleanupView.as_view(),         name='gdpr-cleanup'),
 ]

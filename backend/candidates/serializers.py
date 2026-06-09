@@ -6,7 +6,7 @@ from .models import (
     Organization, StatusHistory, EmailTemplate, SentEmail,
     Tag, Interview, UserProfile, HolidayTheme, PricingConfig,
     PromoCode, PromoCodeUsage, RejectionReason,
-    VacancyAccess, AuditLog
+    VacancyAccess, AuditLog, GDPRSettings,
 )
 
 User = get_user_model()
@@ -226,6 +226,9 @@ class CandidateSerializer(serializers.ModelSerializer):
             'source', 'source_display', 'notes', 'created_at',
             'assigned_to', 'assigned_to_name', 'assigned_to_username',
             'status_history', 'tags', 'tag_ids', 'duplicates',
+            # GDPR
+            'gdpr_consent', 'gdpr_consent_date', 'gdpr_withdraw_date',
+            'gdpr_delete_after', 'gdpr_anonymized', 'gdpr_anonymized_at',
         ]
 
     def get_notes(self, obj):
@@ -586,3 +589,21 @@ class RegisterSerializer(serializers.Serializer):
         )
 
         return user, org
+
+
+# ─── GDPR ─────────────────────────────────────────────────────────────────────
+
+class GDPRSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GDPRSettings
+        fields = [
+            'retention_days', 'consent_text', 'auto_anonymize',
+            'notify_before_days', 'dpo_email', 'updated_at',
+        ]
+        read_only_fields = ['updated_at']
+
+
+class GDPRConsentSerializer(serializers.Serializer):
+    """Для endpoint-а надання/відкликання згоди."""
+    consent    = serializers.BooleanField()
+    ip_address = serializers.IPAddressField(required=False, allow_blank=True)

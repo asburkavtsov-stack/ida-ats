@@ -215,6 +215,16 @@ class Candidate(models.Model):
     assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_candidates')
     tags = models.ManyToManyField(Tag, blank=True, related_name='candidates')
 
+    # ── GDPR ────────────────────────────────────────────────────────────────────
+    gdpr_consent         = models.BooleanField(default=False, help_text='Кандидат надав згоду на обробку персональних даних')
+    gdpr_consent_date    = models.DateTimeField(null=True, blank=True, help_text='Дата надання згоди')
+    gdpr_consent_text    = models.TextField(blank=True, help_text='Текст згоди на момент підписання')
+    gdpr_consent_ip      = models.GenericIPAddressField(null=True, blank=True, help_text='IP-адреса при наданні згоди')
+    gdpr_withdraw_date   = models.DateTimeField(null=True, blank=True, help_text='Дата відкликання згоди')
+    gdpr_delete_after    = models.DateField(null=True, blank=True, help_text='Дата автовидалення (розраховується з consent_date + retention period)')
+    gdpr_anonymized      = models.BooleanField(default=False, help_text='Персональні дані анонімізовані')
+    gdpr_anonymized_at   = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         unique_together = [('email', 'organization')]
 
@@ -247,6 +257,49 @@ class Candidate(models.Model):
             phone_normalized = normalize_phone(self.phone)
             phone_q = Q(phone=phone_normalized) | Q(phone__iexact=self.phone)
         return qs.filter(email_q | phone_q).distinct()
+
+    def anonymize(self):
+        """Анонімізує персональні дані кандидата (GDPR право на забуття)."""
+        import uuid
+        uid = str(uuid.uuid4())[:8]
+        self.first_name        = 'Анонім'
+        self.last_name         = uid
+        self.email             = f'deleted_{uid}@gdpr.local'
+        self.phone             = ''
+        self.notes             = ''
+        self.gdpr_anonymized   = True
+        self.gdpr_anonymized_at = timezone.now()
+        self.save(update_fields=[
+            'first_name', 'last_name', 'email', 'phone', 'notes',
+            'gdpr_anonymized', 'gdpr_anonymized_at',
+        ])
+
+    def grant_consent(self, consent_text='', ip_address=None):
+        """Записує GDPR-згоду кандидата."""
+        from datetime import timedelta
+        self.gdpr_consent      = True
+        self.gdpr_consent_date = timezone.now()
+        self.gdpr_consent_text = consent_text
+        self.gdpr_consent_ip   = ip_address
+        self.gdpr_withdraw_date = None
+        # Розраховуємо дату видалення з налаштувань організації
+        retention_days = 365
+        if self.organization:
+            try:
+                retention_days = self.organization.gdpr_settings.retention_days
+            except Exception:
+                pass
+        self.gdpr_delete_after = (timezone.now() + timedelta(days=retention_days)).date()
+        self.save(update_fields=[
+            'gdpr_consent', 'gdpr_consent_date', 'gdpr_consent_text',
+            'gdpr_consent_ip', 'gdpr_withdraw_date', 'gdpr_delete_after',
+        ])
+
+    def withdraw_consent(self):
+        """Відкликає GDPR-згоду."""
+        self.gdpr_consent       = False
+        self.gdpr_withdraw_date = timezone.now()
+        self.save(update_fields=['gdpr_consent', 'gdpr_withdraw_date'])
 
 
 REJECTION_REASON_CHOICES = [
@@ -803,3 +856,48 @@ class WebhookLog(models.Model):
 
     def __str__(self):
         return f"{self.event} → {self.endpoint.url} [{self.status}]"
+
+
+# ─── GDPR Settings ────────────────────────────────────────────────────────────
+
+class GDPRSettings(models.Model):
+    """Налаштування GDPR для організації."""
+
+    organization     = models.OneToOneField(
+        Organization, on_delete=models.CASCADE,
+        related_name='gdpr_settings',
+    )
+    retention_days   = models.PositiveIntegerField(
+        default=365,
+        help_text='Скільки днів зберігати дані кандидата після надання згоди',
+    )
+    consent_text     = models.TextField(
+        default=(
+            'Я надаю згоду на обробку моїх персональних даних відповідно до '
+            'Регламенту ЄС 2016/679 (GDPR) та законодавства України. '
+            'Мої дані використовуватимуться виключно з метою розгляду моєї '
+            'кандидатури на відкриті вакансії. Я маю право відкликати цю згоду '
+            'в будь-який час, звернувшись до відповідального за обробку даних.'
+        ),
+        help_text='Текст згоди, який показується кандидатам',
+    )
+    auto_anonymize   = models.BooleanField(
+        default=True,
+        help_text='Автоматично анонімізувати кандидатів після закінчення терміну зберігання',
+    )
+    notify_before_days = models.PositiveIntegerField(
+        default=30,
+        help_text='За скільки днів до видалення надсилати сповіщення адміну',
+    )
+    dpo_email        = models.EmailField(
+        blank=True,
+        help_text='Email відповідального за захист даних (DPO)',
+    )
+    updated_at       = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = 'GDPR налаштування'
+        verbose_name_plural = 'GDPR налаштування'
+
+    def __str__(self):
+        return f"GDPR [{self.organization.name}] retention={self.retention_days}d"
