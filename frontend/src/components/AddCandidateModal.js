@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from 'axiosConfig';
 import CSVImportModal from './CSVImportModal';
-import GDPRConsentCheckbox from './GDPRConsentCheckbox';
 
 function AddCandidateModal({ onClose, onAdded }) {
   const [vacancies,     setVacancies]     = useState([]);
@@ -369,13 +368,26 @@ function AddCandidateModal({ onClose, onAdded }) {
               />
             </div>
 
-            {/* GDPR Consent */}
-            <GDPRConsentCheckbox
-              checked={gdprConsent}
-              onChange={setGdprConsent}
-              required={true}
-              isMobile={isMobile}
-            />
+            {/* GDPR — підтвердження HR */}
+            <label style={{
+              display: 'flex', alignItems: 'flex-start', gap: '10px',
+              padding: '10px 12px', borderRadius: '8px',
+              border: `1px solid ${gdprConsent ? '#16a34a44' : 'var(--border)'}`,
+              background: gdprConsent ? '#dcfce722' : 'var(--bg)',
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}>
+              <input
+                type="checkbox"
+                checked={gdprConsent}
+                onChange={e => setGdprConsent(e.target.checked)}
+                style={{ marginTop: '2px', width: '15px', height: '15px', accentColor: 'var(--accent)', flexShrink: 0, cursor: 'pointer' }}
+              />
+              <div style={{ fontSize: '0.75rem', color: 'var(--muted)', lineHeight: '1.45', fontFamily: 'DM Mono' }}>
+                <span style={{ color: 'var(--text)', fontWeight: 600 }}>GDPR:</span>{' '}
+                Кандидат надав згоду на обробку персональних даних
+                {' '}(усно, письмово або через форму на сайті)
+              </div>
+            </label>
 
           </div>
 
