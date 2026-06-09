@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from 'axiosConfig';
 import CSVImportModal from './CSVImportModal';
+import GDPRConsentCheckbox from './GDPRConsentCheckbox';
 
 function AddCandidateModal({ onClose, onAdded }) {
   const [vacancies,     setVacancies]     = useState([]);
@@ -12,6 +13,7 @@ function AddCandidateModal({ onClose, onAdded }) {
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
   const [duplicateWarning,    setDuplicateWarning]    = useState(null);
   const [showCSVImport, setShowCSVImport] = useState(false);
+  const [gdprConsent, setGdprConsent] = useState(false);
   const [form, setForm] = useState({
     first_name: '', last_name: '', email: '',
     phone: '', vacancy: '', stage_id: '', notes: '',
@@ -99,6 +101,7 @@ function AddCandidateModal({ onClose, onAdded }) {
     if (!form.last_name.trim())  { setError("Прізвище обов'язкове"); return; }
     if (!form.email.trim())      { setError("Email обов'язковий"); return; }
     if (!form.vacancy)           { setError("Оберіть вакансію"); return; }
+    if (!gdprConsent)            { setError("Необхідна згода на обробку персональних даних (GDPR)"); return; }
 
     if (!skipDupCheck) {
       const duplicateData = await checkDuplicate();
@@ -120,6 +123,7 @@ function AddCandidateModal({ onClose, onAdded }) {
       vacancy:    form.vacancy,
       notes:      form.notes,
       tag_ids:    selectedTags,
+      gdpr_consent: gdprConsent,
       ...(form.stage_id ? { stage: Number(form.stage_id) } : {}),
     };
 
@@ -364,6 +368,14 @@ function AddCandidateModal({ onClose, onAdded }) {
                 onChange={handleChange}
               />
             </div>
+
+            {/* GDPR Consent */}
+            <GDPRConsentCheckbox
+              checked={gdprConsent}
+              onChange={setGdprConsent}
+              required={true}
+              isMobile={isMobile}
+            />
 
           </div>
 

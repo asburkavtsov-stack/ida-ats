@@ -32,6 +32,14 @@ function OrgSettings() {
   const [saving, setSaving] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
+  // GDPR
+  const [gdprSettings, setGdprSettings] = useState(null);
+  const [gdprSaving, setGdprSaving] = useState(false);
+  const [gdprSuccess, setGdprSuccess] = useState('');
+  const [expiringCount, setExpiringCount] = useState(0);
+  const [cleanupRunning, setCleanupRunning] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState(null);
+
   const isLimitReached = org && users.length >= org.max_hr;
 
   useEffect(() => {
@@ -63,6 +71,16 @@ function OrgSettings() {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  // Завантаження GDPR налаштувань
+  useEffect(() => {
+    axios.get('/api/gdpr/settings/')
+      .then(res => setGdprSettings(res.data))
+      .catch(() => {});
+    axios.get('/api/gdpr/candidates/expiring/?days=30')
+      .then(res => setExpiringCount(res.data.count || 0))
+      .catch(() => {});
+  }, []);
 
   const handleSaveOrg = () => {
     if (!orgName.trim()) return;
@@ -136,6 +154,29 @@ function OrgSettings() {
     axios.delete(`/api/users/${userId}/`)
       .then(() => fetchUsers())
       .catch(() => setCreateError('Помилка видалення HR-менеджера'));
+  };
+
+  const handleSaveGDPR = () => {
+    if (!gdprSettings) return;
+    setGdprSaving(true);
+    axios.patch('/api/gdpr/settings/', gdprSettings)
+      .then(res => {
+        setGdprSettings(res.data);
+        setGdprSuccess('GDPR налаштування збережено!');
+        setTimeout(() => setGdprSuccess(''), 3000);
+      })
+      .catch(() => {})
+      .finally(() => setGdprSaving(false));
+  };
+
+  const handleRunCleanup = () => {
+    if (!window.confirm('Запустити автоочищення? Кандидати з простроченим терміном будуть анонімізовані.')) return;
+    setCleanupRunning(true);
+    setCleanupResult(null);
+    axios.post('/api/gdpr/run-cleanup/')
+      .then(res => setCleanupResult(res.data))
+      .catch(() => setCleanupResult({ error: 'Помилка виконання' }))
+      .finally(() => setCleanupRunning(false));
   };
 
   return (
@@ -454,6 +495,136 @@ function OrgSettings() {
           </div>
         </div>
       )}
+
+      {/* ── GDPR Налаштування ──────────────────────────────────────────────── */}
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: '14px', padding: isMobile ? '18px' : '24px', marginBottom: '24px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>🔒 GDPR налаштування</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '2px' }}>
+              Захист персональних даних кандидатів
+            </div>
+          </div>
+          {expiringCount > 0 && (
+            <span style={{
+              background: '#fef3c7', color: '#92400e',
+              fontSize: '0.72rem', fontFamily: 'DM Mono', fontWeight: 700,
+              padding: '4px 10px', borderRadius: '6px', border: '1px solid #fde68a',
+            }}>
+              ⚠ {expiringCount} кандидатів — закінчується термін
+            </span>
+          )}
+        </div>
+
+        {gdprSettings ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+            {/* Термін зберігання */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                Термін зберігання даних (днів)
+              </label>
+              <input
+                type="number"
+                min="30"
+                max="3650"
+                value={gdprSettings.retention_days}
+                onChange={e => setGdprSettings(s => ({ ...s, retention_days: parseInt(e.target.value) || 365 }))}
+                style={{ ...inputStyle(isMobile), maxWidth: '200px' }}
+              />
+              <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '4px', fontFamily: 'DM Mono' }}>
+                Типово: 365 днів (1 рік). Після цього — автоанонімізація.
+              </div>
+            </div>
+
+            {/* Email DPO */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                Email відповідального за дані (DPO)
+              </label>
+              <input
+                type="email"
+                placeholder="dpo@company.com"
+                value={gdprSettings.dpo_email}
+                onChange={e => setGdprSettings(s => ({ ...s, dpo_email: e.target.value }))}
+                style={{ ...inputStyle(isMobile) }}
+              />
+            </div>
+
+            {/* Текст згоди */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                Текст згоди для кандидатів
+              </label>
+              <textarea
+                value={gdprSettings.consent_text}
+                onChange={e => setGdprSettings(s => ({ ...s, consent_text: e.target.value }))}
+                rows={4}
+                style={{ ...inputStyle(isMobile), resize: 'vertical', minHeight: '90px' }}
+              />
+            </div>
+
+            {/* Автоанонімізація */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={gdprSettings.auto_anonymize}
+                onChange={e => setGdprSettings(s => ({ ...s, auto_anonymize: e.target.checked }))}
+                style={{ width: '16px', height: '16px', accentColor: 'var(--accent)' }}
+              />
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>Автоматична анонімізація</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+                  Автоматично видаляти персональні дані після закінчення терміну
+                </div>
+              </div>
+            </label>
+
+            {/* Кнопки */}
+            {gdprSuccess && (
+              <div style={{ color: '#16a34a', fontSize: '0.78rem', fontFamily: 'DM Mono' }}>✓ {gdprSuccess}</div>
+            )}
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                onClick={handleSaveGDPR}
+                disabled={gdprSaving}
+                style={{ padding: isMobile ? '10px 18px' : '8px 18px', borderRadius: '8px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'DM Sans', opacity: gdprSaving ? 0.6 : 1 }}
+              >
+                {gdprSaving ? 'Збереження...' : 'Зберегти GDPR налаштування'}
+              </button>
+              <button
+                onClick={handleRunCleanup}
+                disabled={cleanupRunning}
+                style={{ padding: isMobile ? '10px 18px' : '8px 18px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', cursor: 'pointer', fontFamily: 'DM Sans', opacity: cleanupRunning ? 0.6 : 1 }}
+              >
+                {cleanupRunning ? 'Виконання...' : '🗑 Запустити очищення'}
+              </button>
+            </div>
+
+            {cleanupResult && (
+              <div style={{
+                padding: '12px 14px', borderRadius: '8px',
+                background: cleanupResult.error ? '#fee2e2' : '#dcfce7',
+                color: cleanupResult.error ? '#dc2626' : '#16a34a',
+                fontSize: '0.78rem', fontFamily: 'DM Mono',
+              }}>
+                {cleanupResult.error
+                  ? `⚠ ${cleanupResult.error}`
+                  : `✓ Анонімізовано ${cleanupResult.anonymized} з ${cleanupResult.found} кандидатів`
+                }
+              </div>
+            )}
+
+          </div>
+        ) : (
+          <div style={{ color: 'var(--muted)', fontSize: '0.82rem', fontFamily: 'DM Mono' }}>
+            Завантаження...
+          </div>
+        )}
+      </div>
 
     </div>
   );
