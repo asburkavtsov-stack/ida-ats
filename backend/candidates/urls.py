@@ -1,4 +1,3 @@
-# urls.py (оновлений)
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
@@ -34,6 +33,15 @@ from .gdpr_views import (
     GDPRSettingsView,
     GDPRExpiringCandidatesView,
     GDPRRunCleanupView,
+)
+from .tasks_views import (
+    TaskListCreateView,
+    TaskDetailView,
+    AssignTaskView,
+    CandidateTasksView,
+    TaskSubmitView,
+    TaskAutoCheckView,
+    TaskReviewView,
 )
 
 router = DefaultRouter()
@@ -110,4 +118,13 @@ urlpatterns = [
     path('gdpr/settings/',                      GDPRSettingsView.as_view(),           name='gdpr-settings'),
     path('gdpr/candidates/expiring/',           GDPRExpiringCandidatesView.as_view(), name='gdpr-expiring'),
     path('gdpr/run-cleanup/',                   GDPRRunCleanupView.as_view(),         name='gdpr-cleanup'),
+
+    # ── Skills / Tasks ────────────────────────────────────────────────────────
+    path('tasks/',                                          TaskListCreateView.as_view(),  name='tasks-list'),
+    path('tasks/<int:pk>/',                                 TaskDetailView.as_view(),      name='tasks-detail'),
+    path('tasks/<int:task_id>/assign/<int:candidate_id>/',  AssignTaskView.as_view(),      name='tasks-assign'),
+    path('candidates/<int:candidate_id>/tasks/',            CandidateTasksView.as_view(),  name='candidate-tasks'),
+    path('task-assignments/<int:pk>/submit/',               TaskSubmitView.as_view(),      name='task-submit'),
+    path('task-assignments/<int:pk>/check/',                TaskAutoCheckView.as_view(),   name='task-check'),
+    path('task-assignments/<int:pk>/review/',               TaskReviewView.as_view(),      name='task-review'),
 ]

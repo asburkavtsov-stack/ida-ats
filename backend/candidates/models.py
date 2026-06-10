@@ -1,4 +1,3 @@
-# models.py
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -901,3 +900,276 @@ class GDPRSettings(models.Model):
 
     def __str__(self):
         return f"GDPR [{self.organization.name}] retention={self.retention_days}d"
+
+# ─── Skills / Tasks ───────────────────────────────────────────────────────────
+
+class Task(models.Model):
+    TYPE_CHOICES = [
+        ('code',   'Код (авто-перевірка)'),
+        ('text',   'Текстова відповідь'),
+        ('quiz',   'Тест з варіантами'),
+        ('file',   'Завантаження файлу'),
+        ('link',   'Посилання (GitHub, Figma)'),
+    ]
+    LANGUAGE_CHOICES = [
+        ('python','Python'),('javascript','JavaScript'),('typescript','TypeScript'),
+        ('java','Java'),('csharp','C#'),('cpp','C++'),('go','Go'),('rust','Rust'),
+        ('sql','SQL'),('other','Інше'),
+    ]
+
+    organization     = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='tasks')
+    vacancy          = models.ForeignKey('Vacancy', on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks')
+    title            = models.CharField(max_length=200)
+    description      = models.TextField()
+    task_type        = models.CharField(max_length=20, choices=TYPE_CHOICES, default='text')
+    language         = models.CharField(max_length=20, choices=LANGUAGE_CHOICES, blank=True)
+    starter_code     = models.TextField(blank=True)
+    solution_code    = models.TextField(blank=True)
+    test_cases       = models.JSONField(default=list)
+    time_limit_sec   = models.PositiveIntegerField(default=10)
+    memory_limit_mb  = models.PositiveIntegerField(default=128)
+    quiz_options     = models.JSONField(default=list)
+    time_limit_minutes = models.PositiveIntegerField(default=60)
+    max_score        = models.PositiveIntegerField(default=100)
+    is_active        = models.BooleanField(default=True)
+    created_by       = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at       = models.DateTimeField(auto_now_add=True)
+    updated_at       = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Завдання'
+        verbose_name_plural = 'Завдання'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"[{self.get_task_type_display()}] {self.title}"
+
+
+class TaskAssignment(models.Model):
+    STATUS_CHOICES = [
+        ('pending',     'Очікує'),
+        ('sent',        'Надіслано'),
+        ('in_progress', 'Виконується'),
+        ('submitted',   'Здано'),
+        ('checking',    'Перевіряється'),
+        ('passed',      'Пройдено'),
+        ('failed',      'Не пройдено'),
+        ('expired',     'Час вийшов'),
+    ]
+
+    task         = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='assignments')
+    candidate    = models.ForeignKey('Candidate', on_delete=models.CASCADE, related_name='task_assignments')
+    assigned_by  = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_tasks')
+    status       = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    score        = models.PositiveIntegerField(null=True, blank=True)
+    max_score    = models.PositiveIntegerField(default=100)
+    hr_comment   = models.TextField(blank=True)
+    auto_result  = models.JSONField(null=True, blank=True)
+    deadline     = models.DateTimeField(null=True, blank=True)
+    sent_at      = models.DateTimeField(null=True, blank=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    checked_at   = models.DateTimeField(null=True, blank=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Видача завдання'
+        verbose_name_plural = 'Видачі завдань'
+        ordering = ['-created_at']
+        unique_together = [('task', 'candidate')]
+
+    def __str__(self):
+        return f"{self.task.title} → {self.candidate}"
+
+    @property
+    def is_expired(self):
+        return (
+            self.deadline and timezone.now() > self.deadline
+            and self.status not in ('submitted','checking','passed','failed')
+        )
+
+    @property
+    def score_percent(self):
+        if self.score is None or not self.max_score:
+            return None
+        return round(self.score / self.max_score * 100)
+
+
+class TaskSubmission(models.Model):
+    assignment       = models.OneToOneField(TaskAssignment, on_delete=models.CASCADE, related_name='submission')
+    text_answer      = models.TextField(blank=True)
+    code_answer      = models.TextField(blank=True)
+    selected_options = models.JSONField(default=list)
+    file_url         = models.URLField(blank=True)
+    link_url         = models.URLField(blank=True)
+    run_result       = models.JSONField(null=True, blank=True)
+    submitted_at     = models.DateTimeField(auto_now_add=True)
+    ip_address       = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Відповідь'
+        verbose_name_plural = 'Відповіді'
+
+    def __str__(self):
+        return f"Submission: {self.assignment}"
+
+
+class Task(models.Model):
+    """Тестове завдання, яке HR прив'язує до вакансії."""
+
+    TYPE_CHOICES = [
+        ('code', 'Код (авто-перевірка)'),
+        ('text', 'Текстова відповідь'),
+        ('quiz', 'Тест з варіантами'),
+        ('file', 'Завантаження файлу'),
+        ('link', 'Посилання (GitHub, Figma, тощо)'),
+    ]
+
+    LANGUAGE_CHOICES = [
+        ('python', 'Python'),
+        ('javascript', 'JavaScript'),
+        ('typescript', 'TypeScript'),
+        ('java', 'Java'),
+        ('csharp', 'C#'),
+        ('cpp', 'C++'),
+        ('go', 'Go'),
+        ('rust', 'Rust'),
+        ('sql', 'SQL'),
+        ('other', 'Інше'),
+    ]
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='tasks',
+    )
+    vacancy = models.ForeignKey(
+        'Vacancy', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='tasks',
+        help_text='Якщо вказано — завдання показується тільки для цієї вакансії',
+    )
+    title = models.CharField(max_length=200)
+    description = models.TextField(help_text='Умова завдання (Markdown підтримується)')
+    task_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='text')
+
+    # Для code-завдань
+    language = models.CharField(max_length=20, choices=LANGUAGE_CHOICES, blank=True)
+    starter_code = models.TextField(blank=True, help_text='Початковий шаблон коду')
+    solution_code = models.TextField(blank=True, help_text='Еталонний розв\'язок (не показується кандидату)')
+    test_cases = models.JSONField(
+        default=list,
+        help_text='[{"input": "...", "expected_output": "...", "is_hidden": false}]',
+    )
+    time_limit_sec = models.PositiveIntegerField(default=10, help_text='Ліміт часу виконання (секунд)')
+    memory_limit_mb = models.PositiveIntegerField(default=128, help_text='Ліміт пам\'яті (МБ)')
+
+    # Для quiz-завдань
+    quiz_options = models.JSONField(
+        default=list,
+        help_text='[{"text": "Варіант A", "is_correct": true}, ...]',
+    )
+
+    # Метадані
+    time_limit_minutes = models.PositiveIntegerField(
+        default=60,
+        help_text='Максимальний час на виконання завдання кандидатом (хвилини)',
+    )
+    max_score = models.PositiveIntegerField(default=100)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Завдання'
+        verbose_name_plural = 'Завдання'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"[{self.get_task_type_display()}] {self.title}"
+
+
+class TaskAssignment(models.Model):
+    """Прив'язка завдання до конкретного кандидата (видача завдання)."""
+
+    STATUS_CHOICES = [
+        ('pending', 'Очікує виконання'),
+        ('sent', 'Надіслано кандидату'),
+        ('in_progress', 'Виконується'),
+        ('submitted', 'Здано на перевірку'),
+        ('checking', 'Перевіряється'),
+        ('passed', 'Пройдено'),
+        ('failed', 'Не пройдено'),
+        ('expired', 'Час вийшов'),
+    ]
+
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='assignments')
+    candidate = models.ForeignKey(
+        'Candidate', on_delete=models.CASCADE, related_name='task_assignments',
+    )
+    assigned_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='assigned_tasks',
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    score = models.PositiveIntegerField(null=True, blank=True)
+    max_score = models.PositiveIntegerField(default=100)
+    hr_comment = models.TextField(blank=True, help_text='Коментар HR після перевірки')
+    auto_result = models.JSONField(
+        null=True, blank=True,
+        help_text='Результат авто-перевірки коду: {passed, failed, errors, execution_time}',
+    )
+    deadline = models.DateTimeField(null=True, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    checked_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Видача завдання'
+        verbose_name_plural = 'Видачі завдань'
+        ordering = ['-created_at']
+        unique_together = [('task', 'candidate')]
+
+    def __str__(self):
+        return f"{self.task.title} → {self.candidate}"
+
+    @property
+    def is_expired(self):
+        return (
+                self.deadline
+                and timezone.now() > self.deadline
+                and self.status not in ('submitted', 'checking', 'passed', 'failed')
+        )
+
+    @property
+    def score_percent(self):
+        if self.score is None or not self.max_score:
+            return None
+        return round(self.score / self.max_score * 100)
+
+
+class TaskSubmission(models.Model):
+    """Відповідь кандидата на завдання."""
+
+    assignment = models.OneToOneField(
+        TaskAssignment, on_delete=models.CASCADE, related_name='submission',
+    )
+    # Текстова відповідь або код
+    text_answer = models.TextField(blank=True)
+    code_answer = models.TextField(blank=True)
+    # Для quiz
+    selected_options = models.JSONField(default=list)
+    # Для file/link
+    file_url = models.URLField(blank=True)
+    link_url = models.URLField(blank=True)
+    # Авто-результат виконання коду
+    run_result = models.JSONField(null=True, blank=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Відповідь'
+        verbose_name_plural = 'Відповіді'
+
+    def __str__(self):
+        return f"Submission: {self.assignment}"
