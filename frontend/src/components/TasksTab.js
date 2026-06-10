@@ -219,7 +219,6 @@ function AssignmentCard({ assignment, onReviewed, isMobile }) {
   const [checking, setChecking]   = useState(false);
   const [msg, setMsg]             = useState('');
 
-  const task = { type: assignment.task_type, lang: assignment.task_language };
   const sub  = assignment.submission;
 
   const handleReview = async () => {
@@ -476,7 +475,6 @@ function TasksTab({ candidate, isMobile }) {
 
   const total    = assignments.length;
   const passed   = assignments.filter(a => a.status === 'passed').length;
-  const pending  = assignments.filter(a => ['pending','sent','in_progress','submitted'].includes(a.status)).length;
   const avgScore = assignments.filter(a => a.score != null).length
     ? Math.round(assignments.filter(a => a.score != null).reduce((s, a) => s + a.score_percent, 0) / assignments.filter(a => a.score != null).length)
     : null;
