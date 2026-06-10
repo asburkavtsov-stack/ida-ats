@@ -14,6 +14,17 @@ const Landing = ({ onLogin, onRegister }) => {
   const [openFaq, setOpenFaq] = useState(null);
   const pricingRef = useRef(null);
 
+
+  // Знімаємо overflow:hidden з body/html поки відкритий лендінг
+  useEffect(() => {
+    document.body.classList.add('landing-page');
+    document.documentElement.classList.add('landing-page');
+    return () => {
+      document.body.classList.remove('landing-page');
+      document.documentElement.classList.remove('landing-page');
+    };
+  }, []);
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
