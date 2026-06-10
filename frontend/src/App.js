@@ -23,6 +23,7 @@ import InterviewCalendar from './pages/InterviewCalendar';
 import AuditLog from './pages/AuditLog';
 import RegisterModal from './components/RegisterModal';
 import Integrations from './pages/Integrations';
+import Tasks from './pages/Tasks';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -117,6 +118,7 @@ function App() {
     profile:         'Профіль',
     audit_log:       'Аудит',
     integrations:    'Інтеграції',
+    tasks:           'Завдання',
     admin:           'Адмін',
     users:           'Юзери',
   };
@@ -134,6 +136,7 @@ function App() {
       case 'profile':         return <Profile />;
       case 'audit_log':       return <AuditLog />;
       case 'integrations':    return <Integrations />;
+      case 'tasks':           return <Tasks />;
       default:                return <Dashboard />;
     }
   };
@@ -215,6 +218,7 @@ function App() {
         case 'kanban':          return <Kanban key={refreshKey} searchQuery={debouncedSearch} />;
         case 'candidates':      return <Candidates key={refreshKey} searchQuery={debouncedSearch} />;
         case 'audit_log':       return <AuditLog />;
+        case 'tasks':           return <Tasks />;
         default:                return <Admin onViewOrg={handleViewOrg} currentPage={currentPage} onNavigate={setCurrentPage} />;
       }
     };
