@@ -11,7 +11,6 @@ const Landing = ({ onLogin, onRegister }) => {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showPromoModal, setShowPromoModal] = useState(false);
   const [appliedPromo, setAppliedPromo] = useState(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
   const pricingRef = useRef(null);
 
