@@ -4,6 +4,7 @@ import axios from 'axiosConfig';
 import toast from 'react-hot-toast';
 import { SOURCE_CONFIG, getSourceLabel, getSourceBg, getSourceText, getHrAvatarColor } from '../constants/statusColors';
 import { ModalSkeleton } from '../components/SkeletonComponents';
+import TasksTab from './TasksTab';
 
 const formatDate = (dateString) => {
   if (!dateString) return '—';
@@ -510,8 +511,9 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
             padding: '0 24px', gap: '4px', overflowX: 'auto',
           }}>
             {[
-              { key: 'info', label: 'Інформація' },
+              { key: 'info',    label: 'Інформація' },
               { key: 'history', label: `Історія${history.length > 0 ? ` (${history.length})` : ''}` },
+              { key: 'tasks',   label: '📋 Завдання' },
               { key: 'emails', label: `Листи${emailHistory.length > 0 ? ` (${emailHistory.length})` : ''}` },
             ].map(tab => (
               <button
@@ -892,6 +894,9 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
                   </div>
                 )}
               </div>
+            ) : activeTab === 'tasks' ? (
+              /* Tasks Tab */
+              <TasksTab candidate={candidate} isMobile={isMobile} />
             ) : (
               /* Emails Tab */
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
