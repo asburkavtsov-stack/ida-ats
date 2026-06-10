@@ -362,7 +362,7 @@ function DesktopSidebar({ currentPage, onNavigate, onLogout, userRole, counts, u
 
   return (
     <div style={{
-      width: '220px',
+      width: '260px',
       background: 'var(--sidebar-bg)',
       display: 'flex',
       flexDirection: 'column',
