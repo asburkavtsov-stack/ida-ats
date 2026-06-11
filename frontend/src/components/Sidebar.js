@@ -369,20 +369,28 @@ function DesktopSidebar({ currentPage, onNavigate, onLogout, userRole, counts, u
       flexShrink: 0,
     }}>
       {/* Лого */}
-      <div style={{ padding: '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ fontFamily: 'DM Sans', color: 'var(--sidebar-active)', letterSpacing: '-0.5px' }}>
-          IDA
-        </div>
-        <div style={{ fontFamily: 'DM Mono', fontSize: '0.62rem', color: 'rgba(200,176,182,0.4)', letterSpacing: '2px', textTransform: 'uppercase', marginTop: '2px' }}>
-          ATS System
+      <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            width: '32px', height: '32px', borderRadius: '8px',
+            background: 'var(--sidebar-active)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '15px', fontWeight: 800, color: 'var(--sidebar-active-text)',
+            flexShrink: 0,
+          }}>I</div>
+          <div>
+            <div style={{ fontFamily: 'DM Sans', fontSize: '15px', fontWeight: 700, color: '#fff', letterSpacing: '-0.3px', lineHeight: 1.2 }}>
+              IDA ATS
+            </div>
+            <div style={{ fontFamily: 'DM Mono', fontSize: '0.6rem', color: 'rgba(200,176,182,0.35)', letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: '2px' }}>
+              ATS System
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Навігація */}
-      <div style={{ padding: '20px 12px 8px', flex: 1 }}>
-        <div style={{ fontFamily: 'DM Mono', fontSize: '0.6rem', color: 'rgba(200,176,182,0.3)', letterSpacing: '2px', textTransform: 'uppercase', padding: '0 8px', marginBottom: '6px' }}>
-          Головне
-        </div>
+      <div style={{ padding: '12px 10px 8px', flex: 1, overflowY: 'auto' }}>
         {navItems.map(item => {
           const active = currentPage === item.key;
           return (
@@ -391,11 +399,11 @@ function DesktopSidebar({ currentPage, onNavigate, onLogout, userRole, counts, u
               onClick={() => onNavigate(item.key)}
               style={{
                 display: 'flex', alignItems: 'center', gap: '10px',
-                padding: '9px 12px', borderRadius: '8px', cursor: 'pointer',
+                padding: '8px 10px', borderRadius: '8px', cursor: 'pointer',
                 color: active ? 'var(--sidebar-active-text)' : 'var(--sidebar-text)',
                 background: active ? 'var(--sidebar-active)' : 'transparent',
-                fontSize: '0.85rem', fontWeight: 500,
-                marginBottom: '2px', transition: 'all 0.15s',
+                fontSize: '0.875rem', fontWeight: active ? 600 : 400,
+                marginBottom: '1px', transition: 'background 0.12s, color 0.12s',
                 minHeight: 'unset', minWidth: 'unset',
               }}
             >
@@ -419,21 +427,22 @@ function DesktopSidebar({ currentPage, onNavigate, onLogout, userRole, counts, u
       </div>
 
       {/* Юзер */}
-      <div style={{ padding: '16px 12px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', borderRadius: '8px' }}>
+      <div style={{ padding: '12px 10px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '8px', marginBottom: '4px' }}>
           <div style={{
-            width: '32px', height: '32px', borderRadius: '8px',
+            width: '34px', height: '34px', borderRadius: '9px',
             background: 'var(--sidebar-active)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '0.75rem', fontWeight: 700, color: 'var(--sidebar-active-text)', flexShrink: 0,
+            fontSize: '0.78rem', fontWeight: 700, color: 'var(--sidebar-active-text)', flexShrink: 0,
+            letterSpacing: '0.5px',
           }}>
             {initials}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 600, fontSize: '0.82rem', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {displayName}
             </div>
-            <div style={{ fontSize: '0.65rem', color: 'rgba(200,176,182,0.5)', fontFamily: 'DM Mono' }}>
+            <div style={{ fontSize: '0.62rem', color: 'rgba(200,176,182,0.45)', fontFamily: 'DM Mono', letterSpacing: '0.06em' }}>
               {roleLabels[userRole] || userRole}
             </div>
           </div>
@@ -441,16 +450,18 @@ function DesktopSidebar({ currentPage, onNavigate, onLogout, userRole, counts, u
         <button
           onClick={onLogout}
           style={{
-            width: '100%', padding: '7px 12px', borderRadius: '8px', cursor: 'pointer',
-            color: 'rgba(200,176,182,0.4)', fontSize: '0.75rem',
-            fontFamily: 'DM Mono', textAlign: 'center', transition: 'all 0.15s',
+            width: '100%', padding: '7px 10px', borderRadius: '8px', cursor: 'pointer',
+            color: 'rgba(200,176,182,0.35)', fontSize: '0.75rem',
+            fontFamily: 'DM Mono', textAlign: 'left', transition: 'all 0.15s',
             background: 'transparent', border: 'none',
             minHeight: 'unset', minWidth: 'unset',
+            display: 'flex', alignItems: 'center', gap: '8px',
           }}
-          onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-          onMouseLeave={e => e.currentTarget.style.color = 'rgba(200,176,182,0.4)'}
+          onMouseEnter={e => { e.currentTarget.style.color = '#f87171'; e.currentTarget.style.background = 'rgba(220,38,38,0.08)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'rgba(200,176,182,0.35)'; e.currentTarget.style.background = 'transparent'; }}
         >
-          ← Вийти
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Вийти
         </button>
       </div>
     </div>
