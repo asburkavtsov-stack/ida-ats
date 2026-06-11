@@ -229,6 +229,8 @@ class CandidateSerializer(serializers.ModelSerializer):
             # GDPR
             'gdpr_consent', 'gdpr_consent_date', 'gdpr_withdraw_date',
             'gdpr_delete_after', 'gdpr_anonymized', 'gdpr_anonymized_at',
+            # D&I
+            'di_gender', 'di_disability', 'di_veteran', 'di_age_range', 'di_consent',
         ]
 
     def get_notes(self, obj):

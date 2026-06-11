@@ -1709,3 +1709,134 @@ class RegisterView(APIView):
                 'slug': org.slug,
             },
         }, status=status.HTTP_201_CREATED)
+
+# ─── D&I Analytics ────────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def di_analytics(request):
+    """
+    GET /api/analytics/di/
+    Diversity & Inclusion звіт по воронці.
+
+    Query params:
+        vacancy_id — фільтр по вакансії
+        stage_id   — фільтр по стейджу
+    """
+    org = get_user_organization(request.user)
+    if not org:
+        return Response({'error': 'Організацію не знайдено'}, status=404)
+
+    qs = Candidate.objects.filter(organization=org, di_consent=True)
+
+    vacancy_id = request.query_params.get('vacancy_id')
+    if vacancy_id:
+        qs = qs.filter(vacancy_id=vacancy_id)
+
+    total_with_consent = qs.count()
+    total_all = Candidate.objects.filter(organization=org).count()
+
+    # Гендерний розподіл
+    gender_map = {
+        'male': 'Чоловік', 'female': 'Жінка',
+        'non_binary': 'Небінарний/а', 'prefer_not': 'Не вказали', 'other': 'Інше', '': 'Не вказали',
+    }
+    from django.db.models import Count, Q
+    gender_qs = qs.values('di_gender').annotate(count=Count('id'))
+    gender_data = [
+        {'key': r['di_gender'] or 'prefer_not', 'label': gender_map.get(r['di_gender'] or '', 'Не вказали'), 'count': r['count']}
+        for r in gender_qs
+    ]
+
+    # Вікові групи
+    age_map = {'18-24': '18–24', '25-34': '25–34', '35-44': '35–44', '45-54': '45–54', '55+': '55+', 'prefer_not': 'Не вказали', '': 'Не вказали'}
+    age_qs = qs.filter(di_age_range__gt='').values('di_age_range').annotate(count=Count('id'))
+    age_data = [
+        {'key': r['di_age_range'], 'label': age_map.get(r['di_age_range'], r['di_age_range']), 'count': r['count']}
+        for r in age_qs
+    ]
+
+    # Disability
+    disability_yes = qs.filter(di_disability=True).count()
+    disability_no  = qs.filter(di_disability=False).count()
+
+    # Veteran
+    veteran_yes = qs.filter(di_veteran=True).count()
+
+    # D&I воронка — розподіл по гендеру на кожному стейджі
+    funnel_qs = Candidate.objects.filter(organization=org, di_consent=True)\
+        .select_related('stage')\
+        .values('stage__name', 'stage__color', 'di_gender')\
+        .annotate(count=Count('id'))\
+        .order_by('stage__order', 'di_gender')
+
+    funnel_stages = {}
+    for row in funnel_qs:
+        stage_name = row['stage__name'] or 'Без стейджу'
+        color = row['stage__color'] or '#7a1a2e'
+        gender = row['di_gender'] or 'prefer_not'
+        if stage_name not in funnel_stages:
+            funnel_stages[stage_name] = {'stage': stage_name, 'color': color, 'total': 0, 'male': 0, 'female': 0, 'other': 0}
+        funnel_stages[stage_name]['total'] += row['count']
+        if gender == 'male':
+            funnel_stages[stage_name]['male'] += row['count']
+        elif gender == 'female':
+            funnel_stages[stage_name]['female'] += row['count']
+        else:
+            funnel_stages[stage_name]['other'] += row['count']
+
+    # Конверсія по гендеру (hired/total)
+    hired_qs = qs.filter(stage__system_key='offer')
+    hired_male   = hired_qs.filter(di_gender='male').count()
+    hired_female = hired_qs.filter(di_gender='female').count()
+    total_male   = qs.filter(di_gender='male').count()
+    total_female = qs.filter(di_gender='female').count()
+
+    return Response({
+        'summary': {
+            'total_candidates':     total_all,
+            'with_di_consent':      total_with_consent,
+            'consent_rate_pct':     round(total_with_consent / total_all * 100, 1) if total_all else 0,
+            'disability_count':     disability_yes,
+            'veteran_count':        veteran_yes,
+        },
+        'gender':   gender_data,
+        'age':      age_data,
+        'disability': {'yes': disability_yes, 'no': disability_no},
+        'veteran':    {'yes': veteran_yes},
+        'funnel':   list(funnel_stages.values()),
+        'conversion_by_gender': {
+            'male':   {'hired': hired_male,   'total': total_male,   'rate': round(hired_male/total_male*100,1) if total_male else 0},
+            'female': {'hired': hired_female, 'total': total_female, 'rate': round(hired_female/total_female*100,1) if total_female else 0},
+        },
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def anonymous_candidate(request, pk):
+    """
+    GET /api/candidates/<pk>/anonymous/
+    Повертає кандидата з прихованими персональними даними.
+    Використовується для анонімного скринінгу на першому етапі.
+    """
+    org = get_user_organization(request.user)
+    try:
+        c = Candidate.objects.get(pk=pk, organization=org)
+    except Candidate.DoesNotExist:
+        return Response({'error': 'Не знайдено'}, status=404)
+
+    return Response({
+        'id':           c.id,
+        'code':         f'CAND-{c.id:04d}',       # Анонімний код замість імені
+        'vacancy':      c.vacancy_id,
+        'vacancy_title': c.vacancy.title if c.vacancy else None,
+        'stage':        c.stage_id,
+        'stage_name':   c.stage.name if c.stage else None,
+        'stage_color':  c.stage.color if c.stage else None,
+        'source':       c.source,
+        'created_at':   c.created_at,
+        'notes':        '',                        # Нотатки приховані
+        'tags':         [{'id': t.id, 'name': t.name, 'color': t.color} for t in c.tags.all()],
+        'status':       c.status,
+    })

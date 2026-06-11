@@ -224,6 +224,28 @@ class Candidate(models.Model):
     gdpr_anonymized      = models.BooleanField(default=False, help_text='Персональні дані анонімізовані')
     gdpr_anonymized_at   = models.DateTimeField(null=True, blank=True)
 
+    # ── Diversity & Inclusion ────────────────────────────────────────────────────
+    di_gender = models.CharField(
+        max_length=20, blank=True,
+        choices=[
+            ('male','Чоловік'),('female','Жінка'),('non_binary','Небінарний/а'),
+            ('prefer_not','Не хочу вказувати'),('other','Інше'),
+        ],
+    )
+    di_disability = models.BooleanField(null=True, blank=True)
+    di_veteran    = models.BooleanField(null=True, blank=True)
+    di_age_range  = models.CharField(
+        max_length=10, blank=True,
+        choices=[
+            ('18-24','18–24'),('25-34','25–34'),('35-44','35–44'),
+            ('45-54','45–54'),('55+','55+'),('prefer_not','Не вказувати'),
+        ],
+    )
+    di_consent = models.BooleanField(
+        default=False,
+        help_text='Окрема згода на збір D&I даних (GDPR)',
+    )
+
     class Meta:
         unique_together = [('email', 'organization')]
 

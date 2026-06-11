@@ -35,14 +35,10 @@ from .gdpr_views import (
     GDPRRunCleanupView,
 )
 from .tasks_views import (
-    TaskListCreateView,
-    TaskDetailView,
-    AssignTaskView,
-    CandidateTasksView,
-    TaskSubmitView,
-    TaskAutoCheckView,
-    TaskReviewView,
+    TaskListCreateView, TaskDetailView, AssignTaskView,
+    CandidateTasksView, TaskSubmitView, TaskAutoCheckView, TaskReviewView,
 )
+from .views import di_analytics, anonymous_candidate
 
 router = DefaultRouter()
 router.register(r'candidates',        CandidateViewSet,       basename='candidate')
@@ -127,4 +123,8 @@ urlpatterns = [
     path('task-assignments/<int:pk>/submit/',               TaskSubmitView.as_view(),      name='task-submit'),
     path('task-assignments/<int:pk>/check/',                TaskAutoCheckView.as_view(),   name='task-check'),
     path('task-assignments/<int:pk>/review/',               TaskReviewView.as_view(),      name='task-review'),
+
+    # ── Diversity & Inclusion ─────────────────────────────────────────────────
+    path('analytics/di/',                    di_analytics,        name='di-analytics'),
+    path('candidates/<int:pk>/anonymous/',   anonymous_candidate, name='candidate-anonymous'),
 ]
