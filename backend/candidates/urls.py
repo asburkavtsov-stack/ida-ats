@@ -90,6 +90,8 @@ urlpatterns = [
     path('audit-log/', AuditLogView.as_view(), name='audit-log'),
     path('register/', RegisterView.as_view(), name='register'),
 
+    path('api/analytics/predictive/', views.predictive_analytics, name='predictive-analytics'),
+
     path('google-auth-status/', google_auth_status, name='google-auth-status'),
 
     # ── External REST API (авт. по API Key: Authorization: Bearer ida_...) ──

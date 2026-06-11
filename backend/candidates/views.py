@@ -1840,3 +1840,214 @@ def anonymous_candidate(request, pk):
         'tags':         [{'id': t.id, 'name': t.name, 'color': t.color} for t in c.tags.all()],
         'status':       c.status,
     })
+
+# ─── PREDICTIVE ANALYTICS ─────────────────────────────────────────────────────
+
+from statistics import median, stdev
+from collections import defaultdict
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsOrgMember])
+def predictive_analytics(request):
+    """
+    Predictive Analytics для вакансій.
+
+    Повертає:
+      - hiring_forecast: прогноз днів до найму (медіана, min/max, Q1/Q3, std)
+      - offer_acceptance_rate: ймовірність прийняття офера (%)
+      - stage_duration: середній час на кожній стадії воронки
+      - by_vacancy: прогноз по кожній вакансії
+      - by_source: ефективність джерел по часу найму
+
+    Query params:
+      vacancy (int)       — фільтр по вакансії
+      organization (int)  — тільки для superadmin
+    """
+    role = get_user_role(request.user)
+    if role == 'superadmin':
+        org_id = request.query_params.get('organization')
+        base_qs = Candidate.objects.all()
+        if org_id:
+            base_qs = base_qs.filter(organization_id=org_id)
+    else:
+        org = get_user_organization(request.user)
+        if not org:
+            return Response({'error': 'Організація не знайдена'}, status=400)
+        base_qs = Candidate.objects.filter(organization=org)
+
+    vacancy_id = request.query_params.get('vacancy')
+    if vacancy_id:
+        base_qs = base_qs.filter(vacancy_id=vacancy_id)
+
+    # ── Статистична функція ───────────────────────────────────────────────────
+    def _stats(values):
+        if not values:
+            return None
+        values_sorted = sorted(values)
+        n = len(values_sorted)
+        med = median(values_sorted)
+        q1 = values_sorted[n // 4]
+        q3 = values_sorted[(3 * n) // 4]
+        sd = round(stdev(values_sorted), 1) if n >= 2 else 0
+        return {
+            'median': round(med, 1),
+            'min': round(min(values_sorted), 1),
+            'max': round(max(values_sorted), 1),
+            'q1': round(q1, 1),
+            'q3': round(q3, 1),
+            'std_dev': sd,
+            'sample_size': n,
+            'forecast_low': round(max(0, med - sd), 1),
+            'forecast_high': round(med + sd, 1),
+        }
+
+    # ── 1. Кандидати що дійшли до офера ──────────────────────────────────────
+    offer_candidates = (
+        base_qs
+        .filter(stage__system_key='offer')
+        .select_related('vacancy', 'stage')
+        .prefetch_related('status_history__new_stage')
+    )
+
+    hire_times = []
+    stage_times = defaultdict(list)
+
+    for cand in offer_candidates:
+        history = list(cand.status_history.order_by('changed_at'))
+        if not history:
+            continue
+
+        offer_date = None
+        for h in history:
+            if h.new_stage and h.new_stage.system_key == 'offer':
+                offer_date = h.changed_at
+                break
+        if not offer_date:
+            continue
+
+        days_to_hire = (offer_date - cand.created_at).total_seconds() / 86400
+        if days_to_hire < 0:
+            continue
+
+        hire_times.append({
+            'days': round(days_to_hire, 1),
+            'vacancy_id': cand.vacancy_id,
+            'vacancy_title': cand.vacancy.title if cand.vacancy else '—',
+            'source': cand.source or 'other',
+        })
+
+        # Час на кожній стадії цього кандидата
+        prev_time = cand.created_at
+        prev_key = 'new'
+        for h in history:
+            dur = (h.changed_at - prev_time).total_seconds() / 86400
+            if dur >= 0 and prev_key:
+                stage_times[prev_key].append(round(dur, 1))
+            prev_key = (h.new_stage.system_key if h.new_stage else None) or h.new_status
+            prev_time = h.changed_at
+
+    # ── 2. Загальний прогноз найму ────────────────────────────────────────────
+    all_days = [r['days'] for r in hire_times]
+    hire_stats = _stats(all_days)
+    n = len(all_days)
+
+    if n == 0:
+        confidence = 'no_data'
+        confidence_label = 'Недостатньо даних'
+    elif n < 5:
+        confidence = 'low'
+        confidence_label = f'Низька впевненість ({n} закрит. вакансій)'
+    elif n < 20:
+        confidence = 'medium'
+        confidence_label = f'Середня впевненість ({n} закрит. вакансій)'
+    else:
+        confidence = 'high'
+        confidence_label = f'Висока впевненість ({n} закрит. вакансій)'
+
+    # ── 3. Прогноз по вакансіях ───────────────────────────────────────────────
+    by_vacancy = defaultdict(list)
+    for r in hire_times:
+        if r['vacancy_id']:
+            by_vacancy[r['vacancy_id']].append(r)
+
+    vacancy_forecasts = []
+    for vid, rows in by_vacancy.items():
+        s = _stats([r['days'] for r in rows])
+        if s:
+            vacancy_forecasts.append({
+                'vacancy_id': vid,
+                'vacancy_title': rows[0]['vacancy_title'],
+                **s,
+            })
+    vacancy_forecasts.sort(key=lambda x: x['median'])
+
+    # ── 4. Ймовірність прийняття офера ───────────────────────────────────────
+    total_reached_offer = (
+        base_qs
+        .filter(status_history__new_stage__system_key='offer')
+        .distinct()
+        .count()
+    )
+    declined_after_offer = (
+        base_qs
+        .filter(status_history__rejection_reason__name__icontains='відмовився від офер')
+        .distinct()
+        .count()
+    )
+    if total_reached_offer > 0:
+        accepted = max(0, total_reached_offer - declined_after_offer)
+        offer_acceptance_rate = round(accepted / total_reached_offer * 100, 1)
+    else:
+        offer_acceptance_rate = None
+
+    # ── 5. Час на кожній стадії воронки ──────────────────────────────────────
+    STAGE_ORDER = ['new', 'screening', 'interview', 'offer', 'rejected']
+    STAGE_LABELS = {
+        'new': 'Новий', 'screening': 'Скринінг',
+        'interview': 'Співбесіда', 'offer': 'Оффер', 'rejected': 'Відмова',
+    }
+    stage_duration_stats = []
+    for key in STAGE_ORDER:
+        s = _stats(stage_times.get(key, []))
+        if s:
+            stage_duration_stats.append({
+                'stage_key': key,
+                'stage_label': STAGE_LABELS.get(key, key),
+                **s,
+            })
+
+    # ── 6. По джерелах ───────────────────────────────────────────────────────
+    SOURCE_LABELS = {
+        'linkedin': 'LinkedIn', 'dou': 'DOU', 'work_ua': 'work.ua',
+        'rabota_ua': 'rabota.ua', 'recommendation': 'Рекомендація',
+        'csv': 'CSV', 'direct': 'Прямий відгук', 'other': 'Інше',
+    }
+    by_source = defaultdict(list)
+    for r in hire_times:
+        by_source[r['source']].append(r['days'])
+
+    source_stats = []
+    for src, days_list in by_source.items():
+        s = _stats(days_list)
+        if s:
+            source_stats.append({
+                'source': src,
+                'source_label': SOURCE_LABELS.get(src, src),
+                **s,
+            })
+    source_stats.sort(key=lambda x: x['median'])
+
+    return Response({
+        'hiring_forecast': {
+            'stats': hire_stats,
+            'confidence': confidence,
+            'confidence_label': confidence_label,
+            'sample_size': n,
+        },
+        'offer_acceptance_rate': offer_acceptance_rate,
+        'total_reached_offer': total_reached_offer,
+        'stage_duration': stage_duration_stats,
+        'by_vacancy': vacancy_forecasts,
+        'by_source': source_stats,
+    })
