@@ -1,6 +1,6 @@
 // Analytics.js — оновлено під динамічні стейджі + Recharts
 import React, { useState, useEffect, useCallback } from 'react';
-import api from '../axiosConfig';
+import api from 'axiosConfig';
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell,
@@ -242,9 +242,31 @@ function Analytics() {
     .filter(s => s.count > 0)
     .sort((a, b) => b.count - a.count);
 
-  // Topline stats
-  const offerCount    = candidates.filter(c => c.status === 'offer').length;
-  const rejectedCount = candidates.filter(c => c.status === 'rejected').length;
+  // Topline stats — визначаємо термінальні стейджі з воронки TTH
+  // funnel містить { label, count, color, stage_id, is_terminal, is_rejection } від бекенду
+  const terminalStageIds = new Set(
+    (timeToHire?.funnel || [])
+      .filter(f => f.is_terminal)
+      .map(f => f.stage_id)
+  );
+  const rejectedStageIds = new Set(
+    (timeToHire?.funnel || [])
+      .filter(f => f.is_rejection)
+      .map(f => f.stage_id)
+  );
+  // Fallback: шукаємо по назві якщо бекенд не повертає флаги
+  const offerCount = terminalStageIds.size > 0
+    ? candidates.filter(c => terminalStageIds.has(c.stage_id ?? c.stage)).length
+    : candidates.filter(c => {
+        const stageLabel = (timeToHire?.funnel || []).find(f => f.stage_id === (c.stage_id ?? c.stage))?.label || '';
+        return /оффер|offer|hired|прийнят/i.test(stageLabel);
+      }).length;
+  const rejectedCount = rejectedStageIds.size > 0
+    ? candidates.filter(c => rejectedStageIds.has(c.stage_id ?? c.stage)).length
+    : candidates.filter(c => {
+        const stageLabel = (timeToHire?.funnel || []).find(f => f.stage_id === (c.stage_id ?? c.stage))?.label || '';
+        return /відмов|reject|відхил/i.test(stageLabel);
+      }).length;
 
   // Recharts funnel data (для BarChart воронки)
   const funnelChartData = funnel.map(f => ({ name: f.label, value: f.count, color: f.color }));
