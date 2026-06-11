@@ -363,10 +363,12 @@ function DesktopSidebar({ currentPage, onNavigate, onLogout, userRole, counts, u
   return (
     <div style={{
       width: '260px',
+      height: '100%',
       background: 'var(--sidebar-bg)',
       display: 'flex',
       flexDirection: 'column',
       flexShrink: 0,
+      overflow: 'hidden',
     }}>
       {/* Лого */}
       <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
@@ -390,7 +392,7 @@ function DesktopSidebar({ currentPage, onNavigate, onLogout, userRole, counts, u
       </div>
 
       {/* Навігація */}
-      <div style={{ padding: '12px 10px 8px', flex: 1, overflowY: 'auto' }}>
+      <div style={{ padding: '12px 10px 8px', flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {navItems.map(item => {
           const active = currentPage === item.key;
           return (
