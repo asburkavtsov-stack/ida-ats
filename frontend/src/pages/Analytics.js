@@ -137,6 +137,11 @@ function Analytics() {
   const [diData,    setDiData]    = useState(null);
   const [diLoading, setDiLoading] = useState(false);
 
+  // Predictive Analytics
+  const [predictive,        setPredictive]        = useState(null);
+  const [predictiveLoading, setPredictiveLoading] = useState(false);
+  const [predictiveVacancy, setPredictiveVacancy] = useState('all');
+
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768);
@@ -183,6 +188,12 @@ function Analytics() {
     loadTTH();
     loadHR();
     loadMonthly();
+    setPredictiveLoading(true);
+    const predParams = predictiveVacancy !== 'all' ? `?vacancy=${predictiveVacancy}` : '';
+    api.get(`/api/analytics/predictive/${predParams}`)
+      .then(r => setPredictive(r.data))
+      .catch(() => {})
+      .finally(() => setPredictiveLoading(false));
     setDiLoading(true);
     api.get('/api/analytics/di/')
       .then(r => setDiData(r.data))
@@ -670,6 +681,203 @@ function Analytics() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )
+        }
+      </div>
+
+      {/* ─── Predictive Analytics ────────────────────────────────────────────── */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px' }}>
+        <SectionHeader
+          icon="🔮"
+          title="Predictive Analytics"
+          sub={predictive?.hiring_forecast?.confidence_label}
+          actions={
+            <select value={predictiveVacancy} onChange={e => {
+              setPredictiveVacancy(e.target.value);
+              setPredictiveLoading(true);
+              const p = e.target.value !== 'all' ? `?vacancy=${e.target.value}` : '';
+              api.get(`/api/analytics/predictive/${p}`)
+                .then(r => setPredictive(r.data))
+                .catch(() => {})
+                .finally(() => setPredictiveLoading(false));
+            }} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: '0.78rem', fontFamily: 'DM Sans', cursor: 'pointer', outline: 'none' }}>
+              <option value="all">Всі вакансії</option>
+              {vacancies.map(v => <option key={v.id} value={v.id}>{v.title}</option>)}
+            </select>
+          }
+        />
+
+        {predictiveLoading ? <Spinner text="Розрахунок прогнозів..." /> :
+          !predictive || predictive.hiring_forecast?.confidence === 'no_data' ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '12px' }}>🔮</div>
+              <div style={{ fontWeight: 600, marginBottom: '4px' }}>Недостатньо даних для прогнозів</div>
+              <div style={{ fontSize: '0.78rem' }}>Потрібен хоча б 1 кандидат із статусом "Оффер" та історією переходів</div>
+            </div>
+          ) : (
+            <div style={{ padding: isMobile ? '16px' : '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+              {/* ── Top KPI Cards ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(3,1fr)', gap: isMobile ? '10px' : '16px' }}>
+                {/* Прогноз днів */}
+                {predictive.hiring_forecast?.stats && (() => {
+                  const s = predictive.hiring_forecast.stats;
+                  return (
+                    <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px 20px', borderTop: `3px solid ${getSpeedColor(s.median)}` }}>
+                      <div style={{ fontSize: '0.68rem', fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--muted)', marginBottom: '8px' }}>
+                        Прогноз найму
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '2rem', fontWeight: 700, color: getSpeedColor(s.median), lineHeight: 1 }}>{s.median}</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>дн</span>
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+                        діапазон: {s.forecast_low}–{s.forecast_high} дн
+                      </div>
+                      <div style={{ marginTop: '8px', padding: '4px 10px', borderRadius: '8px', display: 'inline-block',
+                        background: getSpeedBg(s.median), color: getSpeedText(s.median), fontSize: '0.68rem', fontFamily: 'DM Mono', fontWeight: 600 }}>
+                        {getSpeedLabel(s.median)}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Ймовірність прийняття офера */}
+                {predictive.offer_acceptance_rate !== null && (
+                  <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px 20px',
+                    borderTop: `3px solid ${predictive.offer_acceptance_rate >= 70 ? '#16a34a' : predictive.offer_acceptance_rate >= 40 ? '#eab308' : '#dc2626'}` }}>
+                    <div style={{ fontSize: '0.68rem', fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--muted)', marginBottom: '8px' }}>
+                      Прийняття офера
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1,
+                        color: predictive.offer_acceptance_rate >= 70 ? '#16a34a' : predictive.offer_acceptance_rate >= 40 ? '#eab308' : '#dc2626' }}>
+                        {predictive.offer_acceptance_rate}%
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+                      з {predictive.total_reached_offer} кандидатів
+                    </div>
+                  </div>
+                )}
+
+                {/* Вибірка */}
+                {predictive.hiring_forecast?.stats && (
+                  <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px 20px', borderTop: '3px solid #2563eb' }}>
+                    <div style={{ fontSize: '0.68rem', fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.6px', color: 'var(--muted)', marginBottom: '8px' }}>
+                      Вибірка даних
+                    </div>
+                    <div style={{ fontSize: '2rem', fontWeight: 700, color: '#2563eb', lineHeight: 1, marginBottom: '4px' }}>
+                      {predictive.hiring_forecast.stats.sample_size}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+                      закритих циклів
+                    </div>
+                    <div style={{ marginTop: '8px', padding: '4px 10px', borderRadius: '8px', display: 'inline-block',
+                      background: predictive.hiring_forecast.confidence === 'high' ? '#dcfce7' : predictive.hiring_forecast.confidence === 'medium' ? '#fef3c7' : '#fee2e2',
+                      color: predictive.hiring_forecast.confidence === 'high' ? '#16a34a' : predictive.hiring_forecast.confidence === 'medium' ? '#ca8a04' : '#dc2626',
+                      fontSize: '0.68rem', fontFamily: 'DM Mono', fontWeight: 600 }}>
+                      {predictive.hiring_forecast.confidence === 'high' ? '● Висока точність' : predictive.hiring_forecast.confidence === 'medium' ? '◐ Середня точність' : '○ Низька точність'}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Час на кожній стадії ── */}
+              {predictive.stage_duration?.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 600, fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--muted)', marginBottom: '14px' }}>
+                    Середній час на стадії
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {predictive.stage_duration.map(s => {
+                      const maxDays = Math.max(...predictive.stage_duration.map(x => x.median), 1);
+                      return (
+                        <div key={s.stage_key}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', flexWrap: 'wrap', gap: '4px' }}>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 500 }}>{s.stage_label}</span>
+                            <span style={{ fontFamily: 'DM Mono', fontSize: '0.75rem', color: 'var(--muted)' }}>
+                              медіана: <strong style={{ color: getSpeedColor(s.median) }}>{s.median} дн</strong>
+                              <span style={{ marginLeft: '8px', opacity: 0.6 }}>({s.q1}–{s.q3} дн)</span>
+                            </span>
+                          </div>
+                          <div style={{ height: '8px', background: 'var(--surface2, #f1f5f9)', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', borderRadius: '4px', background: getSpeedColor(s.median), width: `${Math.min(100, s.median / maxDays * 100)}%`, transition: 'width 0.5s ease' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Прогноз по вакансіях ── */}
+              {predictive.by_vacancy?.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 600, fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--muted)', marginBottom: '14px' }}>
+                    Прогноз по вакансіях
+                  </div>
+                  <div style={{ background: 'var(--bg)', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', minWidth: '480px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+                          {['Вакансія', 'Медіана', 'Мін', 'Макс', 'Прогноз (±σ)', 'Вибірка'].map(h => (
+                            <th key={h} style={{ padding: '10px 14px', textAlign: h === 'Вакансія' ? 'left' : 'center', fontFamily: 'DM Mono', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 600 }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {predictive.by_vacancy.map(v => (
+                          <tr key={v.vacancy_id} style={{ borderBottom: '1px solid var(--border)' }}>
+                            <td style={{ padding: '10px 14px', fontWeight: 500, maxWidth: '200px', wordBreak: 'break-word' }}>{v.vacancy_title}</td>
+                            <td style={{ padding: '10px 14px', textAlign: 'center', fontWeight: 700, fontFamily: 'DM Mono', color: getSpeedColor(v.median) }}>{v.median} дн</td>
+                            <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', color: 'var(--muted)', fontSize: '0.75rem' }}>{v.min} дн</td>
+                            <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', color: 'var(--muted)', fontSize: '0.75rem' }}>{v.max} дн</td>
+                            <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', fontSize: '0.75rem' }}>
+                              <span style={{ color: getSpeedColor(v.median) }}>{v.forecast_low}–{v.forecast_high} дн</span>
+                            </td>
+                            <td style={{ padding: '10px 14px', textAlign: 'center', fontFamily: 'DM Mono', color: 'var(--muted)' }}>{v.sample_size}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ── По джерелах (час найму) ── */}
+              {predictive.by_source?.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 600, fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--muted)', marginBottom: '14px' }}>
+                    Найшвидші джерела кандидатів
+                  </div>
+                  <ResponsiveContainer width="100%" height={predictive.by_source.length * 44 + 20}>
+                    <BarChart
+                      layout="vertical"
+                      data={predictive.by_source.map(s => ({ name: s.source_label, value: s.median, low: s.q1, high: s.q3 }))}
+                      margin={{ top: 0, right: 60, left: 4, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" />
+                      <XAxis type="number" unit=" дн" tick={{ fontSize: 11, fontFamily: 'DM Mono', fill: 'var(--muted)' }} />
+                      <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11, fontFamily: 'DM Sans', fill: 'var(--text)' }} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Bar dataKey="value" name="Медіана (дн)" radius={[0, 4, 4, 0]} maxBarSize={24}>
+                        {predictive.by_source.map((s, i) => (
+                          <Cell key={i} fill={getSpeedColor(s.median)} />
+                        ))}
+                        <LabelList dataKey="value" position="right" formatter={v => `${v} дн`}
+                          style={{ fontSize: '0.75rem', fontFamily: 'DM Mono', fill: 'var(--muted)' }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* Примітка про точність */}
+              <div style={{ padding: '10px 14px', borderRadius: '8px', background: '#f0f9ff', border: '1px solid #bae6fd', fontSize: '0.72rem', color: '#0369a1', fontFamily: 'DM Mono' }}>
+                📊 Прогнози розраховані на основі медіани та стандартного відхилення з реальних даних. Точність зростає з накопиченням даних.
               </div>
             </div>
           )
