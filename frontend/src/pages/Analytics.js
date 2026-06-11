@@ -136,7 +136,7 @@ function Analytics() {
   // D&I
   const [diData,    setDiData]    = useState(null);
   const [diLoading, setDiLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768);
