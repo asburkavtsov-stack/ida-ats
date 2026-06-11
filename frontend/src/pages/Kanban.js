@@ -83,8 +83,12 @@ const StageEditor = memo(function StageEditor({ stage, onSave, onDelete, onClose
 });
 
 // ─── CandidateCard — memo, порівняння через id+selected ──────────────────────
-const CandidateCard = memo(function CandidateCard({ candidate, onOpen, bulkMode, selected, onToggle }) {
+const CandidateCard = memo(function CandidateCard({ candidate, onOpen, bulkMode, selected, onToggle, anonymousMode }) {
   const tags = useMemo(() => candidate.tags?.slice(0, 2) || [], [candidate.tags]);
+
+  const displayName = anonymousMode
+    ? `CAND-${String(candidate.id).padStart(4, '0')}`
+    : `${candidate.first_name} ${candidate.last_name}`;
 
   return (
     <div
@@ -113,14 +117,21 @@ const CandidateCard = memo(function CandidateCard({ candidate, onOpen, bulkMode,
         </div>
       )}
       <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ fontWeight:600, fontSize:'0.85rem', marginBottom:'3px' }}>{candidate.first_name} {candidate.last_name}</div>
+        <div style={{ fontWeight:600, fontSize:'0.85rem', marginBottom:'3px', display:'flex', alignItems:'center', gap:'6px' }}>
+          {displayName}
+          {anonymousMode && (
+            <span style={{ fontSize:'0.58rem', fontFamily:'DM Mono', padding:'1px 5px', borderRadius:'3px', background:'#fef3c7', color:'#92400e' }}>
+              анонім
+            </span>
+          )}
+        </div>
         {candidate.vacancy_title && (
           <div style={{ fontSize:'0.72rem', color:'var(--muted)', fontFamily:'DM Mono', marginBottom:'6px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
             {candidate.vacancy_title}
           </div>
         )}
         <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', alignItems:'center' }}>
-          {candidate.assigned_to_name && (
+          {!anonymousMode && candidate.assigned_to_name && (
             <span style={{ fontSize:'0.68rem', color:'var(--muted)', fontFamily:'DM Mono' }}>👤 {candidate.assigned_to_name}</span>
           )}
           {tags.map(t => (
@@ -131,13 +142,14 @@ const CandidateCard = memo(function CandidateCard({ candidate, onOpen, bulkMode,
     </div>
   );
 }, (prev, next) => (
-  prev.candidate === next.candidate &&
-  prev.selected  === next.selected  &&
-  prev.bulkMode  === next.bulkMode
+  prev.candidate     === next.candidate &&
+  prev.selected      === next.selected  &&
+  prev.bulkMode      === next.bulkMode  &&
+  prev.anonymousMode === next.anonymousMode
 ));
 
 // ─── KanbanColumn — memo ──────────────────────────────────────────────────────
-const KanbanColumn = memo(function KanbanColumn({ stage, candidates, onDrop, onOpen, onEdit, onDelete, isFirst, isLast, onMoveLeft, onMoveRight, isMobile, bulkMode, selectedIds, onToggle }) {
+const KanbanColumn = memo(function KanbanColumn({ stage, candidates, onDrop, onOpen, onEdit, onDelete, isFirst, isLast, onMoveLeft, onMoveRight, isMobile, bulkMode, selectedIds, onToggle, anonymousMode }) {
   const [dragOver,   setDragOver]   = useState(false);
   const [showEditor, setShowEditor] = useState(false);
 
@@ -210,6 +222,7 @@ const KanbanColumn = memo(function KanbanColumn({ stage, candidates, onDrop, onO
             bulkMode={bulkMode}
             selected={selectedSet.has(c.id)}
             onToggle={onToggle}
+            anonymousMode={anonymousMode}
           />
         ))}
         {candidates.length === 0 && (
@@ -273,6 +286,7 @@ function Kanban({ searchQuery = '' }) {
   const [currentVacancyId,    setCurrentVacancyId]   = useState('');
   const [bulkMode,            setBulkMode]           = useState(false);
   const [selectedIds,         setSelectedIds]        = useState([]);
+  const [anonymousMode,       setAnonymousMode]      = useState(false);
   const [filters,             setFilters]            = useState({ search: searchQuery, vacancy: '', hr: '', mine: false });
 
   useEffect(() => { setFilters(f => ({ ...f, search: searchQuery })); }, [searchQuery]);
@@ -459,6 +473,12 @@ function Kanban({ searchQuery = '' }) {
         </div>
 
         <div style={{ display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap' }}>
+          <button
+            onClick={() => setAnonymousMode(v => !v)}
+            title="Анонімний скринінг — приховує імена та контакти"
+            style={{ padding:'6px 12px', borderRadius:'7px', fontSize:'0.78rem', border:`1px solid ${anonymousMode ? '#7c3aed' : 'var(--border)'}`, background: anonymousMode ? 'rgba(124,58,237,0.08)' : 'var(--surface)', color: anonymousMode ? '#7c3aed' : 'var(--muted)', cursor:'pointer', fontFamily:'DM Mono', transition:'all 0.15s' }}>
+            {anonymousMode ? '🙈 Анонім' : '👁 Анонім'}
+          </button>
           <button onClick={handleToggleBulkMode} style={{ padding:'6px 12px', borderRadius:'7px', fontSize:'0.78rem', border:`1px solid ${bulkMode ? 'var(--accent)' : 'var(--border)'}`, background: bulkMode ? 'rgba(159,18,57,0.08)' : 'var(--surface)', color: bulkMode ? 'var(--accent)' : 'var(--muted)', cursor:'pointer', fontFamily:'DM Mono', transition:'all 0.15s' }}>
             {bulkMode ? `✓ ${selectedIds.length} обрано` : '☐ Вибрати'}
           </button>
@@ -507,6 +527,7 @@ function Kanban({ searchQuery = '' }) {
                 bulkMode={bulkMode}
                 selectedIds={selectedIds}
                 onToggle={handleToggleBulk}
+                anonymousMode={anonymousMode}
               />
             </div>
           ))}

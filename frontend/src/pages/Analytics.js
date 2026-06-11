@@ -133,6 +133,11 @@ function Analytics() {
 
   const [exporting, setExporting] = useState(false);
 
+  // D&I
+  const [diData,    setDiData]    = useState(null);
+  const [diLoading, setDiLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
+
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768);
     check();
@@ -178,6 +183,11 @@ function Analytics() {
     loadTTH();
     loadHR();
     loadMonthly();
+    setDiLoading(true);
+    api.get('/api/analytics/di/')
+      .then(r => setDiData(r.data))
+      .catch(() => {})
+      .finally(() => setDiLoading(false));
   }, []); // eslint-disable-line
 
   useEffect(() => { loadTTH(); }, [loadTTH]);
@@ -642,6 +652,149 @@ function Analytics() {
             </div>
           )
         }
+      </div>
+
+      {/* ─── Diversity & Inclusion ───────────────────────────────────────────── */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px' }}>
+        <SectionHeader icon="🌍" title="Diversity & Inclusion" sub="тільки кандидати зі згодою на D&I дані" />
+
+        {diLoading ? <Spinner text="Завантаження D&I даних..." /> : !diData ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🌍</div>
+            Немає D&I даних
+          </div>
+        ) : (
+          <div style={{ padding: '20px' }}>
+
+            {/* Summary */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: '12px', marginBottom: '20px' }}>
+              {[
+                { label: 'Всього кандидатів', value: diData.summary.total_candidates, color: 'var(--text)' },
+                { label: 'Заповнили D&I', value: diData.summary.with_di_consent, color: '#7c3aed' },
+                { label: 'Частка D&I', value: `${diData.summary.consent_rate_pct}%`, color: '#7c3aed' },
+                { label: 'Ветерани', value: diData.summary.veteran_count, color: '#2563eb' },
+              ].map((s, i) => (
+                <div key={i} style={{ padding: '14px', borderRadius: '10px', background: 'var(--bg)', border: '1px solid var(--border)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 700, fontFamily: 'DM Mono', color: s.color }}>{s.value}</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--muted)', fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '3px' }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '20px' }}>
+
+              {/* Гендерний розподіл */}
+              <div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)', marginBottom: '10px' }}>
+                  Гендерний розподіл
+                </div>
+                {diData.gender.length === 0 ? (
+                  <div style={{ color: 'var(--muted)', fontSize: '0.8rem', fontFamily: 'DM Mono' }}>Немає даних</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {diData.gender.map(g => {
+                      const total = diData.summary.with_di_consent || 1;
+                      const pct = Math.round(g.count / total * 100);
+                      const colors = { male: '#2563eb', female: '#db2777', non_binary: '#7c3aed', prefer_not: '#9ca3af', other: '#6b7280' };
+                      const color = colors[g.key] || '#6b7280';
+                      return (
+                        <div key={g.key}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '3px' }}>
+                            <span>{g.label}</span>
+                            <span style={{ fontFamily: 'DM Mono', fontWeight: 600, color }}>{g.count} ({pct}%)</span>
+                          </div>
+                          <div style={{ height: '6px', borderRadius: '3px', background: 'var(--border)' }}>
+                            <div style={{ width: `${pct}%`, height: '100%', borderRadius: '3px', background: color, transition: 'width 0.4s' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Вікові групи */}
+              <div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)', marginBottom: '10px' }}>
+                  Вікові групи
+                </div>
+                {diData.age.length === 0 ? (
+                  <div style={{ color: 'var(--muted)', fontSize: '0.8rem', fontFamily: 'DM Mono' }}>Немає даних</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart data={diData.age} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fontFamily: 'DM Mono' }} />
+                      <YAxis tick={{ fontSize: 10, fontFamily: 'DM Mono' }} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Bar dataKey="count" name="Кандидатів" radius={[4,4,0,0]}>
+                        {diData.age.map((_, i) => (
+                          <Cell key={i} fill={distributionColors[i % distributionColors.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            {/* D&I воронка по гендеру */}
+            {diData.funnel?.length > 0 && (
+              <div style={{ marginTop: '20px' }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)', marginBottom: '10px' }}>
+                  D&I воронка по стейджах
+                </div>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={diData.funnel} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis dataKey="stage" tick={{ fontSize: 10, fontFamily: 'DM Mono' }} />
+                    <YAxis tick={{ fontSize: 10, fontFamily: 'DM Mono' }} />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: '0.72rem', fontFamily: 'DM Mono' }} />
+                    <Bar dataKey="male"   name="Чоловіки"  stackId="a" fill="#2563eb" />
+                    <Bar dataKey="female" name="Жінки"     stackId="a" fill="#db2777" />
+                    <Bar dataKey="other"  name="Інші"      stackId="a" fill="#9ca3af" radius={[4,4,0,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Конверсія по гендеру */}
+            {diData.conversion_by_gender && (
+              <div style={{ marginTop: '16px', padding: '14px', background: 'var(--bg)', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)', marginBottom: '10px' }}>
+                  Конверсія в оффер по гендеру
+                </div>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                  {[
+                    { key: 'male', label: 'Чоловіки', color: '#2563eb' },
+                    { key: 'female', label: 'Жінки', color: '#db2777' },
+                  ].map(g => {
+                    const d = diData.conversion_by_gender[g.key];
+                    return d?.total > 0 ? (
+                      <div key={g.key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: g.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: '0.82rem' }}>{g.label}:</span>
+                        <span style={{ fontFamily: 'DM Mono', fontWeight: 700, fontSize: '0.88rem', color: d.rate >= 20 ? '#16a34a' : d.rate >= 10 ? '#ca8a04' : '#dc2626' }}>
+                          {d.rate}% ({d.hired}/{d.total})
+                        </span>
+                      </div>
+                    ) : null;
+                  })}
+                </div>
+                {Math.abs((diData.conversion_by_gender.male?.rate || 0) - (diData.conversion_by_gender.female?.rate || 0)) > 10 && (
+                  <div style={{ marginTop: '10px', padding: '8px 12px', borderRadius: '6px', background: '#fef3c7', color: '#92400e', fontSize: '0.72rem', fontFamily: 'DM Mono' }}>
+                    ⚠ Різниця в конверсії між гендерами &gt; 10% — варто звернути увагу на упередженість у відборі
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '8px', background: '#f0f9ff', border: '1px solid #bae6fd', fontSize: '0.72rem', color: '#0369a1', fontFamily: 'DM Mono' }}>
+              🔒 D&I дані збираються тільки за добровільною згодою кандидата (окрема GDPR-згода). Використовуйте для покращення процесів, не для дискримінації.
+            </div>
+          </div>
+        )}
       </div>
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
