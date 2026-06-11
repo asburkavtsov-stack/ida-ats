@@ -17,33 +17,37 @@
   -webkit-touch-callout: none;
 }
 
-/* Лендінг потребує вільного скролу — overflow керується через .app-shell */
+/* За замовчуванням — вільний скрол (для лендінгу) */
 html, body {
   height: 100%;
   overscroll-behavior: none;
 }
 
-/* App shell (всі сторінки крім лендінгу) — фіксований layout */
-body.app-shell,
+/* App shell — фіксований layout тільки коли активний додаток */
+body.app-shell {
+  overflow: hidden;
+}
 html.app-shell {
   overflow: hidden;
 }
-
 body.app-shell #root {
   height: 100%;
   overflow: hidden;
 }
 
-/* Лендінг — вільний скрол */
-body.landing-page,
+/* Лендінг — явно скасовуємо app-shell якщо він був */
+body.landing-page {
+  overflow-x: hidden;
+  overflow-y: scroll;
+}
 html.landing-page {
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: scroll;
 }
-
 body.landing-page #root {
-  height: auto;
-  overflow: visible;
+  height: auto !important;
+  overflow: visible !important;
+  min-height: 100vh;
 }
 
 * {
