@@ -4,48 +4,60 @@
 
 /* ─── PWA / Mobile base ─────────────────────────────────────────────────────── */
 
-/* Safe area для iPhone notch та bottom bar */
 :root {
   --safe-top:    env(safe-area-inset-top,    0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left:   env(safe-area-inset-left,   0px);
   --safe-right:  env(safe-area-inset-right,  0px);
-
-  /* Bottom nav висота (тільки мобайл) */
   --bottom-nav-height: 64px;
 }
 
-/* Заборона виділення тексту при тапі */
 * {
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
 }
 
-/* Скролл тільки там де потрібно */
+/* Лендінг потребує вільного скролу — overflow керується через .app-shell */
 html, body {
-  overflow: hidden;
   height: 100%;
   overscroll-behavior: none;
 }
 
-#root {
+/* App shell (всі сторінки крім лендінгу) — фіксований layout */
+body.app-shell,
+html.app-shell {
+  overflow: hidden;
+}
+
+body.app-shell #root {
   height: 100%;
   overflow: hidden;
 }
 
-/* Плавний скролл всюди */
+/* Лендінг — вільний скрол */
+body.landing-page,
+html.landing-page {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body.landing-page #root {
+  height: auto;
+  overflow: visible;
+}
+
 * {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
 }
 
-/* Мінімальна висота тапу — 44px (Apple HIG) */
-button, a, [role="button"] {
+/* Мінімальний розмір тапу тільки для іконок/малих кнопок, не для всіх */
+.tap-target {
   min-height: 44px;
   min-width: 44px;
 }
 
-/* Прибираємо дефолтний outline на мобайлі */
+/* Прибираємо outline на мобайлі */
 @media (max-width: 768px) {
   button:focus, a:focus, input:focus, select:focus, textarea:focus {
     outline: none;
@@ -64,18 +76,13 @@ button, a, [role="button"] {
 
 /* ─── PWA standalone mode ────────────────────────────────────────────────── */
 @media (display-mode: standalone) {
-  /* Додаємо padding зверху для статус-бару на iOS */
   .app-topbar {
     padding-top: var(--safe-top);
   }
-
-  /* Bottom nav враховує home indicator на iPhone */
   .bottom-nav {
     padding-bottom: calc(var(--safe-bottom) + 4px);
     height: calc(var(--bottom-nav-height) + var(--safe-bottom));
   }
-
-  /* Контент не перекривається bottom nav */
   .main-content-mobile {
     padding-bottom: calc(var(--bottom-nav-height) + var(--safe-bottom));
   }
@@ -86,12 +93,10 @@ button, a, [role="button"] {
   from { transform: translateY(20px); opacity: 0; }
   to   { transform: translateY(0);    opacity: 1; }
 }
-
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-
 @keyframes slideInLeft {
   from { transform: translateX(-100%); }
   to   { transform: translateX(0); }
@@ -101,7 +106,7 @@ button, a, [role="button"] {
 .animate-fade-in    { animation: fadeIn  0.15s ease forwards; }
 .animate-slide-left { animation: slideInLeft 0.25s ease forwards; }
 
-/* ─── Pull to refresh індикатор ─────────────────────────────────────────── */
+/* ─── Pull to refresh ────────────────────────────────────────────────────── */
 .pull-refresh-indicator {
   position: fixed;
   top: 0;

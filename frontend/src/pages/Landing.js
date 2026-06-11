@@ -15,13 +15,17 @@ const Landing = ({ onLogin, onRegister }) => {
   const pricingRef = useRef(null);
 
 
-  // Знімаємо overflow:hidden з body/html поки відкритий лендінг
+  // Лендінг: вмикаємо вільний скрол, вимикаємо app-shell overflow
   useEffect(() => {
     document.body.classList.add('landing-page');
     document.documentElement.classList.add('landing-page');
+    document.body.classList.remove('app-shell');
+    document.documentElement.classList.remove('app-shell');
     return () => {
       document.body.classList.remove('landing-page');
       document.documentElement.classList.remove('landing-page');
+      document.body.classList.add('app-shell');
+      document.documentElement.classList.add('app-shell');
     };
   }, []);
 
@@ -221,40 +225,50 @@ const Landing = ({ onLogin, onRegister }) => {
       {/* ── NAV ── */}
       <nav style={{
         position: 'sticky', top: 0, zIndex: 100,
-        height: '60px',
         background: tc.navbarBg,
         borderBottom: `1px solid ${tc.navbarBorder}`,
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 clamp(16px, 4vw, 40px)',
       }}>
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: '30px', height: '30px', background: primary, color: 'white', fontWeight: 700, fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', flexShrink: 0 }}>I</div>
-          <span style={{ fontSize: '17px', fontWeight: 700, color: tc.navbarColor, letterSpacing: '-0.01em' }}>IDA ATS</span>
-        </div>
+        {/* Основний рядок */}
+        <div style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
 
-        {/* Desktop links */}
-        <div style={{ display: 'flex', gap: '28px', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}
-             className="nav-links-desktop">
-          {[['#features', 'Можливості'], ['#pricing', 'Тарифи'], ['#faq', 'FAQ']].map(([href, label]) => (
-            <a key={href} href={href} style={{ fontSize: '14px', color: tc.navbarColor === 'white' ? 'rgba(255,255,255,0.75)' : '#555', textDecoration: 'none', transition: 'color 0.15s' }}
-               onMouseEnter={e => e.target.style.color = tc.navbarColor}
-               onMouseLeave={e => e.target.style.color = tc.navbarColor === 'white' ? 'rgba(255,255,255,0.75)' : '#555'}>
-              {label}
-            </a>
-          ))}
-        </div>
+          {/* Logo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+            <div style={{ width: '30px', height: '30px', background: primary, color: 'white', fontWeight: 700, fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}>I</div>
+            <span style={{ fontSize: '17px', fontWeight: 700, color: tc.navbarColor, letterSpacing: '-0.01em' }}>IDA ATS</span>
+          </div>
 
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button onClick={onLogin} style={{ padding: '7px 16px', borderRadius: '8px', border: `1px solid ${tc.navbarBorder}`, background: 'transparent', color: tc.navbarColor, fontWeight: 500, cursor: 'pointer', fontSize: '13px', fontFamily: 'inherit' }}>
-            Увійти
-          </button>
-          <button onClick={handleOpenRegister} style={{ padding: '7px 16px', borderRadius: '8px', border: 'none', background: primary, color: 'white', fontWeight: 600, cursor: 'pointer', fontSize: '13px', fontFamily: 'inherit' }}>
-            Почати безкоштовно
-          </button>
+          {/* Desktop: центровані посилання */}
+          <div style={{ display: 'flex', gap: '28px' }} className="nav-desktop-links">
+            {[['#features', 'Можливості'], ['#pricing', 'Тарифи'], ['#faq', 'FAQ']].map(([href, label]) => (
+              <a key={href} href={href} style={{ fontSize: '14px', color: tc.navbarColor === 'white' ? 'rgba(255,255,255,0.7)' : '#666', textDecoration: 'none' }}>
+                {label}
+              </a>
+            ))}
+          </div>
+
+          {/* Desktop: кнопки */}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }} className="nav-desktop-actions">
+            <button onClick={onLogin} style={{ padding: '7px 16px', borderRadius: '8px', border: `1px solid ${tc.navbarBorder}`, background: 'transparent', color: tc.navbarColor, fontWeight: 500, cursor: 'pointer', fontSize: '13px', fontFamily: 'inherit', lineHeight: 1 }}>
+              Увійти
+            </button>
+            <button onClick={handleOpenRegister} style={{ padding: '7px 16px', borderRadius: '8px', border: 'none', background: primary, color: 'white', fontWeight: 600, cursor: 'pointer', fontSize: '13px', fontFamily: 'inherit', lineHeight: 1 }}>
+              Почати →
+            </button>
+          </div>
+
+          {/* Mobile: тільки одна кнопка + login текст */}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }} className="nav-mobile-actions">
+            <button onClick={onLogin} style={{ padding: '6px 12px', borderRadius: '8px', border: `1px solid ${tc.navbarBorder}`, background: 'transparent', color: tc.navbarColor, fontWeight: 500, cursor: 'pointer', fontSize: '13px', fontFamily: 'inherit', lineHeight: 1 }}>
+              Увійти
+            </button>
+            <button onClick={handleOpenRegister} style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', background: primary, color: 'white', fontWeight: 600, cursor: 'pointer', fontSize: '13px', fontFamily: 'inherit', lineHeight: 1 }}>
+              Почати →
+            </button>
+          </div>
+
         </div>
       </nav>
 
