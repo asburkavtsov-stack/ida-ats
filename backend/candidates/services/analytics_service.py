@@ -285,6 +285,9 @@ class AnalyticsService:
                 .annotate(count=Count('id'))
                 .values_list('stage__system_key', 'count')
             )
+            # Кастомні стейджі можуть не мати system_key='offer',
+            # але мати is_terminal=True — рахуємо через offer_q
+            by_status_offer = by_status_qs.get('offer', 0) or offers
 
             hr_stats.append({
                 'hr_id':            hr_id,
@@ -299,8 +302,13 @@ class AnalyticsService:
                 'conversion_rate':  conversion_rate,
                 'interview_rate':   interview_rate,
                 'time_to_hire_avg': avg_time,
-                'by_status': {s: by_status_qs.get(s, 0) for s in
-                              ['new', 'screening', 'interview', 'offer', 'rejected']},
+                'by_status': {
+                    'new':       by_status_qs.get('new', 0),
+                    'screening': by_status_qs.get('screening', 0),
+                    'interview': by_status_qs.get('interview', 0),
+                    'offer':     by_status_offer,
+                    'rejected':  by_status_qs.get('rejected', 0),
+                },
             })
 
         hr_stats.sort(key=lambda x: (-x['conversion_rate'], -x['total_candidates']))
