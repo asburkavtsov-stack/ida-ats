@@ -363,7 +363,7 @@ function Kanban({ searchQuery = '' }) {
     if ((candidate.stage_id ?? candidate.stage) === stageId) return;
     setCandidates(prev => prev.map(c => c.id === candidateId ? { ...c, stage: stageId, stage_id: stageId } : c));
     try {
-      await axios.patch(`/api/candidates/${candidateId}/update_status/`, { stage_id: stageId });
+      await axios.patch(`/api/candidates/${candidateId}/update_status/`, { stage: stageId });
     } catch (err) { console.error(err); loadCandidates(); }
   }, [bulkMode, candidates, loadCandidates]);
 
