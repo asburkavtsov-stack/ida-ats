@@ -38,7 +38,7 @@ from .tasks_views import (
     TaskListCreateView, TaskDetailView, AssignTaskView,
     CandidateTasksView, TaskSubmitView, TaskAutoCheckView, TaskReviewView,
 )
-from .views import di_analytics, anonymous_candidate
+from .views import di_analytics, anonymous_candidate, predictive_analytics
 
 router = DefaultRouter()
 router.register(r'candidates',        CandidateViewSet,       basename='candidate')
@@ -90,7 +90,7 @@ urlpatterns = [
     path('audit-log/', AuditLogView.as_view(), name='audit-log'),
     path('register/', RegisterView.as_view(), name='register'),
 
-    path('api/analytics/predictive/', views.predictive_analytics, name='predictive-analytics'),
+    path('analytics/predictive/',     predictive_analytics,       name='predictive-analytics'),
 
     path('google-auth-status/', google_auth_status, name='google-auth-status'),
 
