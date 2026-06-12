@@ -361,11 +361,20 @@ function Kanban({ searchQuery = '' }) {
     const candidate = candidates.find(c => c.id === candidateId);
     if (!candidate) return;
     if ((candidate.stage_id ?? candidate.stage) === stageId) return;
+
+    // Якщо цільовий стейдж — "rejected", відкриваємо картку для вибору причини
+    const targetStage = stages.find(s => s.id === stageId);
+    if (targetStage?.system_key === 'rejected') {
+      setSelectedCandidateId(candidateId);
+      toast('Оберіть причину відмови в картці кандидата', { icon: 'ℹ️' });
+      return;
+    }
+
     setCandidates(prev => prev.map(c => c.id === candidateId ? { ...c, stage: stageId, stage_id: stageId } : c));
     try {
-      await axios.patch(`/api/candidates/${candidateId}/update_status/`, { stage: stageId });
-    } catch (err) { console.error(err); loadCandidates(); }
-  }, [bulkMode, candidates, loadCandidates]);
+      await axios.patch(`/api/candidates/${candidateId}/update_status/`, { stage_id: stageId });
+    } catch (err) { console.error('Status error body:', err.response?.data); loadCandidates(); }
+  }, [bulkMode, candidates, stages, loadCandidates]);
 
   const handleSaveStage = useCallback(async (stageData) => {
     setSaving(true);
