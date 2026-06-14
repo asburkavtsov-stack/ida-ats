@@ -1,1 +1,1 @@
-web: gunicorn ida_ats.wsgi:application --bind 0.0.0.0:$PORT --log-level debug --access-logfile - --error-logfile -
+web: daphne -b 0.0.0.0 -p $PORT ida_ats.asgi:application
