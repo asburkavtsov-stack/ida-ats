@@ -450,6 +450,28 @@ class CandidateViewSet(viewsets.ModelViewSet):
             'to': new_stage.name,
         }, request)
 
+        # ── WebSocket broadcast ───────────────────────────────────────────────
+        # Надсилаємо всім підключеним до цієї вакансії (або org-шаблону)
+        try:
+            from asgiref.sync import async_to_sync
+            from channels.layers import get_channel_layer
+
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                vacancy_id = candidate.vacancy_id or 'org'
+                async_to_sync(channel_layer.group_send)(
+                    f'kanban_{vacancy_id}',
+                    {
+                        'type':         'kanban.move',
+                        'candidate_id': candidate.id,
+                        'stage_id':     new_stage.id,
+                        'moved_by':     request.user.username,
+                    }
+                )
+        except Exception as ws_err:
+            # WebSocket broadcast — некритична операція, не ламаємо основний response
+            logger.warning(f'WS broadcast failed: {ws_err}')
+
         return Response(CandidateSerializer(candidate, context={'request': request}).data)
 
     @action(detail=True, methods=['patch'], url_path='assign')
