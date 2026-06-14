@@ -1,4 +1,3 @@
-# ida_ats/settings.py
 import os
 from pathlib import Path
 
@@ -69,16 +68,9 @@ ASGI_APPLICATION = 'ida_ats.asgi.application'
 
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [os.getenv('REDIS_URL', 'redis://localhost:6379')],
-        },
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
     },
 }
-
-# ── Railway: додай змінну середовища REDIS_URL ────────────────────────────────
-# Dashboard → твій проект → + New → Redis → після створення скопіюй REDIS_URL
-# і встав у Variables бекенд-сервісу.
 
 # Database — PostgreSQL на Railway, SQLite локально
 import dj_database_url
