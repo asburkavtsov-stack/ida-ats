@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import CandidateCardModal from '../components/CandidateCardModal';
 import BulkActionBar from '../components/BulkActionBar';
 import { KanbanSkeleton } from '../components/SkeletonComponents';
+import { useKanbanSocket } from '../hooks/useKanbanSocket';
 
 const STAGE_COLORS = [
   '#7a1a2e','#b03050','#8a3a5a','#c2185b','#e8a0b0',
@@ -453,6 +454,20 @@ function Kanban({ searchQuery = '' }) {
 
   const handleBulkClear = useCallback(() => setSelectedIds([]), []);
   const handleBulkDone  = useCallback(() => { loadCandidates(); setSelectedIds([]); }, [loadCandidates]);
+
+  const handleExternalMove = useCallback(({ candidateId, stageId, movedBy }) => {
+    setCandidates(prev => {
+      // Ігноруємо якщо цей кандидат вже на цьому стейджі (власний drag)
+      const c = prev.find(x => x.id === candidateId);
+      if (!c) return prev;
+      if ((c.stage_id ?? c.stage) === stageId) return prev;
+      return prev.map(x =>
+        x.id === candidateId ? { ...x, stage: stageId, stage_id: stageId } : x
+      );
+    });
+  }, []);
+
+  useKanbanSocket(currentVacancyId, handleExternalMove);
 
   // Стабільні callbacks для колонок — не змінюються при ре-рендері
   const columnMoveHandlers = useMemo(() =>
