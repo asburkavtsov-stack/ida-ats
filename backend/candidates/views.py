@@ -457,10 +457,13 @@ class CandidateViewSet(viewsets.ModelViewSet):
             from channels.layers import get_channel_layer
 
             channel_layer = get_channel_layer()
+            logger.info(f'WS broadcast: channel_layer={channel_layer!r}')
             if channel_layer:
                 vacancy_id = candidate.vacancy_id or 'org'
+                group_name = f'kanban_{vacancy_id}'
+                logger.info(f'WS broadcast: sending to group={group_name}, candidate_id={candidate.id}, stage_id={new_stage.id}')
                 async_to_sync(channel_layer.group_send)(
-                    f'kanban_{vacancy_id}',
+                    group_name,
                     {
                         'type':         'kanban.move',
                         'candidate_id': candidate.id,
@@ -468,6 +471,7 @@ class CandidateViewSet(viewsets.ModelViewSet):
                         'moved_by':     request.user.username,
                     }
                 )
+                logger.info('WS broadcast: group_send completed without error')
         except Exception as ws_err:
             # WebSocket broadcast — некритична операція, не ламаємо основний response
             logger.warning(f'WS broadcast failed: {ws_err}')

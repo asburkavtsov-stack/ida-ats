@@ -1,4 +1,5 @@
 import json
+import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from rest_framework_simplejwt.tokens import UntypedToken
@@ -6,6 +7,7 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class KanbanConsumer(AsyncWebsocketConsumer):
@@ -21,9 +23,11 @@ class KanbanConsumer(AsyncWebsocketConsumer):
 
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
+        logger.info(f'WS connect: group={self.group_name}, channel={self.channel_name}')
 
     async def disconnect(self, close_code):
         if hasattr(self, 'group_name'):
+            logger.info(f'WS disconnect: group={self.group_name}, channel={self.channel_name}, code={close_code}')
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def receive(self, text_data):
@@ -38,6 +42,7 @@ class KanbanConsumer(AsyncWebsocketConsumer):
     # ── Обробник broadcast-повідомлень від сервера ────────────────────────────
     async def kanban_move(self, event):
         """Отримує broadcast і надсилає клієнту."""
+        logger.info(f'WS kanban_move received: group={self.group_name}, event={event}')
         await self.send(text_data=json.dumps({
             'type':         'candidate_moved',
             'candidate_id': event['candidate_id'],
