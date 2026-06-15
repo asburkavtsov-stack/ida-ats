@@ -74,6 +74,13 @@ if _REDIS_URL:
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
             'CONFIG': {
                 'hosts': [_REDIS_URL],
+                # Railway Redis проксі рве idle TCP-з'єднання ~60с.
+                # socket_keepalive тримає з'єднання живим TCP keepalive-пакетами.
+                # retry_on_timeout — автоматично перепідключається після таймауту.
+                'socket_keepalive': True,
+                'retry_on_timeout': True,
+                'socket_connect_timeout': 5,
+                'socket_timeout': 5,
             },
         },
     }
