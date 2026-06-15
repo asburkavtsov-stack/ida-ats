@@ -73,14 +73,16 @@ if _REDIS_URL:
         'default': {
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
             'CONFIG': {
-                'hosts': [_REDIS_URL],
-                # Railway Redis проксі рве idle TCP-з'єднання ~60с.
-                # socket_keepalive тримає з'єднання живим TCP keepalive-пакетами.
-                # retry_on_timeout — автоматично перепідключається після таймауту.
-                'socket_keepalive': True,
-                'retry_on_timeout': True,
-                'socket_connect_timeout': 5,
-                'socket_timeout': 5,
+                # hosts приймає dict з параметрами redis-py (socket_keepalive тощо)
+                'hosts': [{
+                    'address': _REDIS_URL,
+                    'socket_keepalive': True,
+                    'socket_connect_timeout': 5,
+                    'socket_timeout': 5,
+                    'retry_on_timeout': True,
+                }],
+                # Heartbeat кожні 30с — не дає Railway proxy закрити idle-з'єднання
+                'heartbeat_interval': 30,
             },
         },
     }
