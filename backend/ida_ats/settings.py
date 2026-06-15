@@ -73,16 +73,10 @@ if _REDIS_URL:
         'default': {
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
             'CONFIG': {
-                # hosts приймає dict з параметрами redis-py (socket_keepalive тощо)
-                'hosts': [{
-                    'address': _REDIS_URL,
-                    'socket_keepalive': True,
-                    'socket_connect_timeout': 5,
-                    'socket_timeout': 5,
-                    'retry_on_timeout': True,
-                }],
-                # Heartbeat кожні 30с — не дає Railway proxy закрити idle-з'єднання
-                'heartbeat_interval': 30,
+                # channels_redis==4.2.0 приймає hosts як список URL-рядків.
+                # Ніяких socket_keepalive / retry_on_timeout тут бути не може —
+                # RedisChannelLayer.__init__ їх не підтримує.
+                'hosts': [_REDIS_URL],
             },
         },
     }
