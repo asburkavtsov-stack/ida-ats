@@ -66,11 +66,24 @@ WSGI_APPLICATION = 'ida_ats.wsgi.application'
 
 ASGI_APPLICATION = 'ida_ats.asgi.application'
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
-    },
-}
+_REDIS_URL = os.getenv('REDIS_URL')
+
+if _REDIS_URL:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [_REDIS_URL],
+            },
+        },
+    }
+else:
+    # Локальна розробка без Redis — InMemory (тільки 1 процес!)
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
 
 # Database — PostgreSQL на Railway, SQLite локально
 import dj_database_url
