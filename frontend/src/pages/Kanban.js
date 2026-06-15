@@ -456,14 +456,18 @@ function Kanban({ searchQuery = '' }) {
   const handleBulkDone  = useCallback(() => { loadCandidates(); setSelectedIds([]); }, [loadCandidates]);
 
   const handleExternalMove = useCallback(({ candidateId, stageId, movedBy }) => {
+    console.log('[Kanban] handleExternalMove called:', { candidateId, stageId, movedBy });
     setCandidates(prev => {
       // Ігноруємо якщо цей кандидат вже на цьому стейджі (власний drag)
       const c = prev.find(x => x.id === candidateId);
+      console.log('[Kanban] found candidate in local state:', c, 'current stage:', c ? (c.stage_id ?? c.stage) : 'N/A', 'target stage:', stageId);
       if (!c) return prev;
       if ((c.stage_id ?? c.stage) === stageId) return prev;
-      return prev.map(x =>
+      const next = prev.map(x =>
         x.id === candidateId ? { ...x, stage: stageId, stage_id: stageId } : x
       );
+      console.log('[Kanban] candidates updated, new array reference created');
+      return next;
     });
   }, []);
 

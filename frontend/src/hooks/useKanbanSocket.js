@@ -33,16 +33,26 @@ export function useKanbanSocket(vacancyId, onMove) {
     };
 
     ws.onmessage = (event) => {
+      console.log('[KanbanSocket] raw message:', event.data);
       try {
         const data = JSON.parse(event.data);
+        console.log('[KanbanSocket] parsed:', data);
         if (data.type === 'candidate_moved') {
+          console.log('[KanbanSocket] calling onMove with', {
+            candidateId: data.candidate_id,
+            stageId:     data.stage_id,
+            movedBy:     data.moved_by,
+          });
           onMoveRef.current?.({
             candidateId: data.candidate_id,
             stageId:     data.stage_id,
             movedBy:     data.moved_by,
           });
+          console.log('[KanbanSocket] onMove called successfully');
         }
-      } catch (_) {}
+      } catch (err) {
+        console.error('[KanbanSocket] onmessage error:', err);
+      }
     };
 
     ws.onclose = (event) => {
