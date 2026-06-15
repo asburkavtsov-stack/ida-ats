@@ -459,18 +459,22 @@ class CandidateViewSet(viewsets.ModelViewSet):
             channel_layer = get_channel_layer()
             logger.info(f'WS broadcast: channel_layer={channel_layer!r}')
             if channel_layer:
-                vacancy_id = candidate.vacancy_id or 'org'
-                group_name = f'kanban_{vacancy_id}'
-                logger.info(f'WS broadcast: sending to group={group_name}, candidate_id={candidate.id}, stage_id={new_stage.id}')
-                async_to_sync(channel_layer.group_send)(
-                    group_name,
-                    {
-                        'type':         'kanban.move',
-                        'candidate_id': candidate.id,
-                        'stage_id':     new_stage.id,
-                        'moved_by':     request.user.username,
-                    }
-                )
+                message = {
+                    'type':         'kanban.move',
+                    'candidate_id': candidate.id,
+                    'stage_id':     new_stage.id,
+                    'moved_by':     request.user.username,
+                }
+                # Шлемо і в org-дошку (загальний шаблон), і в дошку конкретної
+                # вакансії (якщо кандидат прив'язаний до вакансії) — щоб
+                # оновлення дійшло незалежно від того, яку дошку дивиться HR.
+                groups = {'kanban_org'}
+                if candidate.vacancy_id:
+                    groups.add(f'kanban_{candidate.vacancy_id}')
+
+                for group_name in groups:
+                    logger.info(f'WS broadcast: sending to group={group_name}, candidate_id={candidate.id}, stage_id={new_stage.id}')
+                    async_to_sync(channel_layer.group_send)(group_name, message)
                 logger.info('WS broadcast: group_send completed without error')
         except Exception as ws_err:
             # WebSocket broadcast — некритична операція, не ламаємо основний response
