@@ -73,10 +73,16 @@ if _REDIS_URL:
         'default': {
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
             'CONFIG': {
-                'hosts': [_REDIS_URL],
-                # Перевіряє живість з'єднання кожні 30 сек —
-                # Railway proxy вбиває idle після ~60с, тому 30с достатньо.
-                'health_check_interval': 30,
+                # hosts як dict — всі extra kwargs передаються в ConnectionPool.from_url().
+                # socket_keepalive=True не дає Railway proxy рвати idle TCP-з'єднання.
+                # socket_connect_timeout і socket_timeout захищають від зависань.
+                'hosts': [{
+                    'address': _REDIS_URL,
+                    'socket_connect_timeout': 10,
+                    'socket_timeout': 30,
+                    'socket_keepalive': True,
+                    'retry_on_timeout': True,
+                }],
                 'capacity': 500,
                 'expiry': 60,
             },
