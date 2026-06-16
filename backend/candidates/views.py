@@ -466,18 +466,18 @@ class CandidateViewSet(viewsets.ModelViewSet):
                     'stage_id':     new_stage.id,
                     'moved_by':     request.user.username,
                 }
-                # Якщо кандидат прив'язаний до вакансії — шлемо в її групу,
-                # інакше в org-групу (загальна дошка без фільтра вакансії).
-                group_name = (
-                    f'kanban_{candidate.vacancy_id}'
-                    if candidate.vacancy_id
-                    else 'kanban_org'
-                )
-                logger.info(
-                    f'WS broadcast: group={group_name}, '
-                    f'candidate_id={candidate.id}, stage_id={new_stage.id}'
-                )
-                async_to_sync(channel_layer.group_send)(group_name, message)
+                # Шлемо в обидві групи:
+                # 1. kanban_{vacancy_id} — для тих хто дивиться конкретну вакансію
+                # 2. kanban_org — для тих хто дивиться загальну org-дошку
+                groups = ['kanban_org']
+                if candidate.vacancy_id:
+                    groups.append(f'kanban_{candidate.vacancy_id}')
+                for group_name in groups:
+                    logger.info(
+                        f'WS broadcast: group={group_name}, '
+                        f'candidate_id={candidate.id}, stage_id={new_stage.id}'
+                    )
+                    async_to_sync(channel_layer.group_send)(group_name, message)
                 logger.info('WS broadcast: group_send completed without error')
         except Exception as ws_err:
             # WebSocket broadcast — некритична операція, не ламаємо основний response
