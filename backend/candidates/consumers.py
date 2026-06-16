@@ -18,10 +18,9 @@ class KanbanConsumer(AsyncWebsocketConsumer):
         # Авторизація через JWT у query params
         token = self._get_token_from_scope()
         if not token or not await self._authenticate(token):
-            # ВАЖЛИВО: спочатку accept(), потім close() —
-            # Django Channels не може закрити з'єднання до handshake
-            await self.accept()
-            await self.close(code=4001)
+            # Закриваємо без accept() — дає чистий reject (не reconnect-loop)
+            logger.warning(f'WS auth failed: group={self.group_name}')
+            await self.close()
             return
 
         await self.channel_layer.group_add(self.group_name, self.channel_name)
