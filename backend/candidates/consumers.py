@@ -12,12 +12,15 @@ logger = logging.getLogger(__name__)
 
 class KanbanConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.vacancy_id = self.scope['url_route']['kwargs']['vacancy_id']
+        self.vacancy_id = self.scope['url_route']['kwargs'].get('vacancy_id', 'org')
         self.group_name = f'kanban_{self.vacancy_id}'
 
         # Авторизація через JWT у query params
         token = self._get_token_from_scope()
         if not token or not await self._authenticate(token):
+            # ВАЖЛИВО: спочатку accept(), потім close() —
+            # Django Channels не може закрити з'єднання до handshake
+            await self.accept()
             await self.close(code=4001)
             return
 
