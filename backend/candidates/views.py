@@ -34,6 +34,7 @@ from .serializers import (
 from .pagination import StandardPagination
 from .permissions import IsSuperAdmin, IsOrgMember, IsOrgAdmin
 from .services import CandidateService, EmailService, AnalyticsService
+from .services.candidate_service import parse_advanced_search
 from .utils.export_service import ExportService, FullReportExportService
 from .utils.context_processors import (
     get_user_profile, get_user_organization, get_user_role,
@@ -352,6 +353,7 @@ class CandidateViewSet(viewsets.ModelViewSet):
     pagination_class = StandardPagination
 
     def get_queryset(self):
+        q = self.request.query_params.get('q', '').strip()
         filters = {
             'organization_id': self.request.query_params.get('organization'),
             'vacancy_id': self.request.query_params.get('vacancy'),
@@ -363,6 +365,8 @@ class CandidateViewSet(viewsets.ModelViewSet):
             'search': self.request.query_params.get('search'),
             'tag_ids': [int(t) for t in self.request.query_params.get('tags', '').split(',') if t.isdigit()]
             if self.request.query_params.get('tags') else None,
+            # Advanced search: q= перекриває search= якщо переданий
+            'advanced': parse_advanced_search(q) if q else None,
         }
         qs = CandidateService.get_queryset_for_user(self.request.user, filters)
         return CandidateService.apply_filters(qs, filters)
@@ -585,12 +589,14 @@ class CandidateExportCSVView(APIView):
                      'rejected': 'Відмова'}
 
     def get(self, request):
+        q = request.query_params.get('q', '').strip()
         filters = {'organization_id': request.query_params.get('organization'),
                    'vacancy_id': request.query_params.get('vacancy'),
                    'status': request.query_params.get('status'), 'source': request.query_params.get('source'),
                    'search': request.query_params.get('search'),
                    'tag_ids': [int(t) for t in request.query_params.get('tags', '').split(',') if t.isdigit()]
-                   if request.query_params.get('tags') else None}
+                   if request.query_params.get('tags') else None,
+                   'advanced': parse_advanced_search(q) if q else None}
         qs = CandidateService.get_queryset_for_user(request.user, filters)
         qs = CandidateService.apply_filters(qs, filters)
 
