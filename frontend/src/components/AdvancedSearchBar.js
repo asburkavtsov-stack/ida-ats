@@ -260,7 +260,7 @@ export default function AdvancedSearchBar({ value = '', onChange, isMobile, plac
     setInputVal(raw);
 
     // Знаходимо нові токени в рядку
-    const { tokens: newTokens, text: newText } = parseQuery(value + ' ' + raw);
+    const { tokens: newTokens } = parseQuery(value + ' ' + raw);
 
     if (newTokens.length > tokens.length) {
       // Новий токен розпізнано → додаємо до повного query і чистимо input
