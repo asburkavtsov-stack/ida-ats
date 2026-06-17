@@ -203,7 +203,7 @@ function Candidates({ searchQuery = '' }) {
       else                       params.set('status', filter);
     }
     if (sourceFilter !== 'all') params.set('source', sourceFilter);
-    if (searchQuery)             params.set('search', searchQuery);
+    if (searchQuery)             params.set('q', searchQuery);
     if (mineFilter)              params.set('mine',   'true');
     if (tagFilter.length > 0)   params.set('tags',   tagFilter.join(','));
 
@@ -238,7 +238,7 @@ function Candidates({ searchQuery = '' }) {
       const params = new URLSearchParams();
       if (filter !== 'all')       params.set('status', filter);
       if (sourceFilter !== 'all') params.set('source', sourceFilter);
-      if (searchQuery)            params.set('search', searchQuery);
+      if (searchQuery)            params.set('q', searchQuery);
       if (tagFilter.length > 0)  params.set('tags',   tagFilter.join(','));
       const response = await axios.get(`/api/candidates/export/?${params.toString()}`, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });

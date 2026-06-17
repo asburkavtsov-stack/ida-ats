@@ -325,7 +325,7 @@ function Kanban({ searchQuery = '' }) {
     try {
       const params = new URLSearchParams();
       params.set('page_size', '200');
-      if (filters.search)  params.set('search',     filters.search);
+      if (filters.search)  params.set('q',          filters.search);
       if (filters.vacancy) params.set('vacancy',     filters.vacancy);
       if (filters.hr)      params.set('assigned_to', filters.hr);
       if (filters.mine)    params.set('mine',        'true');

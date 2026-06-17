@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AdvancedSearchBar from './AdvancedSearchBar';
 
 const pageTitles = {
   dashboard:       'Дашборд',
@@ -28,12 +29,11 @@ function Topbar({ currentPage, onAddCandidate, onSearch }) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const handleSearch = e => {
-    setQuery(e.target.value);
-    onSearch(e.target.value);
+  const handleSearch = (val) => {
+    setQuery(val);
+    onSearch(val);
   };
 
-  // Перевіряємо, чи потрібно показувати пошук та кнопку
   const showSearchAndAdd = PAGES_WITH_SEARCH_AND_ADD.includes(currentPage);
 
   return (
@@ -54,39 +54,14 @@ function Topbar({ currentPage, onAddCandidate, onSearch }) {
 
       <div style={{ flex: 1 }} />
 
-      {/* Пошук - показуємо тільки на потрібних сторінках */}
       {showSearchAndAdd && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '8px',
-          background: 'var(--bg)', border: '1px solid var(--border)',
-          borderRadius: '8px', padding: isMobile ? '6px 10px' : '7px 14px',
-          width: isMobile ? '140px' : '260px',
-          transition: 'width 0.2s',
-        }}>
-          <span aria-hidden="true" style={{ color: 'var(--muted)' }}>🔍</span>
-          <input
-            value={query}
-            onChange={handleSearch}
-            placeholder={isMobile ? 'Пошук...' : 'Пошук кандидатів...'}
-            style={{
-              border: 'none', background: 'transparent', outline: 'none',
-              fontSize: '0.82rem', fontFamily: 'DM Sans', width: '100%',
-              color: 'var(--text)',
-            }}
-          />
-          {query && (
-            <button
-              onClick={() => { setQuery(''); onSearch(''); }}
-              aria-label="Очистити пошук"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '0.8rem' }}
-            >
-              <span aria-hidden="true">✕</span>
-            </button>
-          )}
-        </div>
+        <AdvancedSearchBar
+          value={query}
+          onChange={handleSearch}
+          isMobile={isMobile}
+        />
       )}
 
-      {/* Кнопка додавання - показуємо тільки на потрібних сторінках */}
       {showSearchAndAdd && (
         <button
           onClick={onAddCandidate}
