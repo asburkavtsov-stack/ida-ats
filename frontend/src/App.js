@@ -45,7 +45,6 @@ function App() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Мобайл детект
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768);
     check();
@@ -53,7 +52,6 @@ function App() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // PWA оновлення
   useEffect(() => {
     const handler = () => setPwaUpdateAvailable(true);
     window.addEventListener('pwa-update-available', handler);
@@ -66,6 +64,7 @@ function App() {
         const role = res.data.role;
         setUserRole(role);
         if (role === 'superadmin') setCurrentPage('admin');
+        else if (role === 'moderator') setCurrentPage('candidates');
         else setCurrentPage('dashboard');
       })
       .catch(() => {});
@@ -248,12 +247,55 @@ function App() {
     );
   }
 
+  // ── Moderator ───────────────────────────────────────────────────────────────
+  // Модератор: кандидати, вакансії, blacklist, audit log, email templates, профіль.
+  // Без: dashboard, kanban, org_settings, billing, integrations, users.
+  if (userRole === 'moderator') {
+    const MODERATOR_PAGES = new Set([
+      'candidates', 'vacancies', 'audit_log', 'email_templates', 'profile',
+    ]);
+
+    const renderModeratorPage = () => {
+      switch (currentPage) {
+        case 'candidates':      return <Candidates key={refreshKey} searchQuery={debouncedSearch} moderatorMode />;
+        case 'vacancies':       return <Vacancies moderatorMode />;
+        case 'audit_log':       return <AuditLog />;
+        case 'email_templates': return <EmailTemplates />;
+        case 'profile':         return <Profile />;
+        default:                return <Candidates key={refreshKey} searchQuery={debouncedSearch} moderatorMode />;
+      }
+    };
+
+    return (
+      <div className="app-layout">
+        <Sidebar
+          currentPage={currentPage}
+          onNavigate={p => MODERATOR_PAGES.has(p) && setCurrentPage(p)}
+          onLogout={handleLogout}
+          userRole={userRole}
+        />
+        <div className="main">
+          <Topbar
+            currentPage={currentPage}
+            onAddCandidate={null}       // Модератор не може додавати кандидатів
+            onSearch={setSearchQuery}
+          />
+          <div className="content" style={isMobile ? { paddingBottom: '64px' } : {}}>
+            <ErrorBoundary pageName={PAGE_NAMES[currentPage] || 'Кандидати'}>
+              {renderModeratorPage()}
+            </ErrorBoundary>
+          </div>
+        </div>
+        {toaster}
+      </div>
+    );
+  }
+
   // ── Admin / HR ──────────────────────────────────────────────────────────────
   return (
     <div className="app-layout">
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} onLogout={handleLogout} userRole={userRole} />
       <div className="main">
-        {/* PWA оновлення banner */}
         {pwaUpdateAvailable && (
           <div style={{
             background: 'var(--accent)', color: '#fff',
