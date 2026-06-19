@@ -23,6 +23,7 @@ class UserProfile(models.Model):
         ('superadmin', 'Супер-адмін'),
         ('admin', 'Адмін організації'),
         ('hr', 'HR менеджер'),
+        ('moderator', 'Модератор'),  # ← НОВА РОЛЬ
     ]
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     organization = models.ForeignKey(Organization, on_delete=models.SET_NULL, null=True, blank=True)
@@ -130,6 +131,15 @@ class Vacancy(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # ── Модерація ────────────────────────────────────────────────────────────────
+    is_blocked = models.BooleanField(default=False, help_text='Вакансія заблокована модератором')
+    blocked_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='blocked_vacancies',
+    )
+    blocked_at = models.DateTimeField(null=True, blank=True)
+    block_reason = models.TextField(blank=True)
+
     published_rabota_ua = models.BooleanField(default=False)
     rabota_ua_vacancy_id = models.CharField(max_length=50, blank=True)
     published_at_rabota_ua = models.DateTimeField(null=True, blank=True)
@@ -213,6 +223,15 @@ class Candidate(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_candidates')
     tags = models.ManyToManyField(Tag, blank=True, related_name='candidates')
+
+    # ── Модерація ────────────────────────────────────────────────────────────────
+    is_blocked = models.BooleanField(default=False, help_text='Кандидат заблокований модератором')
+    blocked_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='blocked_candidates',
+    )
+    blocked_at = models.DateTimeField(null=True, blank=True)
+    block_reason = models.TextField(blank=True)
 
     # ── GDPR ────────────────────────────────────────────────────────────────────
     gdpr_consent         = models.BooleanField(default=False, help_text='Кандидат надав згоду на обробку персональних даних')
@@ -303,7 +322,6 @@ class Candidate(models.Model):
         self.gdpr_consent_text = consent_text
         self.gdpr_consent_ip   = ip_address
         self.gdpr_withdraw_date = None
-        # Розраховуємо дату видалення з налаштувань організації
         retention_days = 365
         if self.organization:
             try:
@@ -321,6 +339,36 @@ class Candidate(models.Model):
         self.gdpr_consent       = False
         self.gdpr_withdraw_date = timezone.now()
         self.save(update_fields=['gdpr_consent', 'gdpr_withdraw_date'])
+
+
+# ─── ModeratorNote ────────────────────────────────────────────────────────────
+
+class ModeratorNote(models.Model):
+    """Нотатка модератора/підтримки до кандидата або вакансії."""
+    candidate = models.ForeignKey(
+        Candidate, on_delete=models.CASCADE,
+        related_name='moderator_notes', null=True, blank=True,
+    )
+    vacancy = models.ForeignKey(
+        Vacancy, on_delete=models.CASCADE,
+        related_name='moderator_notes', null=True, blank=True,
+    )
+    author = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='moderator_notes',
+    )
+    text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Нотатка модератора'
+        verbose_name_plural = 'Нотатки модераторів'
+
+    def __str__(self):
+        target = f"кандидат #{self.candidate_id}" if self.candidate_id else f"вакансія #{self.vacancy_id}"
+        return f"[Модератор] {self.author} → {target}"
 
 
 REJECTION_REASON_CHOICES = [
@@ -700,6 +748,8 @@ class AuditLog(models.Model):
         ('export',        'Експорт'),
         ('access_grant',  'Надання доступу'),
         ('access_revoke', 'Відкликання доступу'),
+        ('block',         'Блокування'),     # ← НОВІ ДІЇ
+        ('unblock',       'Розблокування'),  # ← НОВІ ДІЇ
     ]
 
     user = models.ForeignKey(
@@ -924,116 +974,6 @@ class GDPRSettings(models.Model):
         return f"GDPR [{self.organization.name}] retention={self.retention_days}d"
 
 # ─── Skills / Tasks ───────────────────────────────────────────────────────────
-
-class Task(models.Model):
-    TYPE_CHOICES = [
-        ('code',   'Код (авто-перевірка)'),
-        ('text',   'Текстова відповідь'),
-        ('quiz',   'Тест з варіантами'),
-        ('file',   'Завантаження файлу'),
-        ('link',   'Посилання (GitHub, Figma)'),
-    ]
-    LANGUAGE_CHOICES = [
-        ('python','Python'),('javascript','JavaScript'),('typescript','TypeScript'),
-        ('java','Java'),('csharp','C#'),('cpp','C++'),('go','Go'),('rust','Rust'),
-        ('sql','SQL'),('other','Інше'),
-    ]
-
-    organization     = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='tasks')
-    vacancy          = models.ForeignKey('Vacancy', on_delete=models.SET_NULL, null=True, blank=True, related_name='tasks')
-    title            = models.CharField(max_length=200)
-    description      = models.TextField()
-    task_type        = models.CharField(max_length=20, choices=TYPE_CHOICES, default='text')
-    language         = models.CharField(max_length=20, choices=LANGUAGE_CHOICES, blank=True)
-    starter_code     = models.TextField(blank=True)
-    solution_code    = models.TextField(blank=True)
-    test_cases       = models.JSONField(default=list)
-    time_limit_sec   = models.PositiveIntegerField(default=10)
-    memory_limit_mb  = models.PositiveIntegerField(default=128)
-    quiz_options     = models.JSONField(default=list)
-    time_limit_minutes = models.PositiveIntegerField(default=60)
-    max_score        = models.PositiveIntegerField(default=100)
-    is_active        = models.BooleanField(default=True)
-    created_by       = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    created_at       = models.DateTimeField(auto_now_add=True)
-    updated_at       = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = 'Завдання'
-        verbose_name_plural = 'Завдання'
-        ordering = ['-created_at']
-
-    def __str__(self):
-        return f"[{self.get_task_type_display()}] {self.title}"
-
-
-class TaskAssignment(models.Model):
-    STATUS_CHOICES = [
-        ('pending',     'Очікує'),
-        ('sent',        'Надіслано'),
-        ('in_progress', 'Виконується'),
-        ('submitted',   'Здано'),
-        ('checking',    'Перевіряється'),
-        ('passed',      'Пройдено'),
-        ('failed',      'Не пройдено'),
-        ('expired',     'Час вийшов'),
-    ]
-
-    task         = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='assignments')
-    candidate    = models.ForeignKey('Candidate', on_delete=models.CASCADE, related_name='task_assignments')
-    assigned_by  = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_tasks')
-    status       = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    score        = models.PositiveIntegerField(null=True, blank=True)
-    max_score    = models.PositiveIntegerField(default=100)
-    hr_comment   = models.TextField(blank=True)
-    auto_result  = models.JSONField(null=True, blank=True)
-    deadline     = models.DateTimeField(null=True, blank=True)
-    sent_at      = models.DateTimeField(null=True, blank=True)
-    submitted_at = models.DateTimeField(null=True, blank=True)
-    checked_at   = models.DateTimeField(null=True, blank=True)
-    created_at   = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name = 'Видача завдання'
-        verbose_name_plural = 'Видачі завдань'
-        ordering = ['-created_at']
-        unique_together = [('task', 'candidate')]
-
-    def __str__(self):
-        return f"{self.task.title} → {self.candidate}"
-
-    @property
-    def is_expired(self):
-        return (
-            self.deadline and timezone.now() > self.deadline
-            and self.status not in ('submitted','checking','passed','failed')
-        )
-
-    @property
-    def score_percent(self):
-        if self.score is None or not self.max_score:
-            return None
-        return round(self.score / self.max_score * 100)
-
-
-class TaskSubmission(models.Model):
-    assignment       = models.OneToOneField(TaskAssignment, on_delete=models.CASCADE, related_name='submission')
-    text_answer      = models.TextField(blank=True)
-    code_answer      = models.TextField(blank=True)
-    selected_options = models.JSONField(default=list)
-    file_url         = models.URLField(blank=True)
-    link_url         = models.URLField(blank=True)
-    run_result       = models.JSONField(null=True, blank=True)
-    submitted_at     = models.DateTimeField(auto_now_add=True)
-    ip_address       = models.GenericIPAddressField(null=True, blank=True)
-
-    class Meta:
-        verbose_name = 'Відповідь'
-        verbose_name_plural = 'Відповіді'
-
-    def __str__(self):
-        return f"Submission: {self.assignment}"
-
 
 class Task(models.Model):
     """Тестове завдання, яке HR прив'язує до вакансії."""

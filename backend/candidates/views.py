@@ -20,7 +20,7 @@ from .models import (
     SentEmail, Tag, User, UserProfile, Vacancy, VacancyTemplate, Interview,
     BlacklistedOrganization, VacancyStage, StatusHistory, RejectionReason,
     HolidayTheme, PricingConfig, PromoCode, PromoCodeUsage,
-    VacancyAccess, AuditLog,
+    VacancyAccess, AuditLog, ModeratorNote,
 )
 from .serializers import (
     CandidateSerializer, EmailTemplateSerializer, OrganizationSerializer,
@@ -29,10 +29,10 @@ from .serializers import (
     RejectionReasonSerializer,
     HolidayThemeSerializer, HolidayThemeActivateSerializer, PricingConfigSerializer,
     PromoCodeSerializer, PromoCodeVerifySerializer, PromoCodeApplySerializer,
-    VacancyAccessSerializer, AuditLogSerializer,
+    VacancyAccessSerializer, AuditLogSerializer, ModeratorNoteSerializer,
 )
 from .pagination import StandardPagination
-from .permissions import IsSuperAdmin, IsOrgMember, IsOrgAdmin
+from .permissions import IsSuperAdmin, IsOrgMember, IsOrgAdmin, IsModerator
 from .services import CandidateService, EmailService, AnalyticsService
 from .services.candidate_service import parse_advanced_search
 from .utils.export_service import ExportService, FullReportExportService
@@ -78,9 +78,6 @@ class TagViewSet(viewsets.ModelViewSet):
 # ─── VACANCY STAGES (CUSTOM KANBAN COLUMNS) ───────────────────────────────────
 
 class VacancyStageViewSet(viewsets.ModelViewSet):
-    """
-    CRUD для кастомних колонок канбану.
-    """
     serializer_class = VacancyStageSerializer
     permission_classes = [IsAuthenticated, IsOrgMember]
 
@@ -157,7 +154,8 @@ class VacancyViewSet(VacancyJobBoardMixin, viewsets.ModelViewSet):
             org  = user.profile.organization
             if role == 'superadmin':
                 return Vacancy.objects.all()
-            if role == 'admin':
+            if role in ['admin', 'moderator']:
+                # Модератор бачить всі вакансії організації
                 return Vacancy.objects.filter(organization=org)
             # HR — тільки свої (owner) + делеговані
             from django.db.models import Q as DQ
@@ -171,15 +169,62 @@ class VacancyViewSet(VacancyJobBoardMixin, viewsets.ModelViewSet):
             return Vacancy.objects.none()
 
     def perform_create(self, serializer):
+        role = get_user_role(self.request.user)
+        if role == 'moderator':
+            return Response(
+                {'error': 'Модератор не може створювати вакансії'},
+                status=status.HTTP_403_FORBIDDEN
+            )
         try:
             org = self.request.user.profile.organization
             serializer.save(organization=org, owner=self.request.user)
         except Exception:
             serializer.save()
 
+    # ── Блокування вакансії ────────────────────────────────────────────────────
+
+    @action(detail=True, methods=['post'], url_path='block',
+            permission_classes=[IsAuthenticated, IsModerator])
+    def block_vacancy(self, request, pk=None):
+        """Заблокувати вакансію. Доступно модератору, адміну, суперадміну."""
+        vacancy = self.get_object()
+        if vacancy.is_blocked:
+            return Response({'detail': 'Вакансія вже заблокована.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        reason = request.data.get('reason', '').strip()
+        vacancy.is_blocked = True
+        vacancy.blocked_by = request.user
+        vacancy.blocked_at = timezone.now()
+        vacancy.block_reason = reason
+        vacancy.save(update_fields=['is_blocked', 'blocked_by', 'blocked_at', 'block_reason'])
+
+        from .utils.audit import log_action
+        log_action(request.user, 'block', vacancy, {'reason': reason}, request)
+
+        return Response(VacancySerializer(vacancy, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'], url_path='unblock',
+            permission_classes=[IsAuthenticated, IsModerator])
+    def unblock_vacancy(self, request, pk=None):
+        """Розблокувати вакансію."""
+        vacancy = self.get_object()
+        if not vacancy.is_blocked:
+            return Response({'detail': 'Вакансія не заблокована.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        vacancy.is_blocked = False
+        vacancy.blocked_by = None
+        vacancy.blocked_at = None
+        vacancy.block_reason = ''
+        vacancy.save(update_fields=['is_blocked', 'blocked_by', 'blocked_at', 'block_reason'])
+
+        from .utils.audit import log_action
+        log_action(request.user, 'unblock', vacancy, {}, request)
+
+        return Response(VacancySerializer(vacancy, context={'request': request}).data)
+
     @action(detail=True, methods=['post', 'delete'], url_path='access')
     def manage_access(self, request, pk=None):
-        """POST: надати HR доступ до вакансії. DELETE: відкликати.  Body: {user_id: 5}"""
+        """POST: надати HR доступ до вакансії. DELETE: відкликати. Body: {user_id: 5}"""
         vacancy = self.get_object()
         try:
             role = request.user.profile.role
@@ -222,7 +267,6 @@ class VacancyViewSet(VacancyJobBoardMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path='access-list')
     def list_access(self, request, pk=None):
-        """GET: список хто має доступ до вакансії"""
         vacancy = self.get_object()
         accesses = VacancyAccess.objects.filter(vacancy=vacancy).select_related('user', 'granted_by')
         from .serializers import VacancyAccessSerializer
@@ -339,10 +383,63 @@ class BlacklistSerializer(serializers.ModelSerializer):
 class BlacklistViewSet(viewsets.ModelViewSet):
     queryset = BlacklistedOrganization.objects.all().order_by('-created_at')
     serializer_class = BlacklistSerializer
-    permission_classes = [IsAuthenticated, IsSuperAdmin]
+    # Модератор може переглядати та керувати blacklist
+    permission_classes = [IsAuthenticated, IsModerator]
 
     def perform_create(self, serializer):
         serializer.save(added_by=self.request.user)
+
+
+# ─── MODERATOR NOTES ──────────────────────────────────────────────────────────
+
+class ModeratorNoteViewSet(viewsets.ModelViewSet):
+    """
+    CRUD для нотаток модератора.
+    Читати можуть: moderator, admin, superadmin.
+    Створювати/редагувати/видаляти — тільки moderator, admin, superadmin.
+    """
+    serializer_class = ModeratorNoteSerializer
+    permission_classes = [IsAuthenticated, IsModerator]
+    pagination_class = StandardPagination
+
+    def get_queryset(self):
+        role = get_user_role(self.request.user)
+        if role == 'superadmin':
+            qs = ModeratorNote.objects.select_related('author', 'candidate', 'vacancy').all()
+        else:
+            org = get_user_organization(self.request.user)
+            if not org:
+                return ModeratorNote.objects.none()
+            # Нотатки до кандидатів або вакансій цієї організації
+            qs = ModeratorNote.objects.filter(
+                models.Q(candidate__organization=org) |
+                models.Q(vacancy__organization=org)
+            ).select_related('author', 'candidate', 'vacancy')
+
+        # Фільтр по кандидату або вакансії
+        candidate_id = self.request.query_params.get('candidate')
+        vacancy_id = self.request.query_params.get('vacancy')
+        if candidate_id:
+            qs = qs.filter(candidate_id=candidate_id)
+        if vacancy_id:
+            qs = qs.filter(vacancy_id=vacancy_id)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+    def perform_update(self, serializer):
+        # Тільки автор або admin/superadmin може редагувати
+        role = get_user_role(self.request.user)
+        if role not in ['admin', 'superadmin'] and serializer.instance.author != self.request.user:
+            raise serializers.ValidationError({'error': 'Ви можете редагувати тільки свої нотатки.'})
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        role = get_user_role(self.request.user)
+        if role not in ['admin', 'superadmin'] and instance.author != self.request.user:
+            raise serializers.ValidationError({'error': 'Ви можете видаляти тільки свої нотатки.'})
+        instance.delete()
 
 
 # ─── CANDIDATES ───────────────────────────────────────────────────────────────
@@ -365,13 +462,19 @@ class CandidateViewSet(viewsets.ModelViewSet):
             'search': self.request.query_params.get('search'),
             'tag_ids': [int(t) for t in self.request.query_params.get('tags', '').split(',') if t.isdigit()]
             if self.request.query_params.get('tags') else None,
-            # Advanced search: q= перекриває search= якщо переданий
             'advanced': parse_advanced_search(q) if q else None,
         }
+        # Модератор бачить всіх кандидатів організації (як admin)
+        role = get_user_role(self.request.user)
+        if role == 'moderator':
+            filters['_moderator_override'] = True
         qs = CandidateService.get_queryset_for_user(self.request.user, filters)
         return CandidateService.apply_filters(qs, filters)
 
     def perform_create(self, serializer):
+        role = get_user_role(self.request.user)
+        if role == 'moderator':
+            raise serializers.ValidationError({'error': 'Модератор не може створювати кандидатів.'})
         org = get_user_organization(self.request.user)
         tag_ids = serializer.validated_data.pop('tag_ids', [])
 
@@ -392,6 +495,47 @@ class CandidateViewSet(viewsets.ModelViewSet):
         candidate = serializer.save(organization=org)
         if tag_ids:
             candidate.tags.set(tag_ids)
+
+    # ── Блокування кандидата ───────────────────────────────────────────────────
+
+    @action(detail=True, methods=['post'], url_path='block',
+            permission_classes=[IsAuthenticated, IsModerator])
+    def block_candidate(self, request, pk=None):
+        """Заблокувати кандидата. Доступно модератору, адміну, суперадміну."""
+        candidate = self.get_object()
+        if candidate.is_blocked:
+            return Response({'detail': 'Кандидат вже заблокований.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        reason = request.data.get('reason', '').strip()
+        candidate.is_blocked = True
+        candidate.blocked_by = request.user
+        candidate.blocked_at = timezone.now()
+        candidate.block_reason = reason
+        candidate.save(update_fields=['is_blocked', 'blocked_by', 'blocked_at', 'block_reason'])
+
+        from .utils.audit import log_action
+        log_action(request.user, 'block', candidate, {'reason': reason}, request)
+
+        return Response(CandidateSerializer(candidate, context={'request': request}).data)
+
+    @action(detail=True, methods=['post'], url_path='unblock',
+            permission_classes=[IsAuthenticated, IsModerator])
+    def unblock_candidate(self, request, pk=None):
+        """Розблокувати кандидата."""
+        candidate = self.get_object()
+        if not candidate.is_blocked:
+            return Response({'detail': 'Кандидат не заблокований.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        candidate.is_blocked = False
+        candidate.blocked_by = None
+        candidate.blocked_at = None
+        candidate.block_reason = ''
+        candidate.save(update_fields=['is_blocked', 'blocked_by', 'blocked_at', 'block_reason'])
+
+        from .utils.audit import log_action
+        log_action(request.user, 'unblock', candidate, {}, request)
+
+        return Response(CandidateSerializer(candidate, context={'request': request}).data)
 
     @action(detail=True, methods=['patch'], url_path='update_status')
     def update_status(self, request, pk=None):
@@ -417,7 +561,6 @@ class CandidateViewSet(viewsets.ModelViewSet):
         else:
             return Response({'error': 'stage_id or status required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # НОВЕ: якщо переміщуємо в rejected — перевіряємо причину
         rejection_reason = None
         rejection_comment = ''
         if new_stage.system_key == 'rejected':
@@ -454,10 +597,6 @@ class CandidateViewSet(viewsets.ModelViewSet):
             'to': new_stage.name,
         }, request)
 
-        # ── WebSocket broadcast ───────────────────────────────────────────────
-        # Надсилаємо тільки в одну групу: конкретну вакансію або org-шаблон.
-        # Раніше надсилалось в обидві групи одночасно — це спричиняло
-        # дублювання подій на клієнті (канбан-карточка рухалась двічі).
         try:
             from asgiref.sync import async_to_sync
             from channels.layers import get_channel_layer
@@ -470,9 +609,6 @@ class CandidateViewSet(viewsets.ModelViewSet):
                     'stage_id':     new_stage.id,
                     'moved_by':     request.user.username,
                 }
-                # Шлемо в обидві групи:
-                # 1. kanban_{vacancy_id} — для тих хто дивиться конкретну вакансію
-                # 2. kanban_org — для тих хто дивиться загальну org-дошку
                 groups = ['kanban_org']
                 if candidate.vacancy_id:
                     groups.append(f'kanban_{candidate.vacancy_id}')
@@ -484,7 +620,6 @@ class CandidateViewSet(viewsets.ModelViewSet):
                     async_to_sync(channel_layer.group_send)(group_name, message)
                 logger.info('WS broadcast: group_send completed without error')
         except Exception as ws_err:
-            # WebSocket broadcast — некритична операція, не ламаємо основний response
             logger.warning(f'WS broadcast failed: {ws_err}')
 
         return Response(CandidateSerializer(candidate, context={'request': request}).data)
@@ -716,7 +851,6 @@ class InterviewViewSet(viewsets.ModelViewSet):
 # ─── REJECTION REASONS ────────────────────────────────────────────────────────
 
 class RejectionReasonViewSet(viewsets.ModelViewSet):
-    """CRUD для причин відмови"""
     serializer_class = RejectionReasonSerializer
     permission_classes = [IsAuthenticated, IsOrgMember]
 
@@ -733,7 +867,6 @@ class RejectionReasonViewSet(viewsets.ModelViewSet):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def rejection_analytics(request):
-    """Аналітика причин відмов"""
     org = get_user_organization(request.user)
     vacancy_id = request.query_params.get('vacancy')
     date_from = request.query_params.get('date_from')
@@ -776,9 +909,13 @@ def rejection_analytics(request):
 
 # ─── AUDIT LOG ────────────────────────────────────────────────────────────────
 class AuditLogView(generics.ListAPIView):
-    """Перегляд логів дій — тільки для admin/superadmin"""
+    """
+    Перегляд логів дій.
+    Доступно: admin, superadmin, moderator.
+    Модератор бачить повну історію своєї організації.
+    """
     serializer_class = AuditLogSerializer
-    permission_classes = [IsAuthenticated, IsOrgAdmin]
+    permission_classes = [IsAuthenticated, IsModerator]
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_fields = ['action', 'model_name', 'user']
     ordering_fields = ['created_at']
@@ -903,7 +1040,8 @@ class UserListView(viewsets.ViewSet):
 
 class EmailTemplateViewSet(viewsets.ModelViewSet):
     serializer_class = EmailTemplateSerializer
-    permission_classes = [IsAuthenticated, IsOrgMember]
+    # Модератор може переглядати та редагувати email templates
+    permission_classes = [IsAuthenticated, IsModerator]
     pagination_class = StandardPagination
 
     def get_queryset(self):
@@ -1074,7 +1212,6 @@ def time_to_hire_analytics(request):
             'offers_to_date': len(cumulative_times),
         })
 
-    # Воронка по стейджах (для Analytics UI)
     result['funnel'] = AnalyticsService.calculate_funnel_data(qs)
 
     return Response(result)
@@ -1083,7 +1220,6 @@ def time_to_hire_analytics(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
 def monthly_trend_analytics(request):
-    """Динаміка кандидатів по місяцях для графіка Recharts."""
     import traceback as _tb
     try:
         role = get_user_role(request.user)
@@ -1278,23 +1414,14 @@ def export_time_to_hire_excel(request):
     else:
         org = get_user_organization(request.user)
         qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
-
     if request.query_params.get('vacancy'):
         qs = qs.filter(vacancy_id=request.query_params['vacancy'])
     if request.query_params.get('assigned_to'):
         qs = qs.filter(assigned_to_id=request.query_params['assigned_to'])
-
-    time_data = AnalyticsService.calculate_time_to_hire_data(
-        qs, request.query_params.get('date_from'), request.query_params.get('date_to'))
-    statistics = AnalyticsService.calculate_statistics(time_data)
-    filters = {
-        'Організація': org_id if role == 'superadmin' else (org.name if org else None),
-        'Вакансія': request.query_params.get('vacancy'),
-        'HR Менеджер': request.query_params.get('assigned_to'),
-        'Дата від': request.query_params.get('date_from'),
-        'Дата до': request.query_params.get('date_to'),
-    }
-    return ExportService.export_time_to_hire_excel(time_data, statistics, filters)
+    time_data = AnalyticsService.calculate_time_to_hire_data(qs, request.query_params.get('date_from'),
+                                                             request.query_params.get('date_to'))
+    result = AnalyticsService.calculate_statistics(time_data)
+    return ExportService.export_time_to_hire_excel(time_data, result)
 
 
 @api_view(['GET'])
@@ -1309,23 +1436,14 @@ def export_time_to_hire_pdf(request):
     else:
         org = get_user_organization(request.user)
         qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
-
     if request.query_params.get('vacancy'):
         qs = qs.filter(vacancy_id=request.query_params['vacancy'])
     if request.query_params.get('assigned_to'):
         qs = qs.filter(assigned_to_id=request.query_params['assigned_to'])
-
-    time_data = AnalyticsService.calculate_time_to_hire_data(
-        qs, request.query_params.get('date_from'), request.query_params.get('date_to'))
-    statistics = AnalyticsService.calculate_statistics(time_data)
-    filters = {
-        'Організація': org_id if role == 'superadmin' else (org.name if org else None),
-        'Вакансія': request.query_params.get('vacancy'),
-        'HR Менеджер': request.query_params.get('assigned_to'),
-        'Дата від': request.query_params.get('date_from'),
-        'Дата до': request.query_params.get('date_to'),
-    }
-    return ExportService.export_time_to_hire_pdf(time_data, statistics, filters)
+    time_data = AnalyticsService.calculate_time_to_hire_data(qs, request.query_params.get('date_from'),
+                                                             request.query_params.get('date_to'))
+    result = AnalyticsService.calculate_statistics(time_data)
+    return ExportService.export_time_to_hire_pdf(time_data, result)
 
 
 @api_view(['GET'])
@@ -1340,14 +1458,6 @@ def export_hr_effectiveness_excel(request):
     else:
         org = get_user_organization(request.user)
         qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
-
-    if request.query_params.get('date_from'):
-        qs = qs.filter(created_at__date__gte=request.query_params['date_from'])
-    if request.query_params.get('date_to'):
-        qs = qs.filter(created_at__date__lte=request.query_params['date_to'])
-    if request.query_params.get('vacancy'):
-        qs = qs.filter(vacancy_id=request.query_params['vacancy'])
-
     hr_data = AnalyticsService.calculate_hr_effectiveness(qs)
     total_candidates = qs.count()
     total_offers = qs.filter(stage__is_terminal=True).count()
@@ -1356,19 +1466,14 @@ def export_hr_effectiveness_excel(request):
         'total_hr': len(hr_data), 'total_candidates': total_candidates,
         'total_offers': total_offers, 'overall_conversion': overall_conversion,
     }
-    filters = {
-        'Організація': org_id if role == 'superadmin' else (org.name if org else None),
-        'Вакансія': request.query_params.get('vacancy'),
-        'Дата від': request.query_params.get('date_from'),
-        'Дата до': request.query_params.get('date_to'),
-    }
-    return ExportService.export_hr_effectiveness_excel(hr_data, summary, filters)
+    return ExportService.export_hr_effectiveness_excel(hr_data, summary)
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
 def export_hr_effectiveness_pdf(request):
     role = get_user_role(request.user)
+    org = None
     if role == 'superadmin':
         qs = Candidate.objects.all()
         org_id = request.query_params.get('organization')
@@ -1377,7 +1482,6 @@ def export_hr_effectiveness_pdf(request):
     else:
         org = get_user_organization(request.user)
         qs = Candidate.objects.filter(organization=org) if org else Candidate.objects.none()
-
     if request.query_params.get('date_from'):
         qs = qs.filter(created_at__date__gte=request.query_params['date_from'])
     if request.query_params.get('date_to'):
@@ -1394,7 +1498,7 @@ def export_hr_effectiveness_pdf(request):
         'total_offers': total_offers, 'overall_conversion': overall_conversion,
     }
     filters = {
-        'Організація': org_id if role == 'superadmin' else (org.name if org else None),
+        'Організація': request.query_params.get('organization') if role == 'superadmin' else (org.name if org else None),
         'Вакансія': request.query_params.get('vacancy'),
         'Дата від': request.query_params.get('date_from'),
         'Дата до': request.query_params.get('date_to'),
@@ -1551,48 +1655,38 @@ def export_full_report_pdf(request):
 # ==============================================================================
 
 class HolidayThemeViewSet(viewsets.ModelViewSet):
-    """CRUD для тематичних оформлень (тільки супер-адмін)"""
     serializer_class = HolidayThemeSerializer
     permission_classes = [IsAuthenticated, IsSuperAdmin]
     queryset = HolidayTheme.objects.all()
 
     @action(detail=False, methods=['get'], url_path='active', permission_classes=[])
     def get_active(self, request):
-        """Отримати активну тему (публічний ендпоінт)"""
         theme = HolidayTheme.get_active_theme()
         return Response(HolidayThemeSerializer(theme).data)
 
     @action(detail=False, methods=['post'], url_path='activate')
     def activate_theme(self, request):
-        """Активувати тему за ID"""
         serializer = HolidayThemeActivateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         theme_id = serializer.validated_data['theme_id']
         theme = get_object_or_404(HolidayTheme, id=theme_id)
-
         theme.is_active = True
         theme.save()
-
         return Response(HolidayThemeSerializer(theme).data)
 
     @action(detail=False, methods=['post'], url_path='schedule')
     def schedule_themes(self, request):
-        """Автоматичне планування тем за датами"""
         now = timezone.now()
-
         expired = HolidayTheme.objects.filter(end_date__lt=now, is_active=True)
         for theme in expired:
             theme.is_active = False
             theme.save()
-
         to_activate = HolidayTheme.objects.filter(
             start_date__lte=now, end_date__gte=now, is_active=False
         )
         for theme in to_activate:
             theme.is_active = True
             theme.save()
-
         return Response({
             'activated': to_activate.count(),
             'deactivated': expired.count(),
@@ -1605,7 +1699,6 @@ class HolidayThemeViewSet(viewsets.ModelViewSet):
 # ==============================================================================
 
 class PricingConfigViewSet(viewsets.ModelViewSet):
-    """CRUD для конфігурації цін (тільки супер-адмін)"""
     serializer_class = PricingConfigSerializer
     permission_classes = [IsAuthenticated, IsSuperAdmin]
     queryset = PricingConfig.objects.all()
@@ -1614,7 +1707,6 @@ class PricingConfigViewSet(viewsets.ModelViewSet):
 @api_view(['GET'])
 @permission_classes([])
 def public_pricing(request):
-    """Публічний API для отримання цін (без авторизації)"""
     return Response(PricingConfig.get_all_prices())
 
 
@@ -1623,7 +1715,6 @@ def public_pricing(request):
 # ==============================================================================
 
 class PromoCodeViewSet(viewsets.ModelViewSet):
-    """CRUD для промо-кодів (тільки супер-адмін)"""
     serializer_class = PromoCodeSerializer
     permission_classes = [IsAuthenticated, IsSuperAdmin]
     queryset = PromoCode.objects.all()
@@ -1637,131 +1728,86 @@ class PromoCodeViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='verify', permission_classes=[])
     def verify_code(self, request):
-        """Перевірка промо-коду (публічний)"""
         serializer = PromoCodeVerifySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         promo = serializer.validated_data['code']
         is_valid, message = promo.is_valid(plan=request.data.get('plan'))
-
         return Response({
-            'valid': is_valid,
-            'message': message,
-            'discount_type': promo.discount_type,
-            'discount_value': promo.discount_value,
+            'valid': is_valid, 'message': message,
+            'discount_type': promo.discount_type, 'discount_value': promo.discount_value,
             'code': promo.code,
         })
 
     @action(detail=False, methods=['post'], url_path='apply')
     def apply_code(self, request):
-        """Застосувати промо-код (потребує авторизації)"""
         if not request.user.is_authenticated:
             return Response({'error': 'Необхідна авторизація'}, status=status.HTTP_401_UNAUTHORIZED)
-
         serializer = PromoCodeApplySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         promo_code = PromoCode.objects.filter(code__iexact=serializer.validated_data['code']).first()
         if not promo_code:
             return Response({'error': 'Промо-код не знайдено'}, status=status.HTTP_404_NOT_FOUND)
-
-        user_usage_count = PromoCodeUsage.objects.filter(
-            promo_code=promo_code, user=request.user
-        ).count()
-
+        user_usage_count = PromoCodeUsage.objects.filter(promo_code=promo_code, user=request.user).count()
         if user_usage_count >= promo_code.max_uses_per_user:
             return Response({'error': 'Ви вже використали цей промо-код'}, status=status.HTTP_400_BAD_REQUEST)
-
         is_valid, message = promo_code.is_valid(plan=serializer.validated_data['plan'])
         if not is_valid:
             return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
-
         original_price = float(serializer.validated_data['price'])
         final_price = promo_code.apply_discount(original_price)
         discount_amount = original_price - final_price
-
         PromoCodeUsage.objects.create(
             promo_code=promo_code, user=request.user,
             applied_to_plan=serializer.validated_data['plan'],
             original_price=original_price, discount_amount=discount_amount, final_price=final_price,
             ip_address=request.META.get('REMOTE_ADDR'),
         )
-
         promo_code.used_count += 1
         promo_code.save(update_fields=['used_count'])
-
         return Response({
-            'success': True,
-            'original_price': original_price,
-            'discount_amount': float(discount_amount),
-            'final_price': float(final_price),
+            'success': True, 'original_price': original_price,
+            'discount_amount': float(discount_amount), 'final_price': float(final_price),
             'code': promo_code.code,
         })
 
     @action(detail=True, methods=['get'], url_path='stats')
     def usage_stats(self, request, pk=None):
-        """Статистика використання промо-коду"""
         promo = self.get_object()
         usages = promo.usages.select_related('user').order_by('-used_at')
-
         return Response({
             'total_uses': promo.used_count,
             'remaining_uses': promo.max_uses - promo.used_count,
             'recent_usages': [
-                {
-                    'user_email': u.user.email,
-                    'user_name': u.user.get_full_name(),
-                    'plan': u.applied_to_plan,
-                    'discount': float(u.discount_amount),
-                    'used_at': u.used_at,
-                }
+                {'user_email': u.user.email, 'user_name': u.user.get_full_name(),
+                 'plan': u.applied_to_plan, 'discount': float(u.discount_amount), 'used_at': u.used_at}
                 for u in usages[:20]
             ]
         })
 
 
 class RegisterView(APIView):
-    permission_classes = []  # публічний endpoint
+    permission_classes = []
 
     def post(self, request):
         from .serializers import RegisterSerializer
         serializer = RegisterSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
         user, org = serializer.save()
-
-        # Видати JWT одразу після реєстрації
         refresh = RefreshToken.for_user(user)
         return Response({
             'access': str(refresh.access_token),
             'refresh': str(refresh),
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-                'role': 'admin',
-            },
-            'organization': {
-                'id': org.id,
-                'name': org.name,
-                'slug': org.slug,
-            },
+            'user': {'id': user.id, 'username': user.username, 'email': user.email, 'role': 'admin'},
+            'organization': {'id': org.id, 'name': org.name, 'slug': org.slug},
         }, status=status.HTTP_201_CREATED)
+
 
 # ─── D&I Analytics ────────────────────────────────────────────────────────────
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def di_analytics(request):
-    """
-    GET /api/analytics/di/
-    Diversity & Inclusion звіт по воронці.
-
-    Query params:
-        vacancy_id — фільтр по вакансії
-        stage_id   — фільтр по стейджу
-    """
     org = get_user_organization(request.user)
     if not org:
         return Response({'error': 'Організацію не знайдено'}, status=404)
@@ -1775,7 +1821,6 @@ def di_analytics(request):
     total_with_consent = qs.count()
     total_all = Candidate.objects.filter(organization=org).count()
 
-    # Гендерний розподіл
     gender_map = {
         'male': 'Чоловік', 'female': 'Жінка',
         'non_binary': 'Небінарний/а', 'prefer_not': 'Не вказали', 'other': 'Інше', '': 'Не вказали',
@@ -1787,7 +1832,6 @@ def di_analytics(request):
         for r in gender_qs
     ]
 
-    # Вікові групи
     age_map = {'18-24': '18–24', '25-34': '25–34', '35-44': '35–44', '45-54': '45–54', '55+': '55+', 'prefer_not': 'Не вказали', '': 'Не вказали'}
     age_qs = qs.filter(di_age_range__gt='').values('di_age_range').annotate(count=Count('id'))
     age_data = [
@@ -1795,14 +1839,10 @@ def di_analytics(request):
         for r in age_qs
     ]
 
-    # Disability
     disability_yes = qs.filter(di_disability=True).count()
     disability_no  = qs.filter(di_disability=False).count()
-
-    # Veteran
     veteran_yes = qs.filter(di_veteran=True).count()
 
-    # D&I воронка — розподіл по гендеру на кожному стейджі
     funnel_qs = Candidate.objects.filter(organization=org, di_consent=True)\
         .select_related('stage')\
         .values('stage__name', 'stage__color', 'di_gender')\
@@ -1824,7 +1864,6 @@ def di_analytics(request):
         else:
             funnel_stages[stage_name]['other'] += row['count']
 
-    # Конверсія по гендеру (hired/total)
     hired_qs = qs.filter(stage__system_key='offer')
     hired_male   = hired_qs.filter(di_gender='male').count()
     hired_female = hired_qs.filter(di_gender='female').count()
@@ -1833,17 +1872,14 @@ def di_analytics(request):
 
     return Response({
         'summary': {
-            'total_candidates':     total_all,
-            'with_di_consent':      total_with_consent,
-            'consent_rate_pct':     round(total_with_consent / total_all * 100, 1) if total_all else 0,
-            'disability_count':     disability_yes,
-            'veteran_count':        veteran_yes,
+            'total_candidates': total_all, 'with_di_consent': total_with_consent,
+            'consent_rate_pct': round(total_with_consent / total_all * 100, 1) if total_all else 0,
+            'disability_count': disability_yes, 'veteran_count': veteran_yes,
         },
-        'gender':   gender_data,
-        'age':      age_data,
+        'gender': gender_data, 'age': age_data,
         'disability': {'yes': disability_yes, 'no': disability_no},
-        'veteran':    {'yes': veteran_yes},
-        'funnel':   list(funnel_stages.values()),
+        'veteran': {'yes': veteran_yes},
+        'funnel': list(funnel_stages.values()),
         'conversion_by_gender': {
             'male':   {'hired': hired_male,   'total': total_male,   'rate': round(hired_male/total_male*100,1) if total_male else 0},
             'female': {'hired': hired_female, 'total': total_female, 'rate': round(hired_female/total_female*100,1) if total_female else 0},
@@ -1854,11 +1890,6 @@ def di_analytics(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def anonymous_candidate(request, pk):
-    """
-    GET /api/candidates/<pk>/anonymous/
-    Повертає кандидата з прихованими персональними даними.
-    Використовується для анонімного скринінгу на першому етапі.
-    """
     org = get_user_organization(request.user)
     try:
         c = Candidate.objects.get(pk=pk, organization=org)
@@ -1867,7 +1898,7 @@ def anonymous_candidate(request, pk):
 
     return Response({
         'id':           c.id,
-        'code':         f'CAND-{c.id:04d}',       # Анонімний код замість імені
+        'code':         f'CAND-{c.id:04d}',
         'vacancy':      c.vacancy_id,
         'vacancy_title': c.vacancy.title if c.vacancy else None,
         'stage':        c.stage_id,
@@ -1875,10 +1906,11 @@ def anonymous_candidate(request, pk):
         'stage_color':  c.stage.color if c.stage else None,
         'source':       c.source,
         'created_at':   c.created_at,
-        'notes':        '',                        # Нотатки приховані
+        'notes':        '',
         'tags':         [{'id': t.id, 'name': t.name, 'color': t.color} for t in c.tags.all()],
         'status':       c.status,
     })
+
 
 # ─── PREDICTIVE ANALYTICS ─────────────────────────────────────────────────────
 
@@ -1889,20 +1921,6 @@ from collections import defaultdict
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
 def predictive_analytics(request):
-    """
-    Predictive Analytics для вакансій.
-
-    Повертає:
-      - hiring_forecast: прогноз днів до найму (медіана, min/max, Q1/Q3, std)
-      - offer_acceptance_rate: ймовірність прийняття офера (%)
-      - stage_duration: середній час на кожній стадії воронки
-      - by_vacancy: прогноз по кожній вакансії
-      - by_source: ефективність джерел по часу найму
-
-    Query params:
-      vacancy (int)       — фільтр по вакансії
-      organization (int)  — тільки для superadmin
-    """
     role = get_user_role(request.user)
     if role == 'superadmin':
         org_id = request.query_params.get('organization')
@@ -1919,7 +1937,6 @@ def predictive_analytics(request):
     if vacancy_id:
         base_qs = base_qs.filter(vacancy_id=vacancy_id)
 
-    # ── Статистична функція ───────────────────────────────────────────────────
     def _stats(values):
         if not values:
             return None
@@ -1930,21 +1947,14 @@ def predictive_analytics(request):
         q3 = values_sorted[(3 * n) // 4]
         sd = round(stdev(values_sorted), 1) if n >= 2 else 0
         return {
-            'median': round(med, 1),
-            'min': round(min(values_sorted), 1),
-            'max': round(max(values_sorted), 1),
-            'q1': round(q1, 1),
-            'q3': round(q3, 1),
-            'std_dev': sd,
-            'sample_size': n,
-            'forecast_low': round(max(0, med - sd), 1),
-            'forecast_high': round(med + sd, 1),
+            'median': round(med, 1), 'min': round(min(values_sorted), 1),
+            'max': round(max(values_sorted), 1), 'q1': round(q1, 1), 'q3': round(q3, 1),
+            'std_dev': sd, 'sample_size': n,
+            'forecast_low': round(max(0, med - sd), 1), 'forecast_high': round(med + sd, 1),
         }
 
-    # ── 1. Кандидати що дійшли до офера ──────────────────────────────────────
     offer_candidates = (
-        base_qs
-        .filter(stage__system_key='offer')
+        base_qs.filter(stage__system_key='offer')
         .select_related('vacancy', 'stage')
         .prefetch_related('status_history__new_stage')
     )
@@ -1956,7 +1966,6 @@ def predictive_analytics(request):
         history = list(cand.status_history.order_by('changed_at'))
         if not history:
             continue
-
         offer_date = None
         for h in history:
             if h.new_stage and h.new_stage.system_key == 'offer':
@@ -1964,19 +1973,14 @@ def predictive_analytics(request):
                 break
         if not offer_date:
             continue
-
         days_to_hire = (offer_date - cand.created_at).total_seconds() / 86400
         if days_to_hire < 0:
             continue
-
         hire_times.append({
-            'days': round(days_to_hire, 1),
-            'vacancy_id': cand.vacancy_id,
+            'days': round(days_to_hire, 1), 'vacancy_id': cand.vacancy_id,
             'vacancy_title': cand.vacancy.title if cand.vacancy else '—',
             'source': cand.source or 'other',
         })
-
-        # Час на кожній стадії цього кандидата
         prev_time = cand.created_at
         prev_key = 'new'
         for h in history:
@@ -1986,7 +1990,6 @@ def predictive_analytics(request):
             prev_key = (h.new_stage.system_key if h.new_stage else None) or h.new_status
             prev_time = h.changed_at
 
-    # ── 2. Загальний прогноз найму ────────────────────────────────────────────
     all_days = [r['days'] for r in hire_times]
     hire_stats = _stats(all_days)
     n = len(all_days)
@@ -2004,7 +2007,6 @@ def predictive_analytics(request):
         confidence = 'high'
         confidence_label = f'Висока впевненість ({n} закрит. вакансій)'
 
-    # ── 3. Прогноз по вакансіях ───────────────────────────────────────────────
     by_vacancy = defaultdict(list)
     for r in hire_times:
         if r['vacancy_id']:
@@ -2014,25 +2016,14 @@ def predictive_analytics(request):
     for vid, rows in by_vacancy.items():
         s = _stats([r['days'] for r in rows])
         if s:
-            vacancy_forecasts.append({
-                'vacancy_id': vid,
-                'vacancy_title': rows[0]['vacancy_title'],
-                **s,
-            })
+            vacancy_forecasts.append({'vacancy_id': vid, 'vacancy_title': rows[0]['vacancy_title'], **s})
     vacancy_forecasts.sort(key=lambda x: x['median'])
 
-    # ── 4. Ймовірність прийняття офера ───────────────────────────────────────
     total_reached_offer = (
-        base_qs
-        .filter(status_history__new_stage__system_key='offer')
-        .distinct()
-        .count()
+        base_qs.filter(status_history__new_stage__system_key='offer').distinct().count()
     )
     declined_after_offer = (
-        base_qs
-        .filter(status_history__rejection_reason__name__icontains='відмовився від офер')
-        .distinct()
-        .count()
+        base_qs.filter(status_history__rejection_reason__name__icontains='відмовився від офер').distinct().count()
     )
     if total_reached_offer > 0:
         accepted = max(0, total_reached_offer - declined_after_offer)
@@ -2040,7 +2031,6 @@ def predictive_analytics(request):
     else:
         offer_acceptance_rate = None
 
-    # ── 5. Час на кожній стадії воронки ──────────────────────────────────────
     STAGE_ORDER = ['new', 'screening', 'interview', 'offer', 'rejected']
     STAGE_LABELS = {
         'new': 'Новий', 'screening': 'Скринінг',
@@ -2050,13 +2040,8 @@ def predictive_analytics(request):
     for key in STAGE_ORDER:
         s = _stats(stage_times.get(key, []))
         if s:
-            stage_duration_stats.append({
-                'stage_key': key,
-                'stage_label': STAGE_LABELS.get(key, key),
-                **s,
-            })
+            stage_duration_stats.append({'stage_key': key, 'stage_label': STAGE_LABELS.get(key, key), **s})
 
-    # ── 6. По джерелах ───────────────────────────────────────────────────────
     SOURCE_LABELS = {
         'linkedin': 'LinkedIn', 'dou': 'DOU', 'work_ua': 'work.ua',
         'rabota_ua': 'rabota.ua', 'recommendation': 'Рекомендація',
@@ -2070,19 +2055,13 @@ def predictive_analytics(request):
     for src, days_list in by_source.items():
         s = _stats(days_list)
         if s:
-            source_stats.append({
-                'source': src,
-                'source_label': SOURCE_LABELS.get(src, src),
-                **s,
-            })
+            source_stats.append({'source': src, 'source_label': SOURCE_LABELS.get(src, src), **s})
     source_stats.sort(key=lambda x: x['median'])
 
     return Response({
         'hiring_forecast': {
-            'stats': hire_stats,
-            'confidence': confidence,
-            'confidence_label': confidence_label,
-            'sample_size': n,
+            'stats': hire_stats, 'confidence': confidence,
+            'confidence_label': confidence_label, 'sample_size': n,
         },
         'offer_acceptance_rate': offer_acceptance_rate,
         'total_reached_offer': total_reached_offer,

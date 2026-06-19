@@ -11,7 +11,8 @@ from .views import (
     InterviewViewSet, BlacklistViewSet,
     HolidayThemeViewSet, PricingConfigViewSet, PromoCodeViewSet,
     public_pricing, RejectionReasonViewSet, rejection_analytics,
-    AuditLogView, RegisterView, monthly_trend_analytics
+    AuditLogView, RegisterView, monthly_trend_analytics,
+    ModeratorNoteViewSet,  # ← НОВЕ
 )
 from .job_board_views import (
     vacancy_feed_rabota_ua,
@@ -51,11 +52,12 @@ router.register(r'email-templates',   EmailTemplateViewSet,   basename='email-te
 router.register(r'sent-emails',       SentEmailViewSet,       basename='sent-emails')
 router.register(r'tags',              TagViewSet,             basename='tag')
 router.register(r'interviews',        InterviewViewSet,       basename='interview')
-router.register(r'blacklist', BlacklistViewSet, basename='blacklist')
-router.register(r'holiday-themes', HolidayThemeViewSet)
-router.register(r'pricing-config', PricingConfigViewSet)
-router.register(r'promo-codes', PromoCodeViewSet)
+router.register(r'blacklist',         BlacklistViewSet,       basename='blacklist')
+router.register(r'holiday-themes',    HolidayThemeViewSet)
+router.register(r'pricing-config',    PricingConfigViewSet)
+router.register(r'promo-codes',       PromoCodeViewSet)
 router.register(r'rejection-reasons', RejectionReasonViewSet, basename='rejection-reason')
+router.register(r'moderator-notes',   ModeratorNoteViewSet,   basename='moderator-note')  # ← НОВЕ
 
 
 urlpatterns = [
@@ -93,6 +95,14 @@ urlpatterns = [
     path('analytics/predictive/',     predictive_analytics,       name='predictive-analytics'),
 
     path('google-auth-status/', google_auth_status, name='google-auth-status'),
+
+    # ── Moderator actions (block/unblock) — router автоматично генерує:
+    # POST /api/candidates/<id>/block/
+    # POST /api/candidates/<id>/unblock/
+    # POST /api/vacancies/<id>/block/
+    # POST /api/vacancies/<id>/unblock/
+    # GET/POST /api/moderator-notes/
+    # GET/PATCH/DELETE /api/moderator-notes/<id>/
 
     # ── External REST API (авт. по API Key: Authorization: Bearer ida_...) ──
     path('v1/ext/me/',                                  ExtAPIKeyInfoView.as_view(),        name='ext-me'),

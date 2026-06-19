@@ -11,6 +11,7 @@ class IsSuperAdmin(BasePermission):
 
 
 class IsOrgAdmin(BasePermission):
+    """Admin або Superadmin. Модератор НЕ входить — він не управляє організацією."""
     def has_permission(self, request, view):
         role = get_user_role(request.user)
         return role in ['admin', 'superadmin']
@@ -34,9 +35,13 @@ class IsOrgAdmin(BasePermission):
 
 
 class IsOrgMember(BasePermission):
+    """
+    HR, Admin, Superadmin, або Moderator — усі є членами організації
+    і мають базовий доступ до читання даних.
+    """
     def has_permission(self, request, view):
         role = get_user_role(request.user)
-        return role in ['hr', 'admin', 'superadmin']
+        return role in ['hr', 'admin', 'superadmin', 'moderator']
 
     def has_object_permission(self, request, view, obj):
         role = get_user_role(request.user)
@@ -54,14 +59,43 @@ class IsOrgMember(BasePermission):
 
         return False
 
+
+class IsModerator(BasePermission):
+    """
+    Модератор, Admin або Superadmin.
+    Дає доступ до модераційних дій: блокування/розблокування,
+    перегляд усіх кандидатів/вакансій, управління blacklist,
+    audit log, email templates.
+    """
+    def has_permission(self, request, view):
+        role = get_user_role(request.user)
+        return role in ['moderator', 'admin', 'superadmin']
+
+    def has_object_permission(self, request, view, obj):
+        role = get_user_role(request.user)
+
+        if role == 'superadmin':
+            return True
+
+        from candidates.utils.context_processors import get_user_organization
+        user_org = get_user_organization(request.user)
+
+        if hasattr(obj, 'organization'):
+            return obj.organization == user_org
+        elif hasattr(obj, 'candidate') and hasattr(obj.candidate, 'organization'):
+            return obj.candidate.organization == user_org
+
+        return False
+
+
 class IsHROwnerOrAdmin(BasePermission):
     """
     HR бачить/редагує об'єкт лише якщо він owner вакансії або має делегований доступ.
-    Admin/superadmin — повний доступ.
+    Admin/superadmin/moderator — повний доступ.
     """
     def has_object_permission(self, request, view, obj):
         role = get_user_role(request.user)
-        if role in ['admin', 'superadmin']:
+        if role in ['admin', 'superadmin', 'moderator']:
             return True
 
         # Визначаємо вакансію з об'єкта

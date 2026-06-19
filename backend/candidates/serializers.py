@@ -6,7 +6,7 @@ from .models import (
     Organization, StatusHistory, EmailTemplate, SentEmail,
     Tag, Interview, UserProfile, HolidayTheme, PricingConfig,
     PromoCode, PromoCodeUsage, RejectionReason,
-    VacancyAccess, AuditLog, GDPRSettings,
+    VacancyAccess, AuditLog, GDPRSettings, ModeratorNote,
 )
 
 User = get_user_model()
@@ -32,13 +32,15 @@ class VacancySerializer(serializers.ModelSerializer):
     owner_name = serializers.SerializerMethodField()
     salary_min = serializers.SerializerMethodField()
     salary_max = serializers.SerializerMethodField()
+    # Блокування — читання для всіх, хто має доступ до vacancy
+    blocked_by_name = serializers.SerializerMethodField()
 
     def _can_see_salary(self):
         request = self.context.get('request')
         if not request:
             return True
         try:
-            return request.user.profile.role in ['admin', 'superadmin']
+            return request.user.profile.role in ['admin', 'superadmin', 'moderator']
         except Exception:
             return False
 
@@ -54,18 +56,26 @@ class VacancySerializer(serializers.ModelSerializer):
         full = f"{obj.owner.first_name} {obj.owner.last_name}".strip()
         return full or obj.owner.username
 
+    def get_blocked_by_name(self, obj):
+        if not obj.blocked_by:
+            return None
+        full = f"{obj.blocked_by.first_name} {obj.blocked_by.last_name}".strip()
+        return full or obj.blocked_by.username
+
     class Meta:
         model = Vacancy
         fields = [
             'id', 'title', 'department', 'description', 'requirements', 'city',
             'employment_type', 'salary_min', 'salary_max', 'is_active', 'created_at', 'stages',
             'owner', 'owner_name',
+            # Блокування
+            'is_blocked', 'blocked_by', 'blocked_by_name', 'blocked_at', 'block_reason',
             'published_boards', 'published_rabota_ua', 'rabota_ua_vacancy_id', 'published_at_rabota_ua',
             'published_work_ua', 'work_ua_vacancy_id', 'published_at_work_ua',
             'published_dou', 'dou_vacancy_url', 'published_at_dou',
             'published_linkedin', 'linkedin_vacancy_url', 'published_at_linkedin',
         ]
-        read_only_fields = ['published_boards', 'stages', 'owner_name']
+        read_only_fields = ['published_boards', 'stages', 'owner_name', 'blocked_by', 'blocked_by_name', 'blocked_at']
 
 
 class VacancyPublishSerializer(serializers.Serializer):
@@ -200,6 +210,41 @@ class InterviewSerializer(serializers.ModelSerializer):
         return ''
 
 
+# ─── ModeratorNote ────────────────────────────────────────────────────────────
+
+class ModeratorNoteSerializer(serializers.ModelSerializer):
+    author_name = serializers.SerializerMethodField()
+    author_role = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ModeratorNote
+        fields = [
+            'id', 'candidate', 'vacancy',
+            'author', 'author_name', 'author_role',
+            'text', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['author', 'author_name', 'author_role', 'created_at', 'updated_at']
+
+    def get_author_name(self, obj):
+        if not obj.author:
+            return 'Видалений користувач'
+        full = f"{obj.author.first_name} {obj.author.last_name}".strip()
+        return full or obj.author.username
+
+    def get_author_role(self, obj):
+        if not obj.author:
+            return None
+        try:
+            return obj.author.profile.get_role_display()
+        except Exception:
+            return None
+
+    def validate(self, data):
+        if not data.get('candidate') and not data.get('vacancy'):
+            raise serializers.ValidationError('Потрібно вказати candidate або vacancy.')
+        return data
+
+
 # ─── Candidate ────────────────────────────────────────────────────────────────
 class CandidateSerializer(serializers.ModelSerializer):
     vacancy_title = serializers.CharField(source='vacancy.title', read_only=True)
@@ -217,6 +262,10 @@ class CandidateSerializer(serializers.ModelSerializer):
     stage_order = serializers.IntegerField(source='stage.order', read_only=True)
     system_key = serializers.CharField(source='stage.system_key', read_only=True)
     status = serializers.CharField(read_only=True)
+    # Блокування
+    blocked_by_name = serializers.SerializerMethodField()
+    # Нотатки модератора (read-only у складі кандидата)
+    moderator_notes = ModeratorNoteSerializer(many=True, read_only=True)
 
     class Meta:
         model = Candidate
@@ -226,6 +275,10 @@ class CandidateSerializer(serializers.ModelSerializer):
             'source', 'source_display', 'notes', 'created_at',
             'assigned_to', 'assigned_to_name', 'assigned_to_username',
             'status_history', 'tags', 'tag_ids', 'duplicates',
+            # Блокування
+            'is_blocked', 'blocked_by', 'blocked_by_name', 'blocked_at', 'block_reason',
+            # Нотатки модератора
+            'moderator_notes',
             # GDPR
             'gdpr_consent', 'gdpr_consent_date', 'gdpr_withdraw_date',
             'gdpr_delete_after', 'gdpr_anonymized', 'gdpr_anonymized_at',
@@ -242,7 +295,8 @@ class CandidateSerializer(serializers.ModelSerializer):
             role = user.profile.role
         except Exception:
             return ''
-        if role in ['admin', 'superadmin']:
+        # Модератор, адмін, суперадмін — бачать notes
+        if role in ['admin', 'superadmin', 'moderator']:
             return obj.notes
         # HR бачить notes лише якщо він assigned_to або owner вакансії
         if obj.assigned_to == user:
@@ -259,6 +313,12 @@ class CandidateSerializer(serializers.ModelSerializer):
 
     def get_assigned_to_username(self, obj):
         return obj.assigned_to.username if obj.assigned_to else None
+
+    def get_blocked_by_name(self, obj):
+        if not obj.blocked_by:
+            return None
+        full = f"{obj.blocked_by.first_name} {obj.blocked_by.last_name}".strip()
+        return full or obj.blocked_by.username
 
     def get_duplicates(self, obj):
         dups = obj.check_duplicate()
@@ -551,12 +611,10 @@ class RegisterSerializer(serializers.Serializer):
         email = validated_data['email']
         password = validated_data['password']
 
-        # Отримати ліміти з пакету
         pricing = PricingConfig.objects.filter(plan=plan, is_active=True).first()
         max_hr = pricing.max_hr if pricing else 3
         max_vacancies = pricing.max_vacancies if pricing else 10
 
-        # Слаг для організації (унікальний)
         base_slug = slugify(org_name) or 'org'
         slug = base_slug
         counter = 1
@@ -564,7 +622,6 @@ class RegisterSerializer(serializers.Serializer):
             slug = f'{base_slug}-{counter}'
             counter += 1
 
-        # Створення організації
         org = Organization.objects.create(
             name=org_name,
             slug=slug,
@@ -573,17 +630,14 @@ class RegisterSerializer(serializers.Serializer):
             max_vacancies=max_vacancies,
         )
 
-        # Дефолтні етапи для організації
         VacancyStage.create_defaults_for_org(org)
 
-        # Створення користувача
         user = User.objects.create_user(
             username=username,
             email=email,
             password=password,
         )
 
-        # Профіль — адмін організації
         UserProfile.objects.create(
             user=user,
             organization=org,

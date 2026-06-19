@@ -5,6 +5,12 @@ from candidates.utils.context_processors import get_user_organization, get_user_
 
 
 class OrganizationFilterMixin:
+    """
+    Повертає queryset з урахуванням ролі:
+    - superadmin: всі записи (з опціональним фільтром по ?organization=)
+    - admin / moderator: тільки своя організація, але БЕЗ обмежень по owner/assigned_to
+    - hr: тільки своя організація (вакансії додатково фільтруються по owner у views)
+    """
     def get_queryset(self):
         user = self.request.user
         role = get_user_role(user)
@@ -14,7 +20,12 @@ class OrganizationFilterMixin:
             org_id = self.request.query_params.get('organization')
             if org_id:
                 qs = qs.filter(organization_id=org_id)
+        elif role in ['admin', 'moderator']:
+            # Модератор бачить всю організацію, як адмін, але без прав управління
+            org = get_user_organization(user)
+            qs = self.model.objects.filter(organization=org) if org else self.model.objects.none()
         else:
+            # hr та інші — тільки своя організація; додаткові обмеження по owner у views
             org = get_user_organization(user)
             qs = self.model.objects.filter(organization=org) if org else self.model.objects.none()
 
