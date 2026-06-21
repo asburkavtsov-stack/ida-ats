@@ -21,6 +21,7 @@ function Vacancies() {
   const [vacancyLimit, setVacancyLimit] = useState({ current: 0, max: 10 });
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isModerator, setIsModerator] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [accessModalVacancy, setAccessModalVacancy] = useState(null);
   const [jobBoardVacancy, setJobBoardVacancy] = useState(null);
@@ -50,6 +51,7 @@ function Vacancies() {
       // Перевірка ролі - така сама, як в Sidebar
       const role = meRes.data.role;
       setIsAdmin(role === 'admin');
+      setIsModerator(role === 'moderator');
       setUserRole(role);
     } catch (err) {
       console.error('Помилка завантаження:', err);
@@ -117,6 +119,41 @@ function Vacancies() {
         setSelectedVacancy(prev => ({ ...prev, is_active: originalStatus }));
       }
       alert('Помилка оновлення статусу');
+    }
+  };
+
+  // ── Модерація: блокування / розблокування вакансії ────────────────────────
+  const handleToggleBlock = async (e, vacancy) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const isBlocked = vacancy.is_blocked;
+
+    if (!isBlocked) {
+      const reason = window.prompt('Причина блокування вакансії:', '');
+      if (reason === null) return; // користувач скасував
+      try {
+        const res = await axios.post(`/api/vacancies/${vacancy.id}/block/`, { reason });
+        setVacancies(prev => prev.map(v => v.id === vacancy.id ? res.data : v));
+        if (selectedVacancy && selectedVacancy.id === vacancy.id) {
+          setSelectedVacancy(res.data);
+        }
+      } catch (err) {
+        console.error('Помилка блокування вакансії:', err);
+        alert(err.response?.data?.detail || 'Не вдалося заблокувати вакансію');
+      }
+    } else {
+      if (!window.confirm(`Розблокувати вакансію "${vacancy.title}"?`)) return;
+      try {
+        const res = await axios.post(`/api/vacancies/${vacancy.id}/unblock/`);
+        setVacancies(prev => prev.map(v => v.id === vacancy.id ? res.data : v));
+        if (selectedVacancy && selectedVacancy.id === vacancy.id) {
+          setSelectedVacancy(res.data);
+        }
+      } catch (err) {
+        console.error('Помилка розблокування вакансії:', err);
+        alert(err.response?.data?.detail || 'Не вдалося розблокувати вакансію');
+      }
     }
   };
 
@@ -199,30 +236,32 @@ function Vacancies() {
           border: '1px solid var(--border)',
           flexWrap: 'wrap',
         }}>
-          <button
-            onClick={() => {
-              if (selectedVacancy) {
-                setEditModalVacancy(selectedVacancy);
-                setShowEditModal(true);
-              }
-            }}
-            aria-label={`Редагувати вакансію ${selectedVacancy?.title}`}
-            type="button"
-            style={{
-              padding: isMobile ? '10px 14px' : '8px 16px',
-              borderRadius: '8px',
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-              color: 'var(--text)',
-              cursor: 'pointer',
-              fontSize: '0.82rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <span aria-hidden="true">✏️</span> Редагувати
-          </button>
+          {!isModerator && (
+            <button
+              onClick={() => {
+                if (selectedVacancy) {
+                  setEditModalVacancy(selectedVacancy);
+                  setShowEditModal(true);
+                }
+              }}
+              aria-label={`Редагувати вакансію ${selectedVacancy?.title}`}
+              type="button"
+              style={{
+                padding: isMobile ? '10px 14px' : '8px 16px',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                cursor: 'pointer',
+                fontSize: '0.82rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span aria-hidden="true">✏️</span> Редагувати
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={() => setAccessModalVacancy(selectedVacancy)}
@@ -267,45 +306,72 @@ function Vacancies() {
               ) : null;
             })()}
           </button>
-          <button
-            onClick={(e) => handleToggleStatus(e, selectedVacancy)}
-            aria-label={selectedVacancy?.is_active ? `Закрити вакансію ${selectedVacancy?.title}` : `Відкрити вакансію ${selectedVacancy?.title}`}
-            type="button"
-            style={{
-              padding: isMobile ? '10px 14px' : '8px 16px',
-              borderRadius: '8px',
-              border: 'none',
-              background: selectedVacancy?.is_active ? '#fee2e2' : '#dcfce7',
-              color: selectedVacancy?.is_active ? '#dc2626' : '#16a34a',
-              cursor: 'pointer',
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <span aria-hidden="true">{selectedVacancy?.is_active ? '⏸' : '▶'}</span>
-            {selectedVacancy?.is_active ? 'Закрити вакансію' : 'Відкрити вакансію'}
-          </button>
-          <button
-            onClick={(e) => handleDelete(e, selectedVacancy)}
-            aria-label={`Видалити вакансію ${selectedVacancy?.title}`}
-            type="button"
-            style={{
-              padding: isMobile ? '10px 14px' : '8px 16px',
-              borderRadius: '8px',
-              border: '1px solid #fee2e2',
-              background: '#fee2e2',
-              color: '#dc2626',
-              cursor: 'pointer',
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              marginLeft: isMobile ? '0' : 'auto',
-            }}
-          >
-            <span aria-hidden="true">🗑</span> Видалити
-          </button>
+          {!isModerator && (
+            <button
+              onClick={(e) => handleToggleStatus(e, selectedVacancy)}
+              aria-label={selectedVacancy?.is_active ? `Закрити вакансію ${selectedVacancy?.title}` : `Відкрити вакансію ${selectedVacancy?.title}`}
+              type="button"
+              style={{
+                padding: isMobile ? '10px 14px' : '8px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                background: selectedVacancy?.is_active ? '#fee2e2' : '#dcfce7',
+                color: selectedVacancy?.is_active ? '#dc2626' : '#16a34a',
+                cursor: 'pointer',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span aria-hidden="true">{selectedVacancy?.is_active ? '⏸' : '▶'}</span>
+              {selectedVacancy?.is_active ? 'Закрити вакансію' : 'Відкрити вакансію'}
+            </button>
+          )}
+          {isModerator && (
+            <button
+              onClick={(e) => handleToggleBlock(e, selectedVacancy)}
+              aria-label={selectedVacancy?.is_blocked ? `Розблокувати вакансію ${selectedVacancy?.title}` : `Заблокувати вакансію ${selectedVacancy?.title}`}
+              type="button"
+              style={{
+                padding: isMobile ? '10px 14px' : '8px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                background: selectedVacancy?.is_blocked ? '#dcfce7' : '#fef3c7',
+                color: selectedVacancy?.is_blocked ? '#16a34a' : '#b45309',
+                cursor: 'pointer',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <span aria-hidden="true">{selectedVacancy?.is_blocked ? '🔓' : '🚫'}</span>
+              {selectedVacancy?.is_blocked ? 'Розблокувати' : 'Заблокувати (модерація)'}
+            </button>
+          )}
+          {!isModerator && (
+            <button
+              onClick={(e) => handleDelete(e, selectedVacancy)}
+              aria-label={`Видалити вакансію ${selectedVacancy?.title}`}
+              type="button"
+              style={{
+                padding: isMobile ? '10px 14px' : '8px 16px',
+                borderRadius: '8px',
+                border: '1px solid #fee2e2',
+                background: '#fee2e2',
+                color: '#dc2626',
+                cursor: 'pointer',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                marginLeft: isMobile ? '0' : 'auto',
+              }}
+            >
+              <span aria-hidden="true">🗑</span> Видалити
+            </button>
+          )}
         </div>
 
         <div style={{
@@ -352,7 +418,7 @@ function Vacancies() {
             </div>
             <div style={{ padding: isMobile ? '16px' : '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-              {(userRole === 'admin' || userRole === 'superadmin') && (selectedVacancy.salary_min || selectedVacancy.salary_max) && (
+              {(userRole === 'admin' || userRole === 'superadmin' || userRole === 'moderator') && (selectedVacancy.salary_min || selectedVacancy.salary_max) && (
                 <div>
                   <div style={{ fontSize: '0.72rem', fontWeight: 600, fontFamily: 'DM Mono', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)', marginBottom: '8px' }}>
                     Зарплатна вилка
@@ -684,59 +750,86 @@ function Vacancies() {
                 }}
                 onClick={e => e.stopPropagation()}
               >
-                <button
-                  onClick={(e) => handleEdit(e, v)}
-                  aria-label={`Редагувати вакансію ${v.title}`}
-                  type="button"
-                  style={{
-                    padding: isMobile ? '8px 12px' : '6px 10px',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border)',
-                    background: 'var(--surface)',
-                    cursor: 'pointer',
-                    fontSize: '0.75rem',
-                    zIndex: 10,
-                    position: 'relative',
-                  }}
-                >
-                  <span aria-hidden="true">✏️</span>
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); setJobBoardVacancy(v); }}
-                  aria-label={`Job Boards для ${v.title}`}
-                  type="button"
-                  title="Публікація на Job Boards"
-                  style={{
-                    padding: isMobile ? '8px 12px' : '6px 10px',
-                    borderRadius: '6px',
-                    border: '1px solid var(--border)',
-                    background: 'var(--surface)',
-                    cursor: 'pointer',
-                    fontSize: '0.75rem',
-                    zIndex: 10,
-                    position: 'relative',
-                  }}
-                >
-                  <span aria-hidden="true">📢</span>
-                </button>
-                <button
-                  onClick={(e) => handleDelete(e, v)}
-                  aria-label={`Видалити вакансію ${v.title}`}
-                  type="button"
-                  style={{
-                    padding: isMobile ? '8px 12px' : '6px 10px',
-                    borderRadius: '6px',
-                    border: '1px solid #fee2e2',
-                    background: '#fee2e2',
-                    color: '#dc2626',
-                    cursor: 'pointer',
-                    fontSize: '0.75rem',
-                    zIndex: 10,
-                    position: 'relative',
-                  }}
-                >
-                  <span aria-hidden="true">🗑</span>
-                </button>
+                {!isModerator && (
+                  <button
+                    onClick={(e) => handleEdit(e, v)}
+                    aria-label={`Редагувати вакансію ${v.title}`}
+                    type="button"
+                    style={{
+                      padding: isMobile ? '8px 12px' : '6px 10px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface)',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                      zIndex: 10,
+                      position: 'relative',
+                    }}
+                  >
+                    <span aria-hidden="true">✏️</span>
+                  </button>
+                )}
+                {isModerator && (
+                  <button
+                    onClick={(e) => handleToggleBlock(e, v)}
+                    aria-label={v.is_blocked ? `Розблокувати вакансію ${v.title}` : `Заблокувати вакансію ${v.title}`}
+                    type="button"
+                    title={v.is_blocked ? 'Розблокувати' : 'Заблокувати (модерація)'}
+                    style={{
+                      padding: isMobile ? '8px 12px' : '6px 10px',
+                      borderRadius: '6px',
+                      border: v.is_blocked ? '1px solid #bbf7d0' : '1px solid #fde68a',
+                      background: v.is_blocked ? '#dcfce7' : '#fef3c7',
+                      color: v.is_blocked ? '#16a34a' : '#b45309',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                      zIndex: 10,
+                      position: 'relative',
+                    }}
+                  >
+                    <span aria-hidden="true">{v.is_blocked ? '🔓' : '🚫'}</span>
+                  </button>
+                )}
+                {!isModerator && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setJobBoardVacancy(v); }}
+                    aria-label={`Job Boards для ${v.title}`}
+                    type="button"
+                    title="Публікація на Job Boards"
+                    style={{
+                      padding: isMobile ? '8px 12px' : '6px 10px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface)',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                      zIndex: 10,
+                      position: 'relative',
+                    }}
+                  >
+                    <span aria-hidden="true">📢</span>
+                  </button>
+                )}
+                {!isModerator && (
+                  <button
+                    onClick={(e) => handleDelete(e, v)}
+                    aria-label={`Видалити вакансію ${v.title}`}
+                    type="button"
+                    style={{
+                      padding: isMobile ? '8px 12px' : '6px 10px',
+                      borderRadius: '6px',
+                      border: '1px solid #fee2e2',
+                      background: '#fee2e2',
+                      color: '#dc2626',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                      zIndex: 10,
+                      position: 'relative',
+                    }}
+                  >
+                    <span aria-hidden="true">🗑</span>
+                  </button>
+                )}
               </div>
 
               <div style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px', paddingRight: '70px', wordBreak: 'break-word' }}>
@@ -767,6 +860,21 @@ function Vacancies() {
                   }}>
                     {v.is_active ? 'Активна' : 'Закрита'}
                   </span>
+                  {v.is_blocked && (
+                    <span title={v.block_reason || 'Заблоковано модератором'} style={{
+                      fontSize: '0.7rem',
+                      fontFamily: 'DM Mono',
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      background: '#fee2e2',
+                      color: '#dc2626',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}>
+                      <span aria-hidden="true">🚫</span> Заблоковано
+                    </span>
+                  )}
                   {/* Індикатори job boards */}
                   {[
                     { field: 'published_rabota_ua', label: 'R', title: 'Rabota.ua', color: '#0066cc' },

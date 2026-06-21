@@ -13,6 +13,13 @@ const inputStyle = (isMobile) => ({
 
 const emptyForm = { name: '', slug: '', max_hr: 3, max_vacancies: 10, is_active: true };
 
+const ROLE_LABELS = {
+  superadmin: 'Супер-адмін',
+  admin:      'Адмін організації',
+  hr:         'HR менеджер',
+  moderator:  'Модератор',
+};
+
 function OrgModal({ org, onClose, onSave, isMobile }) {
   const [form, setForm] = useState(() => {
     if (!org) return emptyForm;
@@ -417,6 +424,7 @@ function UsersModal({ org, onClose, isMobile }) {
                 <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} style={inputStyle(isMobile)}>
                   <option value="hr">HR менеджер</option>
                   <option value="admin">Адмін організації</option>
+                  <option value="moderator">Модератор</option>
                 </select>
               </div>
             </div>
@@ -449,7 +457,7 @@ function UsersModal({ org, onClose, isMobile }) {
                   </div>
                   <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono', wordBreak: 'break-word' }}>{u.email}</div>
                 </div>
-                <div style={{ fontSize: '0.72rem', fontFamily: 'DM Mono', color: 'var(--muted)', marginRight: '8px', flexShrink: 0 }}>{u.role}</div>
+                <div style={{ fontSize: '0.72rem', fontFamily: 'DM Mono', color: 'var(--muted)', marginRight: '8px', flexShrink: 0 }}>{ROLE_LABELS[u.role] || u.role}</div>
                 <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                   <button
                     onClick={() => handleEdit(u)}

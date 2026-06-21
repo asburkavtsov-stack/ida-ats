@@ -11,6 +11,8 @@ const ACTION_LABELS = {
   export:        'Експорт',
   access_grant:  'Надання доступу',
   access_revoke: 'Відкликання доступу',
+  block:         'Блокування',
+  unblock:       'Розблокування',
 };
 
 const ACTION_COLORS = {
@@ -21,6 +23,8 @@ const ACTION_COLORS = {
   access_revoke: { bg: '#fce7f3', text: '#db2777' },
   create:        { bg: '#f9eaed', text: '#7a1a2e' },
   export:        { bg: '#f5f5f5', text: '#757575' },
+  block:         { bg: '#fee2e2', text: '#dc2626' },
+  unblock:       { bg: '#dcfce7', text: '#16a34a' },
 };
 
 const formatDateTime = (dt) => {

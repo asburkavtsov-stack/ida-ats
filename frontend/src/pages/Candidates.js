@@ -82,6 +82,9 @@ const TableRow = memo(function TableRow({ candidate, isSelected, bulkMode, onOpe
               <div style={{ fontSize:'0.72rem', color:'var(--muted)', fontFamily:'DM Mono', marginTop:'2px' }}>{candidate.email}</div>
             </div>
             <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
+              {candidate.is_blocked && (
+                <span title={candidate.block_reason || 'Заблоковано модератором'} style={{ fontSize:'0.66rem', fontFamily:'DM Mono', padding:'3px 8px', borderRadius:'4px', background:'#fee2e2', color:'#dc2626' }}>🚫 Блок</span>
+              )}
               <StageBadge candidate={candidate} />
               <span style={{ fontSize:'0.66rem', fontFamily:'DM Mono', padding:'3px 8px', borderRadius:'4px', background:getSourceBg(candidate.source), color:getSourceText(candidate.source) }}>{getSourceLabel(candidate.source)}</span>
             </div>
@@ -120,7 +123,12 @@ const TableRow = memo(function TableRow({ candidate, isSelected, bulkMode, onOpe
         </td>
       )}
       <td style={{ padding:'13px 16px' }}>
-        <div style={{ fontWeight:600, fontSize:'0.82rem' }}>{candidate.first_name} {candidate.last_name}</div>
+        <div style={{ display:'flex', alignItems:'center', gap:'6px' }}>
+          <div style={{ fontWeight:600, fontSize:'0.82rem' }}>{candidate.first_name} {candidate.last_name}</div>
+          {candidate.is_blocked && (
+            <span title={candidate.block_reason || 'Заблоковано модератором'} style={{ fontSize:'0.62rem', fontFamily:'DM Mono', padding:'2px 6px', borderRadius:'4px', background:'#fee2e2', color:'#dc2626' }}>🚫</span>
+          )}
+        </div>
         <div style={{ fontSize:'0.72rem', color:'var(--muted)', fontFamily:'DM Mono', marginTop:'1px' }}>{candidate.email}</div>
       </td>
       <td style={{ padding:'13px 16px', fontSize:'0.82rem' }}>{candidate.vacancy_title || '—'}</td>
@@ -157,7 +165,7 @@ const TableRow = memo(function TableRow({ candidate, isSelected, bulkMode, onOpe
 
 
 // ─── Головний компонент ───────────────────────────────────────────────────────
-function Candidates({ searchQuery = '' }) {
+function Candidates({ searchQuery = '', moderatorMode = false }) {
   const [filter,       setFilter]       = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
   const [tagFilter,    setTagFilter]    = useState([]);
@@ -445,6 +453,7 @@ function Candidates({ searchQuery = '' }) {
           onClose={() => setSelectedCandidateId(null)}
           onStatusChange={handleCandidateStatusChange}
           onDelete={handleCandidateDelete}
+          moderatorMode={moderatorMode}
         />
       )}
     </div>

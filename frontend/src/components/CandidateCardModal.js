@@ -28,7 +28,7 @@ const hex2rgba = (hex, alpha = 0.13) => {
   return `rgba(${r},${g},${b},${alpha})`;
 };
 
-function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) {
+function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete, moderatorMode = false }) {
   const [candidate, setCandidate] = useState(null);
   const [vacancy, setVacancy] = useState(null);
   const [stages, setStages] = useState([]);
@@ -64,6 +64,13 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
   const [rejectionReasons, setRejectionReasons] = useState([]);
   const [selectedRejectionReason, setSelectedRejectionReason] = useState('');
   const [rejectionComment, setRejectionComment] = useState('');
+
+  // ── Модерація ──────────────────────────────────────────────────────────────
+  const [blocking, setBlocking] = useState(false);
+  const [moderatorNotes, setModeratorNotes] = useState([]);
+  const [loadingModNotes, setLoadingModNotes] = useState(false);
+  const [newModNote, setNewModNote] = useState('');
+  const [savingModNote, setSavingModNote] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -156,6 +163,73 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
   useEffect(() => {
     if (activeTab === 'emails' && candidateId) fetchEmailHistory();
   }, [activeTab, candidateId, fetchEmailHistory]);
+
+  // ── Модерація: завантаження нотаток ───────────────────────────────────────
+  const fetchModeratorNotes = useCallback(async () => {
+    if (!candidateId) return;
+    setLoadingModNotes(true);
+    try {
+      const res = await axios.get(`/api/moderator-notes/?candidate=${candidateId}`);
+      setModeratorNotes(res.data.results ?? res.data);
+    } catch {
+      // тихо ігноруємо — модератор побачить порожній список
+    } finally {
+      setLoadingModNotes(false);
+    }
+  }, [candidateId]);
+
+  useEffect(() => {
+    if (activeTab === 'moderation' && candidateId) fetchModeratorNotes();
+  }, [activeTab, candidateId, fetchModeratorNotes]);
+
+  const handleToggleBlockCandidate = async () => {
+    if (!candidate) return;
+    setBlocking(true);
+    try {
+      if (!candidate.is_blocked) {
+        const reason = window.prompt('Причина блокування кандидата:', '') || '';
+        const res = await axios.post(`/api/candidates/${candidate.id}/block/`, { reason });
+        setCandidate(res.data);
+        toast.success('Кандидата заблоковано');
+      } else {
+        const res = await axios.post(`/api/candidates/${candidate.id}/unblock/`);
+        setCandidate(res.data);
+        toast.success('Кандидата розблоковано');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Не вдалося оновити статус блокування');
+    } finally {
+      setBlocking(false);
+    }
+  };
+
+  const handleSaveModeratorNote = async () => {
+    if (!newModNote.trim() || !candidateId) return;
+    setSavingModNote(true);
+    try {
+      const res = await axios.post('/api/moderator-notes/', {
+        candidate: candidateId,
+        text: newModNote.trim(),
+      });
+      setModeratorNotes(prev => [res.data, ...prev]);
+      setNewModNote('');
+      toast.success('Нотатку додано');
+    } catch {
+      toast.error('Не вдалося зберегти нотатку');
+    } finally {
+      setSavingModNote(false);
+    }
+  };
+
+  const handleDeleteModeratorNote = async (noteId) => {
+    if (!window.confirm('Видалити цю нотатку?')) return;
+    try {
+      await axios.delete(`/api/moderator-notes/${noteId}/`);
+      setModeratorNotes(prev => prev.filter(n => n.id !== noteId));
+    } catch {
+      toast.error('Не вдалося видалити нотатку');
+    }
+  };
 
   const updateTags = async (tagIds) => {
     setSaving(true);
@@ -462,8 +536,13 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
             </div>
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div id="candidate-card-title" style={{ fontWeight: 700, fontSize: '1rem', wordBreak: 'break-word' }}>
+            <div id="candidate-card-title" style={{ fontWeight: 700, fontSize: '1rem', wordBreak: 'break-word', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               {candidate?.first_name} {candidate?.last_name}
+              {candidate?.is_blocked && (
+                <span title={candidate.block_reason || 'Заблоковано модератором'} style={{ fontSize: '0.66rem', fontFamily: 'DM Mono', padding: '3px 8px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: 600 }}>
+                  🚫 Заблоковано
+                </span>
+              )}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '2px' }}>
               ID: {candidate?.id} · Додано {formatDateShort(candidate?.created_at)}
@@ -471,7 +550,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
           </div>
 
           <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-            {!loading && (
+            {!loading && !moderatorMode && (
               <button
                 onClick={() => setEditMode(!editMode)}
                 aria-label={editMode ? 'Скасувати редагування' : 'Редагувати кандидата'}
@@ -515,6 +594,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
               { key: 'history', label: `Історія${history.length > 0 ? ` (${history.length})` : ''}` },
               { key: 'tasks',   label: '📋 Завдання' },
               { key: 'emails', label: `Листи${emailHistory.length > 0 ? ` (${emailHistory.length})` : ''}` },
+              ...(moderatorMode ? [{ key: 'moderation', label: `🛡 Модерація${moderatorNotes.length > 0 ? ` (${moderatorNotes.length})` : ''}` }] : []),
             ].map(tab => (
               <button
                 key={tab.key}
@@ -897,6 +977,127 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
             ) : activeTab === 'tasks' ? (
               /* Tasks Tab */
               <TasksTab candidate={candidate} isMobile={isMobile} />
+            ) : activeTab === 'moderation' ? (
+              /* Moderation Tab */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div>
+                  <div style={sectionTitleStyle}>Статус блокування</div>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    gap: '12px', flexWrap: 'wrap',
+                    padding: '14px', borderRadius: '10px',
+                    background: candidate?.is_blocked ? '#fee2e2' : 'var(--bg)',
+                    border: `1px solid ${candidate?.is_blocked ? '#fecaca' : 'var(--border)'}`,
+                  }}>
+                    <div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: candidate?.is_blocked ? '#dc2626' : 'var(--text)' }}>
+                        {candidate?.is_blocked ? '🚫 Кандидат заблокований' : '✅ Кандидат не заблокований'}
+                      </div>
+                      {candidate?.is_blocked && candidate?.block_reason && (
+                        <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '4px' }}>
+                          Причина: {candidate.block_reason}
+                        </div>
+                      )}
+                      {candidate?.is_blocked && candidate?.blocked_by_name && (
+                        <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono', marginTop: '2px' }}>
+                          Заблокував: {candidate.blocked_by_name} · {formatDate(candidate.blocked_at)}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleToggleBlockCandidate}
+                      disabled={blocking}
+                      type="button"
+                      style={{
+                        padding: '8px 16px', borderRadius: '8px', border: 'none',
+                        background: candidate?.is_blocked ? '#dcfce7' : '#fef3c7',
+                        color: candidate?.is_blocked ? '#16a34a' : '#b45309',
+                        fontSize: '0.8rem', fontWeight: 600,
+                        cursor: blocking ? 'not-allowed' : 'pointer',
+                        opacity: blocking ? 0.6 : 1,
+                        fontFamily: 'DM Sans', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {blocking ? '...' : candidate?.is_blocked ? '🔓 Розблокувати' : '🚫 Заблокувати'}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <div style={sectionTitleStyle}>Нотатки модератора</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                    <textarea
+                      value={newModNote}
+                      onChange={e => setNewModNote(e.target.value)}
+                      placeholder="Додати нотатку від модератора..."
+                      rows={3}
+                      style={{
+                        width: '100%', padding: '10px 12px', borderRadius: '8px',
+                        border: '1px solid var(--border)', background: 'var(--surface)',
+                        color: 'var(--text)', fontSize: '0.82rem', fontFamily: 'DM Sans',
+                        resize: 'vertical',
+                      }}
+                    />
+                    <button
+                      onClick={handleSaveModeratorNote}
+                      disabled={!newModNote.trim() || savingModNote}
+                      type="button"
+                      style={{
+                        alignSelf: 'flex-end', padding: '7px 16px', borderRadius: '8px',
+                        border: 'none', background: 'var(--accent)', color: '#fff',
+                        fontSize: '0.78rem', fontWeight: 600,
+                        cursor: (!newModNote.trim() || savingModNote) ? 'not-allowed' : 'pointer',
+                        opacity: (!newModNote.trim() || savingModNote) ? 0.6 : 1,
+                        fontFamily: 'DM Sans',
+                      }}
+                    >
+                      {savingModNote ? 'Збереження...' : 'Зберегти'}
+                    </button>
+                  </div>
+
+                  {loadingModNotes ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '24px' }}>
+                      <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid var(--border)', borderTop: '2px solid var(--accent)', animation: 'spin 0.8s linear infinite' }} />
+                    </div>
+                  ) : moderatorNotes.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)', fontSize: '0.8rem', border: '1px dashed var(--border)', borderRadius: '10px' }}>
+                      Ще немає нотаток модератора
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {moderatorNotes.map(note => (
+                        <div key={note.id} style={{
+                          padding: '12px', borderRadius: '8px',
+                          background: 'var(--bg)', border: '1px solid var(--border)',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+                              <span style={{ fontSize: '0.62rem', background: '#EEEDFE', color: '#3C3489', padding: '1px 6px', borderRadius: '3px', fontWeight: 600 }}>
+                                Модератор
+                              </span>
+                              {note.author_name} · {formatDate(note.created_at)}
+                            </div>
+                            <button
+                              onClick={() => handleDeleteModeratorNote(note.id)}
+                              type="button"
+                              aria-label="Видалити нотатку"
+                              style={{
+                                border: 'none', background: 'transparent', color: '#dc2626',
+                                cursor: 'pointer', fontSize: '0.72rem', padding: '2px 4px',
+                              }}
+                            >
+                              🗑
+                            </button>
+                          </div>
+                          <div style={{ fontSize: '0.82rem', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                            {note.text}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             ) : (
               /* Emails Tab */
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -1011,7 +1212,7 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
         </div>
 
         {/* Footer */}
-        {!loading && !editMode && activeTab !== 'emails' && (
+        {!loading && !editMode && activeTab !== 'emails' && activeTab !== 'moderation' && (
           <div style={{
             padding: isMobile ? '14px 20px' : '16px 24px',
             borderTop: '1px solid var(--border)',
@@ -1019,10 +1220,14 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete }) 
             position: 'sticky', bottom: 0, background: 'var(--surface)',
             borderRadius: isMobile ? '0' : '0 0 16px 16px',
           }}>
-            <button onClick={() => setShowDeleteConfirm(true)} aria-label="Видалити кандидата" type="button"
-              style={{ padding: isMobile ? '9px 14px' : '7px 14px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'DM Sans', fontWeight: 500 }}>
-              <span aria-hidden="true">🗑</span> Видалити
-            </button>
+            {!moderatorMode ? (
+              <button onClick={() => setShowDeleteConfirm(true)} aria-label="Видалити кандидата" type="button"
+                style={{ padding: isMobile ? '9px 14px' : '7px 14px', borderRadius: '8px', border: '1px solid #fee2e2', background: 'transparent', color: '#dc2626', fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'DM Sans', fontWeight: 500 }}>
+                <span aria-hidden="true">🗑</span> Видалити
+              </button>
+            ) : (
+              <div />
+            )}
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <a href={`mailto:${candidate?.email}`} aria-label={`Написати листа на ${candidate?.email}`}
