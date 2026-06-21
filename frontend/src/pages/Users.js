@@ -12,6 +12,7 @@ const roleLabels = {
   superadmin: 'Супер-адмін',
   admin: 'Адмін орг.',
   hr: 'HR менеджер',
+  moderator: 'Модератор',
 };
 
 const emptyCreateForm = { first_name: '', last_name: '', username: '', email: '', password: '', role: 'hr', organization: '' };
@@ -79,6 +80,7 @@ function Users() {
   const RoleSelect = ({ value, onChange }) => (
     <select value={value} onChange={onChange} style={inputStyle(isMobile)}>
       <option value="hr">HR менеджер</option>
+      <option value="moderator">Модератор</option>
       <option value="admin">Адмін організації</option>
       <option value="superadmin">Супер-адмін IDA</option>
     </select>
