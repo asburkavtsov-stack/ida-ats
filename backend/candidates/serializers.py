@@ -266,6 +266,8 @@ class CandidateSerializer(serializers.ModelSerializer):
     blocked_by_name = serializers.SerializerMethodField()
     # Нотатки модератора (read-only у складі кандидата)
     moderator_notes = ModeratorNoteSerializer(many=True, read_only=True)
+    # CV — повертаємо абсолютний URL
+    cv_file = serializers.SerializerMethodField()
 
     class Meta:
         model = Candidate
@@ -284,6 +286,8 @@ class CandidateSerializer(serializers.ModelSerializer):
             'gdpr_delete_after', 'gdpr_anonymized', 'gdpr_anonymized_at',
             # D&I
             'di_gender', 'di_disability', 'di_veteran', 'di_age_range', 'di_consent',
+            # CV
+            'cv_file', 'cv_original_name', 'cv_uploaded_at',
         ]
 
     def get_notes(self, obj):
@@ -325,6 +329,14 @@ class CandidateSerializer(serializers.ModelSerializer):
         if dups.exists():
             return DuplicateCandidateSerializer(dups[:5], many=True).data
         return []
+
+    def get_cv_file(self, obj):
+        if not obj.cv_file:
+            return None
+        request = self.context.get('request')
+        if request:
+            return request.build_absolute_uri(obj.cv_file.url)
+        return obj.cv_file.url
 
 
 # ─── Organization ─────────────────────────────────────────────────────────────

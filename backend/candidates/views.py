@@ -714,6 +714,86 @@ class CandidateViewSet(viewsets.ModelViewSet):
 
         return Response(result.to_dict())
 
+    # ── CV upload / delete ─────────────────────────────────────────────────────
+
+    @action(detail=True, methods=['post', 'delete'], url_path='cv',
+            parser_classes=None)  # parser_classes=None → використовує глобальні (multipart + json)
+    def cv(self, request, pk=None):
+        """
+        POST  /api/candidates/{id}/cv/  — завантажити/замінити CV (multipart/form-data, поле "file")
+        DELETE /api/candidates/{id}/cv/ — видалити CV
+        """
+        from rest_framework.parsers import MultiPartParser, FormParser
+        candidate = self.get_object()
+
+        # Модератор не може керувати CV
+        role = get_user_role(request.user)
+        if role == 'moderator':
+            return Response(
+                {'error': 'Модератор не може керувати CV кандидата.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if request.method == 'DELETE':
+            if not candidate.cv_file:
+                return Response({'error': 'CV відсутнє.'}, status=status.HTTP_400_BAD_REQUEST)
+            # Видаляємо фізичний файл
+            candidate.cv_file.delete(save=False)
+            candidate.cv_file = None
+            candidate.cv_original_name = ''
+            candidate.cv_uploaded_at = None
+            candidate.save(update_fields=['cv_file', 'cv_original_name', 'cv_uploaded_at'])
+
+            from .utils.audit import log_action
+            log_action(request.user, 'cv_delete', candidate, {}, request)
+
+            return Response({'ok': True, 'detail': 'CV видалено.'})
+
+        # POST — завантаження
+        uploaded = request.FILES.get('file')
+        if not uploaded:
+            return Response({'error': "Поле 'file' обов'язкове."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Валідація типу
+        ALLOWED_TYPES = (
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        )
+        ALLOWED_EXT = ('.pdf', '.doc', '.docx')
+        import os
+        ext = os.path.splitext(uploaded.name)[1].lower()
+        if uploaded.content_type not in ALLOWED_TYPES and ext not in ALLOWED_EXT:
+            return Response(
+                {'error': 'Дозволені тільки PDF, DOC, DOCX файли.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Валідація розміру (10 МБ)
+        MAX_SIZE = 10 * 1024 * 1024
+        if uploaded.size > MAX_SIZE:
+            return Response(
+                {'error': 'Розмір файлу не може перевищувати 10 МБ.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Видаляємо старий файл якщо є
+        if candidate.cv_file:
+            candidate.cv_file.delete(save=False)
+
+        candidate.cv_file = uploaded
+        candidate.cv_original_name = uploaded.name
+        candidate.cv_uploaded_at = timezone.now()
+        candidate.save(update_fields=['cv_file', 'cv_original_name', 'cv_uploaded_at'])
+
+        from .utils.audit import log_action
+        log_action(request.user, 'cv_upload', candidate, {'filename': uploaded.name}, request)
+
+        return Response(
+            CandidateSerializer(candidate, context={'request': request}).data,
+            status=status.HTTP_200_OK,
+        )
+
 
 # ─── CANDIDATES CSV EXPORT ────────────────────────────────────────────────────
 

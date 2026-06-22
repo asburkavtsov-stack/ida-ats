@@ -265,6 +265,25 @@ class Candidate(models.Model):
         help_text='Окрема згода на збір D&I даних (GDPR)',
     )
 
+    # ── CV ────────────────────────────────────────────────────────────────────────
+    cv_file = models.FileField(
+        upload_to='cvs/%Y/%m/',
+        null=True,
+        blank=True,
+        verbose_name='CV файл',
+        help_text='PDF, DOC або DOCX (макс. 10 МБ)',
+    )
+    cv_original_name = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name='Оригінальна назва файлу CV',
+    )
+    cv_uploaded_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Дата завантаження CV',
+    )
+
     class Meta:
         unique_together = [('email', 'organization')]
 
