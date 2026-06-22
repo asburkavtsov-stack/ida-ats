@@ -71,6 +71,9 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete, mo
   const [loadingModNotes, setLoadingModNotes] = useState(false);
   const [newModNote, setNewModNote] = useState('');
   const [savingModNote, setSavingModNote] = useState(false);
+  // ── CV ──────────────────────────────────────────────────────────────────────
+  const [cvUploading, setCvUploading] = useState(false);
+  const [cvDeleting, setCvDeleting] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 768);
@@ -368,6 +371,51 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete, mo
       })
       .catch(() => toast.error('Не вдалося призначити HR'))
       .finally(() => setSaving(false));
+  };
+
+
+  const handleUploadCV = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const ALLOWED_EXT = ['.pdf', '.doc', '.docx'];
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!ALLOWED_EXT.includes(ext)) {
+      toast.error('Дозволені тільки PDF, DOC, DOCX файли.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Розмір файлу не може перевищувати 10 МБ.');
+      return;
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    setCvUploading(true);
+    try {
+      const res = await axios.post(`/api/candidates/${candidateId}/cv/`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setCandidate(res.data);
+      toast.success('CV успішно завантажено');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Помилка завантаження CV');
+    } finally {
+      setCvUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDeleteCV = async () => {
+    if (!window.confirm('Видалити CV цього кандидата?')) return;
+    setCvDeleting(true);
+    try {
+      await axios.delete(`/api/candidates/${candidateId}/cv/`);
+      setCandidate(prev => ({ ...prev, cv_file: null, cv_original_name: '', cv_uploaded_at: null }));
+      toast.success('CV видалено');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Помилка видалення CV');
+    } finally {
+      setCvDeleting(false);
+    }
   };
 
   const handlePreviewEmail = async (templateId) => {
@@ -798,6 +846,53 @@ function CandidateCardModal({ candidateId, onClose, onStatusChange, onDelete, mo
                     <div style={sectionTitleStyle}>Нотатки</div>
                     <div style={{ padding: '14px', background: 'var(--bg)', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '0.85rem', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                       {candidate.notes}
+                    </div>
+                  </div>
+                )}
+
+
+                {/* ── CV блок ──────────────────────────────────────────────── */}
+                {!moderatorMode && (
+                  <div>
+                    <div style={sectionTitleStyle}>CV / Резюме</div>
+                    <div style={{ padding: '14px', background: 'var(--bg)', borderRadius: '8px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {candidate.cv_file ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '1.2rem' }}>📄</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 600, wordBreak: 'break-all' }}>
+                              {candidate.cv_original_name || 'CV файл'}
+                            </div>
+                            {candidate.cv_uploaded_at && (
+                              <div style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'DM Mono' }}>
+                                {formatDate(candidate.cv_uploaded_at)}
+                              </div>
+                            )}
+                          </div>
+                          <a
+                            href={candidate.cv_file}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'none', fontFamily: 'DM Mono', flexShrink: 0 }}
+                          >
+                            👁 Переглянути
+                          </a>
+                          <button
+                            onClick={handleDeleteCV}
+                            disabled={cvDeleting}
+                            type="button"
+                            style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #dc2626', background: 'transparent', color: '#dc2626', fontSize: '0.75rem', cursor: cvDeleting ? 'not-allowed' : 'pointer', fontFamily: 'DM Mono', flexShrink: 0, opacity: cvDeleting ? 0.6 : 1 }}
+                          >
+                            {cvDeleting ? '...' : '🗑 Видалити'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>CV не завантажено</div>
+                      )}
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: '7px', border: '1px solid var(--border)', background: cvUploading ? 'var(--surface)' : 'var(--accent)', color: cvUploading ? 'var(--text)' : '#fff', fontSize: '0.78rem', cursor: cvUploading ? 'not-allowed' : 'pointer', fontFamily: 'DM Sans', fontWeight: 600, width: 'fit-content', opacity: cvUploading ? 0.7 : 1, transition: 'background 0.15s' }}>
+                        <input type="file" accept=".pdf,.doc,.docx" onChange={handleUploadCV} disabled={cvUploading} style={{ display: 'none' }} />
+                        {cvUploading ? '⏳ Завантаження...' : (candidate.cv_file ? '🔄 Замінити CV' : '📎 Завантажити CV')}
+                      </label>
                     </div>
                   </div>
                 )}
