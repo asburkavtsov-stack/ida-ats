@@ -22,12 +22,14 @@ const ICONS = {
   integrations:    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="9" height="9" rx="1"/><rect x="13" y="2" width="9" height="9" rx="1"/><rect x="2" y="13" width="9" height="9" rx="1"/><path d="M13 17.5h4M17.5 13v4"/></svg>,
   tasks:           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
   more:            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>,
+  beta:            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="12" y1="9" x2="12" y2="15"/></svg>,
 };
 
 const NAV_ITEMS = {
   superadmin: [
-    { key: 'admin',      label: 'Організації', badgeKey: null },
-    { key: 'users',      label: 'Юзери',       badgeKey: null },
+    { key: 'admin',      label: 'Організації',  badgeKey: null },
+    { key: 'users',      label: 'Юзери',        badgeKey: null },
+    { key: 'beta',       label: 'Бета-тест',    badgeKey: 'beta' },
     { key: 'themes',     label: 'LED-теми',     badgeKey: null },
     { key: 'pricing',    label: 'Ціни',         badgeKey: null },
     { key: 'promocodes', label: 'Промо-коди',   badgeKey: null },
@@ -63,7 +65,7 @@ const NAV_ITEMS = {
 const BOTTOM_NAV_KEYS = {
   admin:      ['dashboard', 'kanban', 'candidates', 'vacancies'],
   hr:         ['dashboard', 'kanban', 'candidates', 'vacancies'],
-  superadmin: ['admin', 'users', 'themes', 'pricing'],
+  superadmin: ['admin', 'users', 'beta', 'themes'],
 };
 
 // ─── Компонент Bottom Navigation Bar ─────────────────────────────────────────
@@ -473,7 +475,7 @@ function DesktopSidebar({ currentPage, onNavigate, onLogout, userRole, counts, u
 // ─── Головний компонент ───────────────────────────────────────────────────────
 function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
   const [user, setUser]           = useState(null);
-  const [counts, setCounts]       = useState({ candidates: 0, vacancies: 0, kanban: 0 });
+  const [counts, setCounts]       = useState({ candidates: 0, vacancies: 0, kanban: 0, beta: 0 });
   const [isMobile, setIsMobile]   = useState(false);
   const [showMore, setShowMore]   = useState(false);
 
@@ -497,6 +499,10 @@ function Sidebar({ currentPage, onNavigate, onLogout, userRole }) {
         const data = res.data.results ?? res.data;
         setCounts(c => ({ ...c, vacancies: data.length }));
       }).catch(() => {});
+    // Лічильник нових бета-заявок (тільки для суперадміна)
+    axios.get('/api/beta/config/')
+      .then(res => setCounts(c => ({ ...c, beta: res.data.pending_count || 0 })))
+      .catch(() => {});
   }, []);
 
   const handleNavigate = useCallback((key) => {

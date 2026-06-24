@@ -24,6 +24,8 @@ import AuditLog from './pages/AuditLog';
 import RegisterModal from './components/RegisterModal';
 import Integrations from './pages/Integrations';
 import Tasks from './pages/Tasks';
+import BetaLanding from './pages/BetaLanding';
+import BetaAdmin from './pages/BetaAdmin';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -120,6 +122,7 @@ function App() {
     tasks:           'Завдання',
     admin:           'Адмін',
     users:           'Юзери',
+    beta:            'Бета-тест',
   };
 
   const renderPage = () => {
@@ -163,6 +166,18 @@ function App() {
       <>
         <ErrorBoundary pageName="Вхід">
           <Login onLogin={handleLoginSuccess} />
+        </ErrorBoundary>
+        {toaster}
+      </>
+    );
+  }
+
+  // ── Beta landing (публічний маршрут /beta) ──────────────────────────────────
+  if (!isAuth && window.location.pathname === '/beta') {
+    return (
+      <>
+        <ErrorBoundary pageName="Бета-тест">
+          <BetaLanding onLogin={handleShowLogin} />
         </ErrorBoundary>
         {toaster}
       </>
@@ -218,6 +233,7 @@ function App() {
         case 'candidates':      return <Candidates key={refreshKey} searchQuery={debouncedSearch} />;
         case 'audit_log':       return <AuditLog />;
         case 'tasks':           return <Tasks />;
+        case 'beta':            return <BetaAdmin isMobile={isMobile} />;
         default:                return <Admin onViewOrg={handleViewOrg} currentPage={currentPage} onNavigate={setCurrentPage} />;
       }
     };
@@ -247,9 +263,6 @@ function App() {
     );
   }
 
-  // ── Moderator ───────────────────────────────────────────────────────────────
-  // Модератор: кандидати, вакансії, blacklist, audit log, email templates, профіль.
-  // Без: dashboard, kanban, org_settings, billing, integrations, users.
   if (userRole === 'moderator') {
     const MODERATOR_PAGES = new Set([
       'candidates', 'vacancies', 'audit_log', 'email_templates', 'profile',
