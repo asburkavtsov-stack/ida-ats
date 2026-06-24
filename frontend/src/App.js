@@ -12,7 +12,6 @@ import Admin from './pages/Admin';
 import Users from './pages/Users';
 import Profile from './pages/Profile';
 import OrgSettings from './pages/OrgSettings';
-import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -172,30 +171,11 @@ function App() {
     );
   }
 
-  // ── Beta landing (публічний маршрут /beta) ──────────────────────────────────
-  if (!isAuth && window.location.pathname === '/beta') {
+  if (!isAuth) {
     return (
       <>
         <ErrorBoundary pageName="Бета-тест">
           <BetaLanding onLogin={handleShowLogin} />
-        </ErrorBoundary>
-        {toaster}
-      </>
-    );
-  }
-
-  if (!isAuth) {
-    return (
-      <>
-        <ErrorBoundary pageName="Головна">
-          <Landing onLogin={handleShowLogin} onRegister={handleShowRegister} />
-          {showRegister && (
-            <RegisterModal
-              primaryColor={registerPrimaryColor}
-              onClose={() => setShowRegister(false)}
-              onSuccess={handleLoginSuccess}
-            />
-          )}
         </ErrorBoundary>
         {toaster}
       </>
