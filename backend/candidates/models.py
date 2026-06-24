@@ -1154,3 +1154,95 @@ class TaskSubmission(models.Model):
 
     def __str__(self):
         return f"Submission: {self.assignment}"
+
+# ==============================================================================
+# BETA TESTING
+# ==============================================================================
+
+class BetaConfig(models.Model):
+    """Singleton-налаштування бета-тестування (один запис, pk=1)."""
+    beta_open = models.BooleanField(
+        default=True,
+        verbose_name='Реєстрацію відкрито',
+        help_text='Якщо вимкнено — форма на лендінгу показує «реєстрацію закрито»',
+    )
+    max_slots = models.PositiveIntegerField(
+        default=20,
+        verbose_name='Максимум учасників',
+    )
+    notify_email = models.EmailField(
+        blank=True,
+        verbose_name='Email для сповіщень',
+        help_text='Куди надсилати сповіщення про нові заявки',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Налаштування бети'
+        verbose_name_plural = 'Налаштування бети'
+
+    def __str__(self):
+        return f"BetaConfig (open={self.beta_open}, slots={self.max_slots})"
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+class BetaApplication(models.Model):
+    """Заявка на бета-тестування від агенції."""
+
+    STATUS_CHOICES = [
+        ('pending',  'Нова заявка'),
+        ('approved', 'Схвалено'),
+        ('rejected', 'Відхилено'),
+    ]
+
+    company_name = models.CharField(max_length=200, verbose_name='Агенція')
+    contact_name = models.CharField(max_length=200, verbose_name='Контактна особа')
+    email        = models.EmailField(verbose_name='Email')
+    phone        = models.CharField(max_length=30, blank=True, verbose_name='Телефон')
+    team_size    = models.CharField(
+        max_length=20, blank=True,
+        choices=[
+            ('1-2', '1–2 людини'), ('3-5', '3–5 людей'),
+            ('6-10', '6–10 людей'), ('11+', '11+ людей'),
+        ],
+        verbose_name='Розмір команди',
+    )
+    current_tool = models.CharField(
+        max_length=50, blank=True,
+        choices=[
+            ('google_sheets', 'Google Sheets / Excel'),
+            ('notion', 'Notion / Airtable'),
+            ('trello', 'Trello / Jira'),
+            ('ats', 'Інша ATS'),
+            ('nothing', 'Нічого системного'),
+        ],
+        verbose_name='Поточний інструмент',
+    )
+    comment = models.TextField(blank=True, verbose_name='Коментар')
+
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='pending',
+        verbose_name='Статус', db_index=True,
+    )
+    reviewed_by   = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='reviewed_beta_apps', verbose_name='Переглянув',
+    )
+    reviewed_at   = models.DateTimeField(null=True, blank=True)
+    reviewer_note = models.TextField(blank=True, verbose_name='Нотатка адміна')
+
+    created_at  = models.DateTimeField(auto_now_add=True)
+    ip_address  = models.GenericIPAddressField(null=True, blank=True)
+    email_sent  = models.BooleanField(default=False, verbose_name='Лист відправлено')
+
+    class Meta:
+        verbose_name = 'Заявка на бету'
+        verbose_name_plural = 'Заявки на бету'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.company_name} / {self.contact_name} [{self.get_status_display()}]"

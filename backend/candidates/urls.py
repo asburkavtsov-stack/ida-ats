@@ -40,6 +40,7 @@ from .tasks_views import (
     CandidateTasksView, TaskSubmitView, TaskAutoCheckView, TaskReviewView,
 )
 from .views import di_analytics, anonymous_candidate, predictive_analytics
+from .views import beta_status, beta_apply, beta_applications_list, beta_application_review, beta_config_view
 
 router = DefaultRouter()
 router.register(r'candidates',        CandidateViewSet,       basename='candidate')
@@ -139,4 +140,13 @@ urlpatterns = [
     # ── Diversity & Inclusion ─────────────────────────────────────────────────
     path('analytics/di/',                    di_analytics,        name='di-analytics'),
     path('candidates/<int:pk>/anonymous/',   anonymous_candidate, name='candidate-anonymous'),
+
+    # ── Beta Testing ──────────────────────────────────────────────────────────
+    # Public (без авторизації)
+    path('public/beta-status/', beta_status, name='beta_status'),
+    path('public/beta-apply/',  beta_apply,  name='beta_apply'),
+    # Superadmin
+    path('beta/applications/',                       beta_applications_list,  name='beta_applications_list'),
+    path('beta/applications/<int:app_id>/review/',   beta_application_review, name='beta_application_review'),
+    path('beta/config/',                             beta_config_view,        name='beta_config'),
 ]

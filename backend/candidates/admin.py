@@ -151,3 +151,147 @@ class PromoCodeUsageAdmin(admin.ModelAdmin):
     search_fields = ['promo_code__code', 'user__email']
     readonly_fields = ['promo_code', 'user', 'organization', 'applied_to_plan',
                        'original_price', 'discount_amount', 'final_price', 'used_at', 'ip_address']
+
+# ==============================================================================
+# BETA TESTING ADMIN
+# ==============================================================================
+from django.utils import timezone
+from django.core.mail import send_mail
+from django.conf import settings
+from django.contrib import messages
+from .models import BetaApplication, BetaConfig
+
+
+@admin.register(BetaConfig)
+class BetaConfigAdmin(admin.ModelAdmin):
+    """Singleton-налаштування бети."""
+    list_display  = ['beta_open', 'max_slots', 'notify_email', 'approved_count', 'pending_count', 'updated_at']
+    readonly_fields = ['updated_at', 'approved_count', 'pending_count', 'total_count']
+
+    def has_add_permission(self, request):
+        return not BetaConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='Схвалено')
+    def approved_count(self, obj):
+        return BetaApplication.objects.filter(status='approved').count()
+
+    @admin.display(description='Нових')
+    def pending_count(self, obj):
+        return BetaApplication.objects.filter(status='pending').count()
+
+    @admin.display(description='Всього')
+    def total_count(self, obj):
+        return BetaApplication.objects.count()
+
+
+@admin.register(BetaApplication)
+class BetaApplicationAdmin(admin.ModelAdmin):
+    list_display  = [
+        'company_name', 'contact_name', 'email',
+        'team_size', 'current_tool', 'status_badge',
+        'email_sent', 'created_at',
+    ]
+    list_filter   = ['status', 'team_size', 'current_tool', 'email_sent', 'created_at']
+    search_fields = ['company_name', 'contact_name', 'email', 'phone']
+    readonly_fields = ['created_at', 'ip_address', 'reviewed_by', 'reviewed_at', 'email_sent']
+    ordering      = ['-created_at']
+    actions       = ['approve_applications', 'reject_applications']
+
+    fieldsets = (
+        ('Дані заявки', {
+            'fields': ('company_name', 'contact_name', 'email', 'phone',
+                       'team_size', 'current_tool', 'comment'),
+        }),
+        ('Рішення', {
+            'fields': ('status', 'reviewer_note'),
+        }),
+        ('Системне', {
+            'fields': ('reviewed_by', 'reviewed_at', 'email_sent', 'created_at', 'ip_address'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    @admin.display(description='Статус', ordering='status')
+    def status_badge(self, obj):
+        from django.utils.html import format_html
+        colors = {
+            'pending':  ('#f59e0b', '🟡 Нова'),
+            'approved': ('#16a34a', '✅ Схвалено'),
+            'rejected': ('#dc2626', '❌ Відхилено'),
+        }
+        color, label = colors.get(obj.status, ('#6b7280', obj.status))
+        return format_html('<span style="color:{}; font-weight:600;">{}</span>', color, label)
+
+    def _send_email(self, request, obj):
+        try:
+            if obj.status == 'approved':
+                subject = '✅ Вашу заявку на IDA ATS Beta схвалено!'
+                message = (
+                    f'Привіт, {obj.contact_name}!\n\n'
+                    f'Раді повідомити — заявку від «{obj.company_name}» схвалено.\n\n'
+                    f'Найближчим часом ми надішлемо інструкції для доступу до системи.\n\n'
+                    f'— Команда IDA ATS'
+                )
+            else:
+                subject = 'Заявка на IDA ATS Beta'
+                message = (
+                    f'Привіт, {obj.contact_name}!\n\n'
+                    f'Дякуємо за інтерес до IDA ATS.\n\n'
+                    f'На жаль, наразі всі місця в поточній хвилі бети зайняті. '
+                    f'Ми повідомимо, як тільки відкриємо наступну хвилю.\n\n'
+                    + (f'Причина: {obj.reviewer_note}\n\n' if obj.reviewer_note else '')
+                    + '— Команда IDA ATS'
+                )
+            send_mail(
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[obj.email],
+                fail_silently=False,
+            )
+            obj.email_sent = True
+            obj.save(update_fields=['email_sent'])
+            messages.success(request, f'Лист відправлено на {obj.email}')
+        except Exception as e:
+            messages.error(request, f'Не вдалося відправити лист: {e}')
+
+    def save_model(self, request, obj, form, change):
+        old_status = None
+        if change and obj.pk:
+            try:
+                old_status = BetaApplication.objects.get(pk=obj.pk).status
+            except BetaApplication.DoesNotExist:
+                pass
+        if not obj.reviewed_by and obj.status != 'pending':
+            obj.reviewed_by = request.user
+            obj.reviewed_at = timezone.now()
+        super().save_model(request, obj, form, change)
+        if obj.status != old_status and obj.status in ('approved', 'rejected'):
+            self._send_email(request, obj)
+
+    @admin.action(description='✅ Схвалити вибрані заявки')
+    def approve_applications(self, request, queryset):
+        updated = 0
+        for app in queryset.filter(status='pending'):
+            app.status = 'approved'
+            app.reviewed_by = request.user
+            app.reviewed_at = timezone.now()
+            app.save()
+            self._send_email(request, app)
+            updated += 1
+        self.message_user(request, f'Схвалено {updated} заявок.')
+
+    @admin.action(description='❌ Відхилити вибрані заявки')
+    def reject_applications(self, request, queryset):
+        updated = 0
+        for app in queryset.filter(status='pending'):
+            app.status = 'rejected'
+            app.reviewed_by = request.user
+            app.reviewed_at = timezone.now()
+            app.save()
+            self._send_email(request, app)
+            updated += 1
+        self.message_user(request, f'Відхилено {updated} заявок.')

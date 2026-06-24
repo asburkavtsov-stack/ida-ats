@@ -2149,3 +2149,243 @@ def predictive_analytics(request):
         'by_vacancy': vacancy_forecasts,
         'by_source': source_stats,
     })
+
+# ==============================================================================
+# BETA TESTING VIEWS
+# ==============================================================================
+from django.core.mail import send_mail
+from django.conf import settings
+from rest_framework.permissions import AllowAny
+from .models import BetaApplication, BetaConfig
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _get_client_ip(request):
+    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
+    return x_forwarded.split(',')[0].strip() if x_forwarded else request.META.get('REMOTE_ADDR')
+
+
+def _send_beta_email(app):
+    """Надсилає лист заявнику після рішення адміна. Повертає True/False."""
+    try:
+        if app.status == 'approved':
+            subject = '✅ Вашу заявку на IDA ATS Beta схвалено!'
+            message = (
+                f'Привіт, {app.contact_name}!\n\n'
+                f'Раді повідомити — заявку від «{app.company_name}» схвалено.\n\n'
+                f'Найближчим часом ми надішлемо інструкції для доступу до системи.\n\n'
+                f'Якщо є питання — просто відповідайте на цей лист.\n\n'
+                f'— Команда IDA ATS'
+            )
+        else:
+            subject = 'Заявка на IDA ATS Beta'
+            message = (
+                f'Привіт, {app.contact_name}!\n\n'
+                f'Дякуємо за інтерес до IDA ATS.\n\n'
+                f'На жаль, наразі всі місця в поточній хвилі бети зайняті.\n'
+                f'Ми збережемо вашу заявку і повідомимо, як тільки відкриємо наступну хвилю.\n\n'
+                + (f'Причина: {app.reviewer_note}\n\n' if app.reviewer_note else '')
+                + '— Команда IDA ATS'
+            )
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[app.email],
+            fail_silently=False,
+        )
+        app.email_sent = True
+        app.save(update_fields=['email_sent'])
+        return True
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f'[Beta] Email error: {e}')
+        return False
+
+
+def _notify_admin_new_beta_app(app, config):
+    """Сповіщає суперадміна про нову заявку."""
+    notify_to = config.notify_email or settings.DEFAULT_FROM_EMAIL
+    if not notify_to:
+        return
+    try:
+        send_mail(
+            subject=f'[IDA ATS Beta] Нова заявка: {app.company_name}',
+            message=(
+                f'Нова заявка на бета-тестування!\n\n'
+                f'Агенція:   {app.company_name}\n'
+                f'Контакт:   {app.contact_name}\n'
+                f'Email:     {app.email}\n'
+                f'Телефон:   {app.phone or "—"}\n'
+                f'Команда:   {app.get_team_size_display() if app.team_size else "—"}\n'
+                f'Зараз:     {app.get_current_tool_display() if app.current_tool else "—"}\n'
+                f'Коментар:  {app.comment or "—"}\n\n'
+                f'Адмінка: /admin/candidates/betaapplication/{app.id}/change/'
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[notify_to],
+            fail_silently=True,
+        )
+    except Exception:
+        pass
+
+
+# ── Public endpoints ───────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def beta_status(request):
+    """GET /api/public/beta-status/"""
+    config = BetaConfig.get()
+    approved_count = BetaApplication.objects.filter(status='approved').count()
+    return Response({
+        'beta_open': config.beta_open and (approved_count < config.max_slots),
+        'slots_left': max(0, config.max_slots - approved_count),
+    })
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def beta_apply(request):
+    """POST /api/public/beta-apply/"""
+    config = BetaConfig.get()
+
+    if not config.beta_open:
+        return Response(
+            {'error': 'Реєстрацію на бету тимчасово закрито.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    email = request.data.get('email', '').strip().lower()
+    if not email:
+        return Response({'error': 'Email обов\'язковий.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    company_name = request.data.get('company_name', '').strip()
+    contact_name = request.data.get('contact_name', '').strip()
+    if not company_name or not contact_name:
+        return Response({'error': 'Назва агенції та контактна особа обов\'язкові.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if BetaApplication.objects.filter(email__iexact=email).exists():
+        return Response(
+            {'error': 'Заявка з цим email вже існує. Ми вас повідомимо!'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    approved_count = BetaApplication.objects.filter(status='approved').count()
+    if approved_count >= config.max_slots:
+        return Response(
+            {'error': 'Всі місця вже зайняті. Ваша заявка потрапить до листа очікування.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    app = BetaApplication.objects.create(
+        company_name=company_name,
+        contact_name=contact_name,
+        email=email,
+        phone=request.data.get('phone', '').strip(),
+        team_size=request.data.get('team_size', ''),
+        current_tool=request.data.get('current_tool', ''),
+        comment=request.data.get('comment', '').strip(),
+        ip_address=_get_client_ip(request),
+    )
+
+    _notify_admin_new_beta_app(app, config)
+
+    return Response({'ok': True, 'id': app.id}, status=status.HTTP_201_CREATED)
+
+
+# ── Superadmin endpoints ───────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def beta_applications_list(request):
+    """GET /api/beta/applications/?status=pending|approved|rejected"""
+    if not is_superadmin(request.user):
+        return Response({'error': 'Forbidden'}, status=403)
+
+    status_filter = request.query_params.get('status')
+    qs = BetaApplication.objects.all()
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+
+    data = [{
+        'id': app.id,
+        'company_name': app.company_name,
+        'contact_name': app.contact_name,
+        'email': app.email,
+        'phone': app.phone,
+        'team_size': app.team_size,
+        'team_size_display': app.get_team_size_display() if app.team_size else '',
+        'current_tool': app.current_tool,
+        'current_tool_display': app.get_current_tool_display() if app.current_tool else '',
+        'comment': app.comment,
+        'status': app.status,
+        'status_display': app.get_status_display(),
+        'reviewer_note': app.reviewer_note,
+        'email_sent': app.email_sent,
+        'created_at': app.created_at.isoformat(),
+        'reviewed_at': app.reviewed_at.isoformat() if app.reviewed_at else None,
+    } for app in qs]
+
+    return Response(data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def beta_application_review(request, app_id):
+    """POST /api/beta/applications/<id>/review/  body: {action: approve|reject, note: ''}"""
+    if not is_superadmin(request.user):
+        return Response({'error': 'Forbidden'}, status=403)
+
+    app = get_object_or_404(BetaApplication, pk=app_id)
+
+    action_val = request.data.get('action')
+    if action_val not in ('approve', 'reject'):
+        return Response({'error': 'action має бути approve або reject'}, status=400)
+
+    app.status = 'approved' if action_val == 'approve' else 'rejected'
+    app.reviewer_note = request.data.get('note', '')
+    app.reviewed_by = request.user
+    app.reviewed_at = timezone.now()
+    app.save()
+
+    email_ok = _send_beta_email(app)
+
+    return Response({'ok': True, 'status': app.status, 'email_sent': email_ok})
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def beta_config_view(request):
+    """
+    GET  /api/beta/config/  — отримати налаштування
+    POST /api/beta/config/  — оновити налаштування
+    """
+    if not is_superadmin(request.user):
+        return Response({'error': 'Forbidden'}, status=403)
+
+    config = BetaConfig.get()
+
+    if request.method == 'GET':
+        return Response({
+            'beta_open':      config.beta_open,
+            'max_slots':      config.max_slots,
+            'notify_email':   config.notify_email,
+            'approved_count': BetaApplication.objects.filter(status='approved').count(),
+            'pending_count':  BetaApplication.objects.filter(status='pending').count(),
+            'total_count':    BetaApplication.objects.count(),
+        })
+
+    if 'beta_open' in request.data:
+        config.beta_open = bool(request.data['beta_open'])
+    if 'max_slots' in request.data:
+        try:
+            config.max_slots = int(request.data['max_slots'])
+        except (ValueError, TypeError):
+            return Response({'error': 'max_slots має бути числом'}, status=400)
+    if 'notify_email' in request.data:
+        config.notify_email = request.data['notify_email']
+    config.save()
+
+    return Response({'ok': True, 'beta_open': config.beta_open, 'max_slots': config.max_slots})
