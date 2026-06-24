@@ -141,7 +141,7 @@ const BetaAdmin = ({ isMobile }) => {
       fontFamily: 'DM Mono', fontSize: '0.78rem', fontWeight: 600,
       borderBottom: active ? '2px solid #7a1a2e' : '2px solid transparent',
       color: active ? '#7a1a2e' : 'var(--muted)', background: 'transparent',
-      border: 'none', borderBottom: active ? '2px solid #7a1a2e' : '2px solid transparent',
+      border: 'none',
     }),
     table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' },
     th: {
