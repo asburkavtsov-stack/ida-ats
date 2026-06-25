@@ -12,7 +12,7 @@ import Admin from './pages/Admin';
 import Users from './pages/Users';
 import Profile from './pages/Profile';
 import OrgSettings from './pages/OrgSettings';
-import Landing from './pages/Landing';
+//import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
