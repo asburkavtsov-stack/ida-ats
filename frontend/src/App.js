@@ -81,7 +81,6 @@ function App() {
   const handleLoginSuccess = () => {
     setIsAuth(true);
     setShowLogin(false);
-    setShowRegister(false);
     fetchRole();
   };
 
