@@ -63,13 +63,15 @@ const BetaAdmin = ({ isMobile }) => {
     if (!selected) return;
     setReviewing(true);
     try {
-      await axios.post(`/api/beta/applications/${selected.id}/review/`, {
+      const res = await axios.post(`/api/beta/applications/${selected.id}/review/`, {
         action,
         note: reviewNote,
       });
       toast.success(action === 'approve' ? 'Схвалено! Лист відправлено.' : 'Відхилено. Лист відправлено.');
-      setSelected(null);
-      setReviewNote('');
+      // Оновлюємо selected свіжими даними щоб статус одразу змінився в модалі
+      const updatedApp = res.data?.application || { ...selected, status: action === 'approve' ? 'approved' : 'rejected', reviewer_note: reviewNote };
+      setSelected(updatedApp);
+      // Оновлюємо список заявок у фоні
       fetchAll();
     } catch (err) {
       toast.error('Помилка при оновленні статусу');
@@ -93,11 +95,16 @@ const BetaAdmin = ({ isMobile }) => {
   };
 
   const toggleBeta = async () => {
+    const newValue = !config.beta_open;
+    // Optimistic update — одразу міняємо UI
+    setConfig(c => ({ ...c, beta_open: newValue }));
     try {
-      await axios.post('/api/beta/config/', { beta_open: !config.beta_open });
-      toast.success(config.beta_open ? 'Реєстрацію закрито' : 'Реєстрацію відкрито');
+      await axios.post('/api/beta/config/', { beta_open: newValue });
+      toast.success(newValue ? 'Реєстрацію відкрито' : 'Реєстрацію закрито');
       fetchAll();
     } catch {
+      // Rollback якщо помилка
+      setConfig(c => ({ ...c, beta_open: !newValue }));
       toast.error('Помилка');
     }
   };

@@ -12,7 +12,7 @@ import Admin from './pages/Admin';
 import Users from './pages/Users';
 import Profile from './pages/Profile';
 import OrgSettings from './pages/OrgSettings';
-//import Landing from './pages/Landing';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -38,6 +38,7 @@ function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [pwaUpdateAvailable, setPwaUpdateAvailable] = useState(false);
+  const [betaOpen, setBetaOpen] = useState(null); // null = ще завантажується
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
@@ -55,6 +56,13 @@ function App() {
     const handler = () => setPwaUpdateAvailable(true);
     window.addEventListener('pwa-update-available', handler);
     return () => window.removeEventListener('pwa-update-available', handler);
+  }, []);
+
+  // Завантажуємо статус бети один раз при старті
+  useEffect(() => {
+    axios.get('/api/public/beta-status/')
+      .then(res => setBetaOpen(res.data.beta_open))
+      .catch(() => setBetaOpen(true)); // fallback — показуємо BetaLanding
   }, []);
 
   const fetchRole = () => {
@@ -176,10 +184,19 @@ function App() {
   }
 
   if (!isAuth) {
+    // Поки статус бети завантажується — нічого не показуємо
+    if (betaOpen === null) return null;
+
+    // Якщо бета активна — показуємо BetaLanding, інакше — звичайний Landing
+    const PublicPage = betaOpen ? BetaLanding : Landing;
+    const publicProps = betaOpen
+      ? { onLogin: handleShowLogin }
+      : { onLogin: handleShowLogin, onRegister: handleShowLogin };
+
     return (
       <>
-        <ErrorBoundary pageName="Бета-тест">
-          <BetaLanding onLogin={handleShowLogin} />
+        <ErrorBoundary pageName={betaOpen ? 'Бета-тест' : 'Головна'}>
+          <PublicPage {...publicProps} />
         </ErrorBoundary>
         {toaster}
       </>

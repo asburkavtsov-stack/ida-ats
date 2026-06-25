@@ -60,7 +60,9 @@ const BetaLanding = ({ onLogin, onRegister }) => {
     try {
       await axios.post('/api/public/beta-apply/', form);
       setSubmitted(true);
-      toast.success('Заявку отримано! Ми зв\'яжемося з вами найближчим часом.');
+      // scroll to top of form so user sees success state
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast.success('Заявку отримано! Ми зв\'яжемося з вами найближчим часом.', { duration: 6000 });
     } catch (err) {
       const msg = err.response?.data?.error || 'Помилка при відправці. Спробуйте ще раз.';
       toast.error(msg);
