@@ -12,6 +12,7 @@ import Admin from './pages/Admin';
 import Users from './pages/Users';
 import Profile from './pages/Profile';
 import OrgSettings from './pages/OrgSettings';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -20,7 +21,6 @@ import ErrorBoundary from './components/ErrorBoundary';
 import EmailTemplates from './pages/EmailTemplates';
 import InterviewCalendar from './pages/InterviewCalendar';
 import AuditLog from './pages/AuditLog';
-import RegisterModal from './components/RegisterModal';
 import Integrations from './pages/Integrations';
 import Tasks from './pages/Tasks';
 import BetaLanding from './pages/BetaLanding';
@@ -36,8 +36,6 @@ function App() {
   const [userRole, setUserRole] = useState(null);
   const [viewOrgId, setViewOrgId] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
-  const [showRegister, setShowRegister] = useState(false);
-  const [registerPrimaryColor, setRegisterPrimaryColor] = useState('#7a1a2e');
   const [isMobile, setIsMobile] = useState(false);
   const [pwaUpdateAvailable, setPwaUpdateAvailable] = useState(false);
 
@@ -88,11 +86,6 @@ function App() {
   };
 
   const handleShowLogin = () => setShowLogin(true);
-
-  const handleShowRegister = (primaryColor) => {
-    setRegisterPrimaryColor(primaryColor || '#7a1a2e');
-    setShowRegister(true);
-  };
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
@@ -165,6 +158,18 @@ function App() {
       <>
         <ErrorBoundary pageName="Вхід">
           <Login onLogin={handleLoginSuccess} />
+        </ErrorBoundary>
+        {toaster}
+      </>
+    );
+  }
+
+  // ── Beta landing (публічний маршрут /beta) ──────────────────────────────────
+  if (!isAuth && window.location.pathname === '/beta') {
+    return (
+      <>
+        <ErrorBoundary pageName="Бета-тест">
+          <BetaLanding onLogin={handleShowLogin} />
         </ErrorBoundary>
         {toaster}
       </>
