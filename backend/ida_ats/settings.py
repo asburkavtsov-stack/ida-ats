@@ -177,8 +177,6 @@ GOOGLE_CALENDAR_CLIENT_ID = os.getenv('GOOGLE_CALENDAR_CLIENT_ID', '')
 GOOGLE_CALENDAR_CLIENT_SECRET = os.getenv('GOOGLE_CALENDAR_CLIENT_SECRET', '')
 
 # ─── Email / Автосповіщення ───────────────────────────────────────────────────
-# Розробка: листи виводяться в консоль (раскоментуй нижній рядок замість smtp)
-# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 EMAIL_BACKEND      = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
 EMAIL_HOST         = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
@@ -191,3 +189,86 @@ DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', f'IDA ATS <{EMAIL_HOST_USER
 
 # Резервна HR-адреса якщо кандидат без assigned_to і вакансія без owner
 NOTIFICATIONS_FALLBACK_HR_EMAIL = os.getenv('NOTIFICATIONS_FALLBACK_HR_EMAIL', '')
+
+# ─── Logging ──────────────────────────────────────────────────────────────────
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+
+    'formatters': {
+        'verbose': {
+            'format': '{asctime} [{levelname}] {name} {process:d} {thread:d} — {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+        'simple': {
+            'format': '{asctime} [{levelname}] {name} — {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+    },
+
+    'handlers': {
+        # Усі помилки (ERROR+) — у файл errors.log
+        'error_file': {
+            'level': 'ERROR',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'errors.log',
+            'maxBytes': 10 * 1024 * 1024,  # 10 MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
+        # WARNING+ — у файл app.log (загальний журнал)
+        'app_file': {
+            'level': 'WARNING',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOGS_DIR / 'app.log',
+            'maxBytes': 10 * 1024 * 1024,  # 10 MB
+            'backupCount': 5,
+            'formatter': 'simple',
+            'encoding': 'utf-8',
+        },
+        # DEBUG+ — у консоль (тільки під час розробки)
+        'console': {
+            'level': 'DEBUG' if DEBUG else 'WARNING',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+
+    'loggers': {
+        # Наш застосунок
+        'candidates': {
+            'handlers': ['error_file', 'app_file', 'console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
+        # Django — тільки WARNING+
+        'django': {
+            'handlers': ['app_file', 'console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        # Django security/request — окремо в errors.log
+        'django.request': {
+            'handlers': ['error_file', 'console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.security': {
+            'handlers': ['error_file'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    },
+
+    # Корінь: усе інше → консоль
+    'root': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+    },
+}

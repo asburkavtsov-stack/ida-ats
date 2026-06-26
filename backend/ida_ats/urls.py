@@ -6,6 +6,9 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from candidates.views import test_email_config
 from django.conf import settings
 from django.conf.urls.static import static
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def create_superuser_temp(request):
@@ -39,3 +42,21 @@ urlpatterns = [
 # Роздача media-файлів у режимі розробки (CV, аватари тощо)
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+
+# ─── Кастомні обробники помилок ───────────────────────────────────────────────
+
+def handler404(request, exception=None):
+    logger.warning('404 Not Found: %s %s', request.method, request.path)
+    return JsonResponse({'error': 'Сторінку не знайдено'}, status=404)
+
+
+def handler500(request):
+    logger.error('500 Internal Server Error: %s %s', request.method, request.path)
+    return JsonResponse({'error': 'Внутрішня помилка сервера'}, status=500)
+
+
+def handler403(request, exception=None):
+    logger.warning('403 Forbidden: %s %s | user=%s', request.method, request.path,
+                   getattr(request, 'user', 'anonymous'))
+    return JsonResponse({'error': 'Доступ заборонено'}, status=403)

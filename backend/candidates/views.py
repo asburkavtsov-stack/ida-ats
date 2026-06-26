@@ -166,6 +166,7 @@ class VacancyViewSet(VacancyJobBoardMixin, viewsets.ModelViewSet):
                 DQ(owner=user) | DQ(id__in=delegated_ids)
             )
         except Exception:
+            logger.exception('VacancyViewSet.get_queryset — помилка отримання queryset для user=%s', self.request.user)
             return Vacancy.objects.none()
 
     def perform_create(self, serializer):
@@ -179,6 +180,7 @@ class VacancyViewSet(VacancyJobBoardMixin, viewsets.ModelViewSet):
             org = self.request.user.profile.organization
             serializer.save(organization=org, owner=self.request.user)
         except Exception:
+            logger.exception('VacancyViewSet.perform_create — не вдалося отримати організацію для user=%s', self.request.user)
             serializer.save()
 
     # ── Блокування вакансії ────────────────────────────────────────────────────
@@ -229,6 +231,7 @@ class VacancyViewSet(VacancyJobBoardMixin, viewsets.ModelViewSet):
         try:
             role = request.user.profile.role
         except Exception:
+            logger.warning('manage_access — не вдалося отримати роль для user=%s', request.user)
             role = None
         if role not in ['admin', 'superadmin']:
             return Response(
@@ -284,6 +287,7 @@ class VacancyViewSet(VacancyJobBoardMixin, viewsets.ModelViewSet):
         try:
             org = request.user.profile.organization
         except Exception:
+            logger.warning('save_as_template — не вдалося отримати організацію для user=%s', request.user)
             return Response({'error': "Користувач не прив'язаний до організації"}, status=status.HTTP_400_BAD_REQUEST)
 
         template = VacancyTemplate.objects.create(
@@ -1178,6 +1182,7 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
                 return Response({'success': True, 'message': f'Лист відправлено на {candidate.email}',
                                  'sent_email_id': sent_email.id})
         except Exception as e:
+            logger.exception('EmailViewSet.send_email — помилка надсилання листа кандидату sent_email_id=%s', sent_email.id)
             sent_email.status = 'failed'
             sent_email.error_message = str(e)[:500]
             sent_email.save()
@@ -1318,6 +1323,7 @@ def monthly_trend_analytics(request):
         data = AnalyticsService.calculate_monthly_trend(qs)
         return Response({'monthly': data})
     except Exception as e:
+        logger.exception('monthly_trend_analytics — помилка для user=%s', request.user)
         return Response({'error': str(e), 'tb': _tb.format_exc()}, status=500)
 
 
@@ -1437,6 +1443,7 @@ def hr_effectiveness_analytics(request):
             }
         })
     except Exception as e:
+        logger.exception('hr_effectiveness_analytics — помилка для user=%s', request.user)
         return Response({'error': str(e), 'tb': _tb.format_exc()}, status=500)
 
 
@@ -1673,7 +1680,7 @@ def export_full_report_excel(request):
     try:
         return FullReportExportService.export_full_report_pdf(analytics_data)
     except Exception as e:
-        logger.error(f"Full report PDF export failed: {e}")
+        logger.exception("Full report PDF export failed")
         return JsonResponse({'error': 'PDF export failed, try Excel'}, status=500)
 
 
@@ -1726,7 +1733,7 @@ def export_full_report_pdf(request):
     try:
         return FullReportExportService.export_full_report_pdf(analytics_data)
     except Exception as e:
-        logger.error(f"Full report PDF export failed: {e}")
+        logger.exception("Full report PDF export failed")
         return JsonResponse({'error': 'PDF export failed, try Excel'}, status=500)
 
 
@@ -2199,8 +2206,7 @@ def _send_beta_email(app):
         app.save(update_fields=['email_sent'])
         return True
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).error(f'[Beta] Email error: {e}')
+        logger.exception('[Beta] Email error для заявки id=%s: %s', app.id, e)
         return False
 
 
@@ -2228,7 +2234,7 @@ def _notify_admin_new_beta_app(app, config):
             fail_silently=True,
         )
     except Exception:
-        pass
+        logger.exception('_notify_admin_new_beta_app — помилка надсилання email адміну (%s)', notify_to)
 
 
 # ── Public endpoints ───────────────────────────────────────────────────────────
