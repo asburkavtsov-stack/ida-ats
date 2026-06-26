@@ -7,7 +7,8 @@ from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 
 from rest_framework import serializers, status, viewsets, permissions, generics
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
+from .throttles import LoginRateThrottle, PublicEndpointThrottle, ExportRateThrottle
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -803,6 +804,7 @@ class CandidateViewSet(viewsets.ModelViewSet):
 
 class CandidateExportCSVView(APIView):
     permission_classes = [IsAuthenticated, IsOrgMember]
+    throttle_classes = [ExportRateThrottle]
 
     STATUS_LABELS = {'new': 'Новий', 'screening': 'Скринінг', 'interview': 'Співбесіда', 'offer': 'Оффер',
                      'rejected': 'Відмова'}
@@ -1369,6 +1371,7 @@ def candidate_time_to_hire_detail(request, candidate_id):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
+@throttle_classes([ExportRateThrottle])
 def export_time_to_hire_csv(request):
     role = get_user_role(request.user)
     if role == 'superadmin':
@@ -1449,6 +1452,7 @@ def hr_effectiveness_analytics(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
+@throttle_classes([ExportRateThrottle])
 def export_hr_effectiveness_csv(request):
     role = get_user_role(request.user)
     if role == 'superadmin':
@@ -1491,6 +1495,7 @@ def export_hr_effectiveness_csv(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
+@throttle_classes([ExportRateThrottle])
 def export_time_to_hire_excel(request):
     role = get_user_role(request.user)
     if role == 'superadmin':
@@ -1513,6 +1518,7 @@ def export_time_to_hire_excel(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
+@throttle_classes([ExportRateThrottle])
 def export_time_to_hire_pdf(request):
     role = get_user_role(request.user)
     if role == 'superadmin':
@@ -1535,6 +1541,7 @@ def export_time_to_hire_pdf(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
+@throttle_classes([ExportRateThrottle])
 def export_hr_effectiveness_excel(request):
     role = get_user_role(request.user)
     if role == 'superadmin':
@@ -1558,6 +1565,7 @@ def export_hr_effectiveness_excel(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
+@throttle_classes([ExportRateThrottle])
 def export_hr_effectiveness_pdf(request):
     role = get_user_role(request.user)
     org = None
@@ -1595,6 +1603,7 @@ def export_hr_effectiveness_pdf(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
+@throttle_classes([ExportRateThrottle])
 def export_full_report_excel(request):
     role = get_user_role(request.user)
     if role == 'superadmin':
@@ -1686,6 +1695,7 @@ def export_full_report_excel(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsOrgMember])
+@throttle_classes([ExportRateThrottle])
 def export_full_report_pdf(request):
     role = get_user_role(request.user)
     if role == 'superadmin':
@@ -1793,6 +1803,7 @@ class PricingConfigViewSet(viewsets.ModelViewSet):
 
 @api_view(['GET'])
 @permission_classes([])
+@throttle_classes([PublicEndpointThrottle])
 def public_pricing(request):
     return Response(PricingConfig.get_all_prices())
 
@@ -1874,6 +1885,7 @@ class PromoCodeViewSet(viewsets.ModelViewSet):
 
 class RegisterView(APIView):
     permission_classes = []
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request):
         from .serializers import RegisterSerializer
@@ -2241,6 +2253,7 @@ def _notify_admin_new_beta_app(app, config):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@throttle_classes([PublicEndpointThrottle])
 def beta_status(request):
     """GET /api/public/beta-status/"""
     config = BetaConfig.get()
@@ -2253,6 +2266,7 @@ def beta_status(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([PublicEndpointThrottle])
 def beta_apply(request):
     """POST /api/public/beta-apply/"""
     config = BetaConfig.get()

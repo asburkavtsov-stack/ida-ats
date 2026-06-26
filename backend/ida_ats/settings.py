@@ -169,6 +169,23 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+
+    # ── Rate Limiting ──────────────────────────────────────────────────────────
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon':         '100/hour',   # анонімні користувачі (глобально)
+        'user':         '1000/hour',  # авторизовані користувачі (глобально)
+        'login':        '10/min',     # brute-force захист login/register
+        'public':       '30/min',     # публічні ендпоінти (pricing, beta)
+        'webhook':      '200/hour',   # вхідні webhooks від job boards
+        'external_api': '200/hour',   # зовнішнє REST API (по API Key)
+        'vacancy_feed': '60/hour',    # XML-фіди для job board сервісів
+        'export':       '30/hour',    # CSV/Excel/PDF звіти
+        'gdpr':         '20/hour',    # GDPR операції (anonymize, export)
+    },
 }
 
 # Google Calendar API

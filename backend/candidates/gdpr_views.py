@@ -29,6 +29,7 @@ from rest_framework.views import APIView
 from .models import Candidate, GDPRSettings, Organization
 from .serializers import GDPRSettingsSerializer, CandidateSerializer
 from .permissions import IsOrgAdmin
+from .throttles import GDPROperationThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,7 @@ class CandidateGDPRAnonymizeView(APIView):
     Body: { "confirm": true }
     """
     permission_classes = [IsAuthenticated, IsOrgAdmin]
+    throttle_classes = [GDPROperationThrottle]
 
     def post(self, request, pk):
         org = _get_org(request.user)
@@ -135,6 +137,7 @@ class CandidateGDPRExportView(APIView):
     Повертає всі персональні дані кандидата у машиночитаємому форматі.
     """
     permission_classes = [IsAuthenticated]
+    throttle_classes = [GDPROperationThrottle]
 
     def get(self, request, pk):
         org = _get_org(request.user)
@@ -305,6 +308,7 @@ class GDPRRunCleanupView(APIView):
     Повертає кількість оброблених записів.
     """
     permission_classes = [IsAuthenticated, IsOrgAdmin]
+    throttle_classes = [GDPROperationThrottle]
 
     def post(self, request):
         org = _get_org(request.user)

@@ -4,11 +4,20 @@ from django.http import JsonResponse
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from candidates.views import test_email_config
+from candidates.throttles import LoginRateThrottle
 from django.conf import settings
 from django.conf.urls.static import static
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+class ThrottledTokenObtainPairView(TokenObtainPairView):
+    throttle_classes = [LoginRateThrottle]
+
+
+class ThrottledTokenRefreshView(TokenRefreshView):
+    throttle_classes = [LoginRateThrottle]
 
 
 def create_superuser_temp(request):
@@ -33,13 +42,12 @@ def create_superuser_temp(request):
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('candidates.urls')),
-    path('api/auth/login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/auth/login/',   ThrottledTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/auth/refresh/', ThrottledTokenRefreshView.as_view(),    name='token_refresh'),
     path('api/test-email-config/', test_email_config, name='test_email_config'),
     path('setup-superuser/', create_superuser_temp),
 ]
 
-# Роздача media-файлів у режимі розробки (CV, аватари тощо)
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 

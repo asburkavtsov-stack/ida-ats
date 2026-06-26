@@ -13,6 +13,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .throttles import ExportRateThrottle
 from .models import (
     Candidate, Task, TaskAssignment, TaskSubmission, Vacancy,
 )
@@ -420,6 +421,7 @@ class TaskSubmitView(APIView):
         }
     """
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ExportRateThrottle]  # обмежуємо — може запускати код
 
     def post(self, request, pk):
         org = _get_org(request.user)
@@ -503,6 +505,7 @@ class TaskAutoCheckView(APIView):
     Ручний запуск авто-перевірки коду (для вже зданих завдань).
     """
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ExportRateThrottle]  # обмежуємо — запускає subprocess
 
     def post(self, request, pk):
         org = _get_org(request.user)

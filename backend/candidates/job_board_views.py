@@ -4,11 +4,12 @@ from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from rest_framework import status
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 
 from .models import Candidate, Vacancy
+from .throttles import WebhookRateThrottle, VacancyFeedThrottle
 from .serializers import VacancyPublishSerializer, CandidateSerializer
 from .job_boards import rabota_ua as rabota_ua_client
 from .job_boards import workua as workua_client
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@throttle_classes([VacancyFeedThrottle])
 def vacancy_feed_rabota_ua(request):
     feed_token = request.query_params.get('token', '')
     from django.conf import settings
@@ -36,6 +38,7 @@ def vacancy_feed_rabota_ua(request):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@throttle_classes([VacancyFeedThrottle])
 def vacancy_feed_work_ua(request):
     feed_token = request.query_params.get('token', '')
     from django.conf import settings
@@ -166,6 +169,7 @@ class VacancyJobBoardMixin:
 @csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([WebhookRateThrottle])
 def work_ua_webhook(request):
     from django.conf import settings
     secret = getattr(settings, 'WORK_UA_WEBHOOK_SECRET', '')
@@ -214,6 +218,7 @@ def work_ua_webhook(request):
 @csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([WebhookRateThrottle])
 def job_board_application_webhook(request):
     from django.conf import settings
     secret = getattr(settings, 'WEBHOOK_SECRET', '')

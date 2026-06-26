@@ -24,6 +24,7 @@ from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .throttles import ExternalAPIThrottle
 from .models import (
     Candidate, ExternalAPIKey, Organization, Vacancy, VacancyStage,
     WebhookEndpoint, WebhookLog,
@@ -168,6 +169,7 @@ class ExtVacancyListView(APIView):
         offset      — зсув для пагінації
     """
     permission_classes = [ReadOnlyAPIKeyPermission]
+    throttle_classes = [ExternalAPIThrottle]
 
     def get(self, request):
         org = request.api_org
@@ -213,6 +215,7 @@ class ExtVacancyDetailView(APIView):
     Деталі однієї вакансії.
     """
     permission_classes = [ReadOnlyAPIKeyPermission]
+    throttle_classes = [ExternalAPIThrottle]
 
     def get(self, request, pk):
         org = request.api_org
@@ -243,6 +246,7 @@ class ExtCandidateCreateView(APIView):
     Returns 201 Created або 200 OK якщо кандидат вже існує.
     """
     permission_classes = [WriteAPIKeyPermission]
+    throttle_classes = [ExternalAPIThrottle]
 
     def post(self, request):
         org = request.api_org
@@ -299,6 +303,7 @@ class ExtCandidateStatusView(APIView):
     Повертає поточний статус кандидата + коротку історію.
     """
     permission_classes = [ReadOnlyAPIKeyPermission]
+    throttle_classes = [ExternalAPIThrottle]
 
     def get(self, request, pk):
         org = request.api_org
@@ -351,6 +356,7 @@ class ExtWebhookListCreateView(APIView):
         vacancy.closed
     """
     permission_classes = [WriteAPIKeyPermission]
+    throttle_classes = [ExternalAPIThrottle]
 
     def get(self, request):
         org = request.api_org
@@ -385,6 +391,7 @@ class ExtWebhookDetailView(APIView):
     DELETE /api/v1/ext/webhooks/<id>/   — видалити
     """
     permission_classes = [WriteAPIKeyPermission]
+    throttle_classes = [ExternalAPIThrottle]
 
     def _get_endpoint(self, pk, org):
         try:
@@ -422,6 +429,7 @@ class ExtWebhookTestView(APIView):
     Надсилає тестовий ping на URL вебхука.
     """
     permission_classes = [WriteAPIKeyPermission]
+    throttle_classes = [ExternalAPIThrottle]
 
     def post(self, request, pk):
         try:
@@ -445,6 +453,7 @@ class ExtWebhookLogsView(APIView):
     Останні 50 логів вебхука.
     """
     permission_classes = [ReadOnlyAPIKeyPermission]
+    throttle_classes = [ExternalAPIThrottle]
 
     def get(self, request, pk):
         try:
@@ -471,6 +480,7 @@ class ExtAPIKeyInfoView(APIView):
     Повертає інформацію про поточний API-ключ.
     """
     permission_classes = [ReadOnlyAPIKeyPermission]
+    throttle_classes = [ExternalAPIThrottle]
 
     def get(self, request):
         key = request.api_key
